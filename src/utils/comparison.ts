@@ -14,13 +14,18 @@ export interface ComparisonRow {
 }
 
 export function buildComparisonRows(task: Task): ComparisonRow[] {
-  return task.canonicalFields.map(field => {
+  // Only show rows where at least one document has the field mapped
+  const relevantFields = task.canonicalFields.filter(field =>
+    task.documents.some(doc => doc.fieldMapping[field] !== undefined)
+  );
+
+  return relevantFields.map(field => {
     const correctValue = task.correctValues[field];
     const cells: ComparisonCell[] = task.documents.map(doc => {
       const originalFieldName = doc.fieldMapping[field];
-      const value = doc.values[originalFieldName] ?? '';
+      const value = originalFieldName ? (doc.values[originalFieldName] ?? '') : '';
       const isMatch = value === correctValue;
-      return { originalFieldName, value, isMatch };
+      return { originalFieldName: originalFieldName ?? '', value, isMatch };
     });
     const rowStatus = cells.every(c => c.isMatch) ? 'match' : 'mismatch';
     return { canonicalField: field, correctValue, cells, rowStatus };

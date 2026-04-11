@@ -1,10 +1,19 @@
 import type { Task } from '../data/mockData';
+import type { VerificationType } from '../App';
 import StatusBadge from './StatusBadge';
 import ComparisonTable from './ComparisonTable';
 import StepMap from './StepMap';
 
+const VERIFICATION_LABELS: Record<VerificationType, string> = {
+  customFormality: 'Custom Formality Verification',
+  insurance:       'Insurance Verification',
+  draftBL:         'Draft B/L Verification',
+  blDate:          'B/L Date Verification',
+};
+
 interface TaskDetailPageProps {
   task: Task;
+  verificationType: VerificationType;
   onBack: () => void;
   onApprove: () => void;
   onReject: () => void;
@@ -16,7 +25,7 @@ function formatDate(iso: string): string {
   return `${parseInt(day)} ${months[parseInt(month) - 1]} ${year}`;
 }
 
-export default function TaskDetailPage({ task, onBack, onApprove, onReject }: TaskDetailPageProps) {
+export default function TaskDetailPage({ task, verificationType, onBack, onApprove, onReject }: TaskDetailPageProps) {
   const isActioned = task.status === 'Approved' || task.status === 'Rejected';
 
   return (
@@ -33,12 +42,14 @@ export default function TaskDetailPage({ task, onBack, onApprove, onReject }: Ta
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-            Back to Tasks
+            Back to CI Overview
           </button>
           <div className="flex items-center gap-2 flex-wrap">
             <h1 className="text-base font-bold text-gray-800">
               CI {task.id}
             </h1>
+            <span className="text-gray-400 text-sm">·</span>
+            <span className="text-sm font-medium text-[#0056b8]">{VERIFICATION_LABELS[verificationType]}</span>
             <StatusBadge status={task.status} />
           </div>
         </div>
@@ -116,7 +127,7 @@ export default function TaskDetailPage({ task, onBack, onApprove, onReject }: Ta
           </p>
         </div>
         <div className="overflow-auto flex-1">
-          <ComparisonTable task={task} />
+          <ComparisonTable task={task} verificationType={verificationType} />
         </div>
       </div>
 
