@@ -167,7 +167,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
         <div className="flex items-center gap-6 flex-wrap">
           <div>
             <p className="text-xs text-gray-500 mb-0.5">CI No.</p>
-            <p className="text-sm font-medium text-gray-800 font-mono">{task.id}</p>
+            <p className="text-sm font-medium text-gray-800">{task.id}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-0.5">Assigned To</p>

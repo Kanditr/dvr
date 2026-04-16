@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import type { Task } from '../data/mockData';
 
 const MONTHS: Record<string, string> = {
@@ -17,83 +17,9 @@ interface BLDateTableProps {
   task: Task;
 }
 
-// ── Column filter dropdown ──────────────────────────────────────────────────
-interface ColumnFilterProps {
-  label: string;
-  allValues: string[];
-  selected: string[];
-  onChange: (values: string[]) => void;
-}
-
-function ColumnFilter({ label, allValues, selected, onChange }: ColumnFilterProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function onMouseDown(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener('mousedown', onMouseDown);
-    return () => document.removeEventListener('mousedown', onMouseDown);
-  }, []);
-
-  const isFiltered = selected.length > 0 && selected.length < allValues.length;
-  const allChecked = selected.length === 0 || selected.length === allValues.length;
-
-  function toggle(val: string) {
-    const current = selected.length === 0 ? [...allValues] : [...selected];
-    const next = current.includes(val) ? current.filter(v => v !== val) : [...current, val];
-    onChange(next.length === allValues.length ? [] : next);
-  }
-
-  return (
-    <div ref={ref} className="relative w-full">
-      <div
-        onClick={() => setOpen(o => !o)}
-        className="flex items-center justify-between gap-1 cursor-pointer select-none w-full"
-      >
-        <span>{label}</span>
-        <svg
-          className={`w-3 h-3 shrink-0 transition-opacity ${isFiltered ? 'opacity-100 text-[#0056b8]' : 'opacity-40 group-hover:opacity-100 text-gray-400'}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24"
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-      {open && (
-        <div className="absolute top-full left-0 z-50 mt-1 bg-white border border-gray-200 rounded-md shadow-lg min-w-[10rem] max-h-60 overflow-y-auto">
-          <div className="p-1">
-            <label className="flex items-center gap-2 px-2 py-1 text-xs rounded hover:bg-gray-50 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={allChecked}
-                onChange={() => onChange(allChecked ? [] : allValues)}
-                className="accent-[#0056b8]"
-              />
-              <span className="font-medium">(Select All)</span>
-            </label>
-            <div className="my-1 border-t border-gray-100" />
-            {allValues.map(val => (
-              <label key={val} className="flex items-center gap-2 px-2 py-1 text-xs rounded hover:bg-gray-50 cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={selected.length === 0 || selected.includes(val)}
-                  onChange={() => toggle(val)}
-                  className="accent-[#0056b8]"
-                />
-                <span className="truncate max-w-[12rem]">{val || '—'}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Main component ──────────────────────────────────────────────────────────
 export default function BLDateTable({ task }: BLDateTableProps) {
-  const [columnFilters, setColumnFilters] = useState<Record<string, string[]>>({});
+  const [fieldFilter, setFieldFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
 
   const obl = task.documents.find(d => d.type === 'Original B/L');
   const blDateRaw = obl ? (obl.values[obl.fieldMapping['B/L Date']] ?? '') : '';
@@ -106,99 +32,119 @@ export default function BLDateTable({ task }: BLDateTableProps) {
     { fieldName: 'Manual Billing Date', valueRaw: task.correctValues['Manual Billing Date'] ?? '' },
   ].map(row => ({ ...row, isMatch: blDateRaw === row.valueRaw, formatted: formatDate(row.valueRaw) }));
 
-  function setFilter(key: string, values: string[]) {
-    setColumnFilters(prev => ({ ...prev, [key]: values }));
-  }
-
-  function getUniqueValues(key: string): string[] {
-    if (key === 'field') return [...new Set(allRows.map(r => r.fieldName))];
-    if (key === 'status') return ['Match', 'Mismatch'];
-    return [];
-  }
+  const uniqueFields = allRows.map(r => r.fieldName);
 
   const rows = allRows.filter(row => {
-    const fieldFilter = columnFilters['field'];
-    if (fieldFilter?.length && !fieldFilter.includes(row.fieldName)) return false;
-
-    const statusFilter = columnFilters['status'];
-    if (statusFilter?.length && !statusFilter.includes(row.isMatch ? 'Match' : 'Mismatch')) return false;
-
+    if (fieldFilter && row.fieldName !== fieldFilter) return false;
+    if (statusFilter) {
+      const label = row.isMatch ? 'Match' : 'Mismatch';
+      if (label !== statusFilter) return false;
+    }
     return true;
   });
 
+  const hasActiveFilter = fieldFilter !== '' || statusFilter !== '';
+
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-[#d9ecf3] border-b border-gray-200">
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 group cursor-pointer">
-              <ColumnFilter label="Field"
-                allValues={getUniqueValues('field')}
-                selected={columnFilters['field'] ?? []}
-                onChange={v => setFilter('field', v)}
-              />
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">
-              Original B/L
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">
-              DocXPort
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 group cursor-pointer">
-              <ColumnFilter label="Status"
-                allValues={getUniqueValues('status')}
-                selected={columnFilters['status'] ?? []}
-                onChange={v => setFilter('status', v)}
-              />
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {!hasData && (
-            <tr>
-              <td colSpan={4} className="px-6 py-10 text-sm text-gray-400">
-                No transaction found. B/L Date information has not yet been received from the source.
-              </td>
-            </tr>
-          )}
-          {hasData && rows.length === 0 && (
-            <tr>
-              <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">
-                No rows match the current filter.
-              </td>
-            </tr>
-          )}
-          {hasData && rows.map((row, idx) => (
-            <tr
-              key={row.fieldName}
-              className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}
+    <div>
+      {/* Filter bar */}
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 flex-wrap bg-white">
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Field</label>
+          <div className="relative">
+            <select
+              value={fieldFilter}
+              onChange={e => setFieldFilter(e.target.value)}
+              className="appearance-none pl-3 pr-8 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 min-w-[160px]"
             >
-              <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4">
-                Date
-              </td>
-              <td className={`px-4 py-3 align-top ${row.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
-                <span className="block text-xs text-gray-500 mb-0.5">B/L Date</span>
-                <span className="block text-sm font-medium text-gray-900">{blDate || '—'}</span>
-              </td>
-              <td className={`px-4 py-3 align-top ${row.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
-                <span className="block text-xs text-gray-500 mb-0.5">{row.fieldName}</span>
-                <span className="block text-sm font-medium text-gray-900">{row.formatted || '—'}</span>
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                {row.isMatch ? (
-                  <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36]">
-                    Match
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00]">
-                    Mismatch
-                  </span>
-                )}
-              </td>
+              <option value="">All</option>
+              {uniqueFields.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+            <svg className="absolute right-2 top-2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Status</label>
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="appearance-none pl-3 pr-8 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 min-w-[120px]"
+            >
+              <option value="">All</option>
+              <option value="Match">Match</option>
+              <option value="Mismatch">Mismatch</option>
+            </select>
+            <svg className="absolute right-2 top-2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+
+        {hasActiveFilter && (
+          <button
+            onClick={() => { setFieldFilter(''); setStatusFilter(''); }}
+            className="self-end text-xs text-[#0056b8] hover:underline pb-[3px]"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-[#d9ecf3] border-b border-gray-200">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36">Field</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">Original B/L</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">DocXPort</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28">Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {!hasData && (
+              <tr>
+                <td colSpan={4} className="px-6 py-10 text-sm text-gray-400">
+                  No transaction found. B/L Date information has not yet been received from the source.
+                </td>
+              </tr>
+            )}
+            {hasData && rows.length === 0 && (
+              <tr>
+                <td colSpan={4} className="px-4 py-8 text-center text-sm text-gray-400">
+                  No rows match the current filter.
+                </td>
+              </tr>
+            )}
+            {hasData && rows.map((row, idx) => (
+              <tr key={row.fieldName} className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}>
+                <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4">
+                  {row.fieldName}
+                </td>
+                <td className={`px-4 py-3 align-top ${row.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
+                  <span className="block text-xs text-gray-500 mb-0.5">B/L Date</span>
+                  <span className="block text-sm font-medium text-gray-900">{blDate || '—'}</span>
+                </td>
+                <td className={`px-4 py-3 align-top ${row.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
+                  <span className="block text-xs text-gray-500 mb-0.5">{row.fieldName}</span>
+                  <span className="block text-sm font-medium text-gray-900">{row.formatted || '—'}</span>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
+                  {row.isMatch ? (
+                    <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36]">Match</span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00]">Mismatch</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

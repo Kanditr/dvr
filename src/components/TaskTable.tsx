@@ -134,7 +134,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               key={task.id}
               className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}
             >
-              <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap font-mono">
+              <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap">
                 {task.id}
               </td>
               <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
@@ -153,7 +153,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                     className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
                     onClick={() => onSelectTask(task.id, key)}
                   >
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${STATUS_STYLE[status]}`}>
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLE[status]}`}>
                       {STATUS_SHORT[status]}
                     </span>
                   </td>
