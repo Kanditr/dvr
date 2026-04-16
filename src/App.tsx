@@ -75,7 +75,6 @@ export default function App() {
   const [currentUser, setCurrentUser] = useLocalStorage<string | null>('dvr:currentUser', null);
 
   const [view, setView] = useState<View>(parseHash);
-  const [prevView, setPrevView] = useState<View>({ page: 'home' });
 
   const [autoApprove, setAutoApprove] = useLocalStorage<boolean>('dvr:autoApprove', false);
   const [onlyMyTasks, setOnlyMyTasks] = useLocalStorage<boolean>('dvr:onlyMyTasks', false);
@@ -142,16 +141,6 @@ export default function App() {
     window.scrollTo(0, 0);
   }
 
-  function handleApprove(taskId: string) {
-    setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Approved' as TaskStatus } : t));
-    navigateHome();
-  }
-
-  function handleReject(taskId: string) {
-    setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Rejected' as TaskStatus } : t));
-    navigateHome();
-  }
-
   function handleApproveVerification(taskId: string, verificationType: VerificationType) {
     setBaseTasks(prev => prev.map(t => {
       if (t.id !== taskId) return t;
@@ -196,21 +185,8 @@ export default function App() {
     if (value) setOnlyMyTasks(true);
   }
 
-  function navigateToLlmCompare() {
-    const next: View = { page: 'llm-compare' };
-    setHash(next);
-    setView(next);
-    window.scrollTo(0, 0);
-  }
-
-  function navigateToSettings() {
-    setPrevView(view);
-    setView({ page: 'settings' });
-    window.scrollTo(0, 0);
-  }
-
   function navigateBack() {
-    setView(prevView);
+    navigateHome();
     window.scrollTo(0, 0);
   }
 
@@ -233,14 +209,14 @@ export default function App() {
       <Navbar currentUser={currentUser} onNavigateHome={navigateHome} onLogout={handleLogout} />
 
       {view.page === 'home' && (
-        <div className="max-w-screen-xl mx-auto px-6 py-6">
-          <div className="mb-6">
-            <h1 className="text-xl font-bold text-gray-800">Document Verification Tasks</h1>
-            <p className="text-sm text-gray-500 mt-1">
+        <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-4 sm:py-6">
+          <div className="mb-4 sm:mb-6">
+            <h1 className="font-semibold" style={{ fontSize: 'var(--text-xl)', color: 'var(--os-text-primary)' }}>Document Verification Tasks</h1>
+            <p className="mt-1" style={{ fontSize: 'var(--text-sm)', color: 'var(--os-text-muted)' }}>
               Review and verify shipping documents against system records.
             </p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-lg overflow-hidden" style={{ border: '1px solid var(--os-border)', boxShadow: 'var(--os-shadow-sm)' }}>
             <TaskFilterBar
               search={search}
               onSearchChange={setSearch}

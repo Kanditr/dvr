@@ -1,73 +1,100 @@
-# React + TypeScript + Vite
+# Document Verification (DVR)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A web application for reviewing and verifying shipping documents against system records. Built for GC (PTT Global Chemical) internal operations.
 
-Currently, two official plugins are available:
+## Tech Stack
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+| Layer | Technology |
+|-------|-----------|
+| UI Framework | React 19 + TypeScript |
+| Build Tool | Vite 7 |
+| Styling | Tailwind CSS v3 + OutSystems UI v2 design tokens |
+| State | React `useState` / `useLocalStorage` hook |
+| Export | `xlsx` (Excel export) |
 
-## React Compiler
+## Getting Started
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+> **Requires Node.js 20.19+ or 22.12+.** If you use `nvm`, run `nvm use 22` first.
 
-## Expanding the ESLint configuration
+```bash
+# Install dependencies
+npm install
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+# Start dev server
+npm run dev
+# → http://localhost:5173/
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+# Production build
+npm run build
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+# Preview production build
+npm run preview
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Project Structure
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+src/
+├── assets/           Static assets (logo, images)
+├── components/       All React page & UI components
+│   ├── Navbar.tsx
+│   ├── LoginPage.tsx
+│   ├── TaskTable.tsx
+│   ├── TaskFilterBar.tsx
+│   ├── CiOverviewPage.tsx
+│   ├── ComparisonTable.tsx
+│   ├── StepMap.tsx       ← OS UI Wizard stepper
+│   ├── StatusBadge.tsx
+│   ├── ActionBar.tsx
+│   ├── SettingsPage.tsx
+│   └── ...
+├── data/             Mock data & types (mockData.ts)
+├── hooks/            Custom hooks (useLocalStorage)
+├── services/         LLM comparison service
+├── utils/            Excel export, comparison helpers
+├── App.tsx           Root component & routing (hash-based)
+└── index.css         Global styles & OS UI design tokens
+```
+
+## Design System
+
+This app uses **OutSystems UI v2** design tokens. Key CSS variables defined in `src/index.css`:
+
+| Token | Value | Usage |
+|-------|-------|-------|
+| `--os-primary` | `#1068eb` | Buttons, links, active states |
+| `--os-primary-hover` | `#295fd6` | Button hover |
+| `--os-body-bg` | `#f3f6f8` | Page background |
+| `--os-border` | `#dee2e6` | Card & input borders |
+| `--os-text-primary` | `#272b30` | Headings, primary text |
+| `--os-text-secondary` | `#4f575e` | Labels, secondary text |
+| `--os-text-muted` | `#6a7178` | Hints, metadata |
+| `--os-success` | `#29823b` | Approved / All Matches |
+| `--os-warning` | `#e9a100` | Needs Attention |
+| `--os-error` | `#dc2020` | Rejected |
+| `--os-info` | `#017aad` | Informational |
+
+## Agent Skills
+
+This repository includes agent skill files in `.agents/skills/` to assist AI coding assistants. Each skill provides guidelines, patterns, and references for its domain:
+
+| Skill | Description |
+|-------|-------------|
+| `frontend-design` | Production-grade UI design guidelines — typography, color, motion, layout |
+| `accessibility` | WCAG 2.2 compliance — keyboard nav, ARIA, contrast, screen reader support |
+| `vite` | Vite 8/Rolldown config, plugin API, SSR, build optimisation |
+| `vercel-react-best-practices` | React performance patterns — eliminating waterfalls, bundle size, Suspense |
+| `vercel-composition-patterns` | React composition — compound components, state lifting, context patterns |
+| `nodejs-backend-patterns` | Node.js backend patterns for API routes and services |
+| `typescript-advanced-types` | Advanced TypeScript — generics, conditional types, utility types |
+| `seo` | SEO best practices for web apps |
+
+When asking an AI assistant to work on a specific area, reference the relevant skill file for context-aware suggestions.
+
+## Branches
+
+| Branch | Purpose |
+|--------|---------|
+| `master` | Stable base |
+| `marisa/ui-updates` | Marisa's UI updates |
+| `noppanan.p/updates` | UX improvements — OS UI consistency, responsive design |

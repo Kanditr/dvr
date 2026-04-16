@@ -12,9 +12,8 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       role="switch"
       aria-checked={checked}
       onClick={() => onChange(!checked)}
-      className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200 mt-0.5 ${
-        checked ? 'bg-[#0056b8]' : 'bg-gray-300'
-      }`}
+      className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full transition-colors duration-200 mt-0.5"
+      style={{ backgroundColor: checked ? 'var(--os-primary)' : '#ced4da' }}
     >
       <span
         className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform duration-200 mt-0.5 ${
@@ -31,10 +30,11 @@ export default function SettingsPage({
   onBack,
 }: SettingsPageProps) {
   return (
-    <div className="max-w-screen-xl mx-auto px-6 py-8">
+    <div className="max-w-screen-xl mx-auto px-3 sm:px-6 py-6 sm:py-8">
       <button
         onClick={onBack}
-        className="flex items-center gap-1.5 text-sm text-[#0056b8] hover:underline mb-6"
+        className="flex items-center gap-1.5 text-sm hover:underline mb-6"
+        style={{ color: 'var(--os-primary)' }}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -42,16 +42,16 @@ export default function SettingsPage({
         Back
       </button>
 
-      <h1 className="text-xl font-bold text-gray-800 mb-1">Settings</h1>
-      <p className="text-sm text-gray-500 mb-8">Manage your application preferences.</p>
+      <h1 className="text-xl font-bold mb-1" style={{ color: 'var(--os-text-primary)' }}>Settings</h1>
+      <p className="text-sm mb-8" style={{ color: 'var(--os-text-muted)' }}>Manage your application preferences.</p>
 
-      <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100 max-w-xl">
+      <div className="bg-white rounded-lg max-w-xl" style={{ border: '1px solid var(--os-border)' }}>
 
         {/* Show only my tasks */}
-        <div className="px-6 py-5 flex items-start justify-between gap-6">
+        <div className="px-4 sm:px-6 py-5 flex items-start justify-between gap-6" style={{ borderBottom: '1px solid var(--os-border)' }}>
           <div>
-            <p className="text-sm font-semibold text-gray-800">Show Only My Tasks</p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm font-semibold" style={{ color: 'var(--os-text-primary)' }}>Show Only My Tasks</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--os-text-muted)' }}>
               When enabled, the task list will only show tasks assigned to you.
             </p>
           </div>
@@ -59,10 +59,10 @@ export default function SettingsPage({
         </div>
 
         {/* Auto Approve */}
-        <div className="px-6 py-5 flex items-start justify-between gap-6">
+        <div className="px-4 sm:px-6 py-5 flex items-start justify-between gap-6">
           <div>
-            <p className="text-sm font-semibold text-gray-800">Auto Approve</p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm font-semibold" style={{ color: 'var(--os-text-primary)' }}>Auto Approve</p>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--os-text-muted)' }}>
               When enabled, all document verifications are automatically approved. The Approve button will be disabled on individual tasks.
             </p>
           </div>

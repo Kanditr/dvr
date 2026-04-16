@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect } from 'react';
-import type { Task, VerificationStatus, Verifications } from '../data/mockData';
-import { deriveOverallStatus } from '../data/mockData';
+import type { Task, VerificationStatus } from '../data/mockData';
 import type { VerificationType } from '../App';
 import { exportVerificationTab } from '../utils/exportExcel';
 import ComparisonTable from './ComparisonTable';
@@ -42,19 +41,19 @@ const TABS: TabDef[] = [
   },
 ];
 
-const STATUS_CONFIG: Record<VerificationStatus, { bg: string; text: string; dot: string }> = {
-  'Pending Verification': { bg: 'bg-gray-100',   text: 'text-gray-500',   dot: 'bg-gray-400' },
-  'Needs Attention':      { bg: 'bg-[#fef5e5]',  text: 'text-[#ac6f00]', dot: 'bg-[#f5a623]' },
-  'Rejected':             { bg: 'bg-[#faeaea]',  text: 'text-[#8c1d1d]', dot: 'bg-[#d94040]' },
-  'All Matches':          { bg: 'bg-[#ebf7ed]',  text: 'text-[#267d36]', dot: 'bg-[#34a853]' },
-  'Approved':             { bg: 'bg-[#e8f0fb]',  text: 'text-[#0056b8]', dot: 'bg-[#0056b8]' },
+const STATUS_CONFIG: Record<VerificationStatus, { bg: string; color: string; dot: string }> = {
+  'Pending Verification': { bg: '#f1f3f5',                    color: 'var(--os-text-muted)',      dot: 'var(--os-text-disabled)' },
+  'Needs Attention':      { bg: 'var(--os-warning-light)',    color: 'var(--os-warning)',         dot: 'var(--os-warning)' },
+  'Rejected':             { bg: 'var(--os-error-light)',      color: 'var(--os-error)',           dot: 'var(--os-error)' },
+  'All Matches':          { bg: 'var(--os-success-light)',    color: 'var(--os-success)',         dot: 'var(--os-success)' },
+  'Approved':             { bg: 'var(--os-primary-light)',    color: 'var(--os-primary)',         dot: 'var(--os-primary)' },
 };
 
 function VerificationBadge({ status }: { status: VerificationStatus }) {
-  const { bg, text, dot } = STATUS_CONFIG[status];
+  const { bg, color, dot } = STATUS_CONFIG[status];
   return (
-    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bg} ${text}`}>
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: bg, color }}>
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dot }} />
       {status}
     </span>
   );
@@ -62,8 +61,8 @@ function VerificationBadge({ status }: { status: VerificationStatus }) {
 
 function PendingDocumentBadge() {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-      <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-gray-400" />
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#f1f3f5', color: 'var(--os-text-muted)' }}>
+      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--os-text-disabled)' }} />
       Pending Document
     </span>
   );
@@ -131,58 +130,48 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     ((activeTab === 'insurance' || activeTab === 'draftBL') && (uploadStates[activeTab] ?? 'idle') !== 'done')
     || (activeTab === 'blDate' && !blDateHasData);
 
-  const effectiveVerifications: Verifications = {
-    ...task.verifications,
-    insurance: (uploadStates['insurance'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.insurance,
-    draftBL:   (uploadStates['draftBL']   ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
-    blDate:    !blDateHasData                                    ? 'Pending Verification' : task.verifications.blDate,
-  };
-  const effectiveStatus = deriveOverallStatus(effectiveVerifications);
   const activeTabDef = TABS.find(t => t.type === activeTab)!;
 
-  // Resolve the actual SI or LC doc type present in this task
   return (
     <>
-    <div className="max-w-screen-xl mx-auto w-full px-6 py-4 flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
+    <div className="max-w-screen-xl mx-auto w-full px-3 sm:px-6 py-4 flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
 
-      {/* ── Header: back + CI No. + status + actions ── */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div className="flex items-center gap-4 flex-wrap">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-1.5 text-sm text-[#0056b8] hover:underline shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back to Tasks
-          </button>
-          <h1 className="text-base font-bold text-gray-800">CI {task.id}</h1>
-        </div>
-
+      {/* ── Header: back + CI No. ── */}
+      <div className="flex items-center gap-3 mb-4 shrink-0 flex-wrap">
+        <button
+          onClick={onBack}
+          className="flex items-center gap-1.5 text-sm hover:underline shrink-0"
+          style={{ color: 'var(--os-primary)' }}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+          Back to Tasks
+        </button>
+        <h1 className="font-semibold" style={{ fontSize: 'var(--text-lg)', color: 'var(--os-text-primary)' }}>CI {task.id}</h1>
       </div>
 
-      {/* ── Task info card: assigned user ── */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 shrink-0">
+      {/* ── Task info card ── */}
+      <div className="bg-white rounded-lg p-4 mb-4 shrink-0" style={{ border: '1px solid var(--os-border)', boxShadow: 'var(--os-shadow-sm)' }}>
         <div className="flex items-center gap-6 flex-wrap">
           <div>
-            <p className="text-xs text-gray-500 mb-0.5">CI No.</p>
-            <p className="text-sm font-medium text-gray-800">{task.id}</p>
+            <p className="text-xs mb-0.5" style={{ color: 'var(--os-text-muted)' }}>CI No.</p>
+            <p className="text-sm font-medium" style={{ color: 'var(--os-text-primary)' }}>{task.id}</p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-0.5">Assigned To</p>
+            <p className="text-xs mb-0.5" style={{ color: 'var(--os-text-muted)' }}>Assigned To</p>
             <div className="flex items-center gap-1.5">
-              <div className="w-5 h-5 rounded-full bg-gray-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ backgroundColor: 'var(--os-primary)' }}>
                 {task.assignedTo.split(' ').map(n => n[0]).join('')}
               </div>
-              <p className="text-sm font-medium text-gray-800">{task.assignedTo}</p>
+              <p className="text-sm font-medium" style={{ color: 'var(--os-text-primary)' }}>{task.assignedTo}</p>
             </div>
           </div>
         </div>
       </div>
 
       {/* ── Tabs ── */}
-      <div className="bg-white rounded-t-lg border border-gray-200 border-b-0 shrink-0">
+      <div className="bg-white rounded-t-lg shrink-0" style={{ border: '1px solid var(--os-border)', borderBottom: 'none' }}>
         <div className="flex overflow-x-auto">
           {TABS.map((tab) => {
             const status = task.verifications[tab.type];
@@ -194,13 +183,15 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               <button
                 key={tab.type}
                 onClick={() => onTabChange(tab.type)}
-                className={`flex flex-col items-start gap-1.5 px-5 py-3 border-b-2 transition-colors whitespace-nowrap min-w-0 ${
-                  isActive
-                    ? 'border-[#0056b8] bg-white'
-                    : 'border-transparent hover:bg-gray-50 hover:border-gray-200'
-                }`}
+                className="flex flex-col items-start gap-1.5 px-4 sm:px-5 py-3 transition-colors whitespace-nowrap min-w-0"
+                style={{
+                  borderBottom: isActive ? `2px solid var(--os-primary)` : '2px solid transparent',
+                  backgroundColor: isActive ? 'var(--os-surface)' : 'transparent',
+                }}
+                onMouseOver={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'var(--os-surface-hover)'; }}
+                onMouseOut={e => { if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'; }}
               >
-                <span className={`text-xs font-semibold ${isActive ? 'text-[#0056b8]' : 'text-gray-500'}`}>
+                <span className="text-xs font-semibold" style={{ color: isActive ? 'var(--os-primary)' : 'var(--os-text-muted)' }}>
                   {tab.shortLabel}
                 </span>
                 {isPendingDocument ? <PendingDocumentBadge /> : <VerificationBadge status={status} />}
@@ -211,12 +202,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       </div>
 
       {/* ── Comparison table ── */}
-      <div className="bg-white rounded-b-lg border border-gray-200 border-t-0 overflow-hidden flex flex-col flex-1 min-h-0">
-        <div className="px-6 py-3 border-b border-gray-200 shrink-0">
-          <div className="flex items-center justify-between">
+      <div className="bg-white rounded-b-lg overflow-hidden flex flex-col flex-1 min-h-0" style={{ border: '1px solid var(--os-border)', borderTop: 'none' }}>
+        <div className="px-4 sm:px-6 py-3 shrink-0" style={{ borderBottom: '1px solid var(--os-border)' }}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">{activeTabDef.label}</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
+              <h2 className="text-sm font-semibold" style={{ color: 'var(--os-text-primary)' }}>{activeTabDef.label}</h2>
+              <p className="text-xs mt-0.5" style={{ color: 'var(--os-text-muted)' }}>
                 Green cells indicate matching values. Orange cells indicate mismatches.
               </p>
             </div>
@@ -226,7 +217,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <input ref={reUploadRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleReUpload} />
                   <button
                     onClick={() => reUploadRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-[#0056b8] border border-[#0056b8] rounded-md hover:bg-[#e8f0fb] transition-colors shrink-0"
+                    className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors shrink-0"
+                    style={{ color: 'var(--os-primary)', border: '1px solid var(--os-primary)' }}
+                    onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--os-primary-light)'; }}
+                    onMouseOut={e => { e.currentTarget.style.backgroundColor = ''; }}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -275,7 +269,20 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       onClick={() => !isTabPending && !(autoApprove && tabStatus !== 'Needs Attention') && setConfirm({ action: 'approve', vt: activeTab })}
                       disabled={isTabPending || (autoApprove && tabStatus !== 'Needs Attention')}
                       title={autoApprove && tabStatus !== 'Needs Attention' ? 'Auto Approve is enabled in Settings' : undefined}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || (autoApprove && tabStatus !== 'Needs Attention') ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
+                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || (autoApprove && tabStatus !== 'Needs Attention') ? 'cursor-not-allowed' : ''}`}
+                      style={
+                        isTabPending || (autoApprove && tabStatus !== 'Needs Attention')
+                          ? { backgroundColor: '#e9ecef', color: 'var(--os-text-disabled)' }
+                          : { backgroundColor: 'var(--os-primary)', color: '#fff' }
+                      }
+                      onMouseOver={e => {
+                        if (!(isTabPending || (autoApprove && tabStatus !== 'Needs Attention')))
+                          e.currentTarget.style.backgroundColor = 'var(--os-primary-hover)';
+                      }}
+                      onMouseOut={e => {
+                        if (!(isTabPending || (autoApprove && tabStatus !== 'Needs Attention')))
+                          e.currentTarget.style.backgroundColor = 'var(--os-primary)';
+                      }}
                     >
                       Approve
                     </button>
@@ -286,9 +293,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
           </div>
         </div>
         {decisions[activeTab] && (
-          <div className={`px-6 py-3 border-b border-gray-200 shrink-0 text-xs ${decisions[activeTab].action === 'approve' ? 'bg-[#ebf7ed]' : 'bg-[#faeaea]'}`}>
-            <span className="font-semibold text-gray-700">Status: </span>
-            <span className={`font-medium ${decisions[activeTab].action === 'approve' ? 'text-[#267d36]' : 'text-[#8c1d1d]'}`}>
+          <div className="px-4 sm:px-6 py-3 shrink-0 text-xs" style={{
+            borderBottom: '1px solid var(--os-border)',
+            backgroundColor: decisions[activeTab].action === 'approve' ? 'var(--os-success-light)' : 'var(--os-error-light)',
+          }}>
+            <span className="font-semibold" style={{ color: 'var(--os-text-secondary)' }}>Status: </span>
+            <span className="font-medium" style={{ color: decisions[activeTab].action === 'approve' ? 'var(--os-success)' : 'var(--os-error)' }}>
               {decisions[activeTab].reason}
             </span>
             {decisions[activeTab].remark && (

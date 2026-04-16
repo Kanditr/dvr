@@ -2,16 +2,103 @@
 @tailwind components;
 @tailwind utilities;
 
-* {
+/* ─── OutSystems UI v2 Design Tokens ───────────────────────────── */
+:root {
+  /* Primary */
+  --os-primary:         #1068eb;
+  --os-primary-hover:   #295fd6;
+  --os-primary-light:   #e8f0fb;
+
+  /* Body */
+  --os-body-bg:         #f3f6f8;
+
+  /* Borders */
+  --os-border:          #dee2e6;
+  --os-border-input:    #ced4da;
+
+  /* Text */
+  --os-text-primary:    #272b30;
+  --os-text-secondary:  #4f575e;
+  --os-text-muted:      #6a7178;
+  --os-text-disabled:   #adb5bd;
+
+  /* Semantic */
+  --os-success:         #29823b;
+  --os-success-light:   #eaf3eb;
+  --os-warning:         #e9a100;
+  --os-warning-light:   #fdf6e5;
+  --os-error:           #dc2020;
+  --os-error-light:     #fceaea;
+  --os-info:            #017aad;
+  --os-info-light:      #e5f5fc;
+
+  /* Surfaces */
+  --os-surface:         #ffffff;
+  --os-surface-hover:   #f8f9fa;
+
+  /* Shadows */
+  --os-shadow-sm:       0 1px 3px 0 rgba(21, 24, 26, 0.08);
+  --os-shadow-md:       0 2px 8px 0 rgba(21, 24, 26, 0.10);
+  --os-shadow-nav:      0 1px 5px 0 rgba(21, 24, 26, 0.10);
+
+  /* Typography scale */
+  --text-xs:    12px;
+  --text-sm:    13px;
+  --text-base:  14px;
+  --text-md:    15px;
+  --text-lg:    16px;
+  --text-xl:    18px;
+  --text-2xl:   20px;
+}
+
+/* ─── Base Reset ─────────────────────────────────────────────────── */
+*, *::before, *::after {
   box-sizing: border-box;
+}
+
+html {
+  font-size: var(--text-base);
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   margin: 0;
   padding: 0;
-  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  background-color: #f3f4f6;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+               Helvetica, Arial, sans-serif, 'Apple Color Emoji';
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--os-text-primary);
+  background-color: var(--os-body-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
-  display: block;
-  place-items: unset;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  margin: 0;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--os-text-primary);
+}
+
+p { margin: 0; }
+
+button, input, select, textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* ─── Responsive scrollable tables ──────────────────────────────── */
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── Reduced-motion respect ─────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

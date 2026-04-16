@@ -1,11 +1,11 @@
 import type { TaskStatus } from '../data/mockData';
 
-const STATUS_CONFIG: Record<TaskStatus, { bg: string; text: string }> = {
-  'Pending':         { bg: 'bg-gray-100',  text: 'text-gray-600' },
-  'Needs Attention': { bg: 'bg-[#fef5e5]', text: 'text-[#ac6f00]' },
-  'All Match':       { bg: 'bg-[#ebf7ed]', text: 'text-[#267d36]' },
-  'Approved':        { bg: 'bg-[#e8f0fb]', text: 'text-[#0056b8]' },
-  'Rejected':        { bg: 'bg-[#faeaea]', text: 'text-[#8c1d1d]' },
+const STATUS_CONFIG: Record<TaskStatus, { bg: string; color: string }> = {
+  'Pending':         { bg: '#f1f3f5',                    color: 'var(--os-text-muted)' },
+  'Needs Attention': { bg: 'var(--os-warning-light)',    color: 'var(--os-warning)' },
+  'All Match':       { bg: 'var(--os-success-light)',    color: 'var(--os-success)' },
+  'Approved':        { bg: 'var(--os-primary-light)',    color: 'var(--os-primary)' },
+  'Rejected':        { bg: 'var(--os-error-light)',      color: 'var(--os-error)' },
 };
 
 interface StatusBadgeProps {
@@ -14,9 +14,12 @@ interface StatusBadgeProps {
 }
 
 export default function StatusBadge({ status, className = '' }: StatusBadgeProps) {
-  const { bg, text } = STATUS_CONFIG[status];
+  const { bg, color } = STATUS_CONFIG[status];
   return (
-    <span className={`inline-flex items-center px-2.5 h-6 rounded-full text-xs font-medium ${bg} ${text} ${className}`}>
+    <span
+      className={`inline-flex items-center px-2.5 h-6 rounded-full text-xs font-medium ${className}`}
+      style={{ backgroundColor: bg, color }}
+    >
       {status}
     </span>
   );

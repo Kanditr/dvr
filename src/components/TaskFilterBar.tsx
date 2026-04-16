@@ -22,10 +22,10 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: 
       onClick={() => onChange(!checked)}
       className="flex items-center gap-2 group"
     >
-      <span className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${checked ? 'bg-[#0056b8]' : 'bg-gray-300'}`}>
+      <span className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200`} style={{ backgroundColor: checked ? 'var(--os-primary)' : '#cbd5e1' }}>
         <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ml-0.5 ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
       </span>
-      <span className={`text-sm ${checked ? 'text-[#0056b8]' : 'text-gray-500'} group-hover:text-gray-700`}>{label}</span>
+      <span className="text-sm" style={{ color: checked ? 'var(--os-primary)' : 'var(--os-text-muted)' }}>{label}</span>
     </button>
   );
 }
@@ -45,14 +45,22 @@ interface TaskFilterBarProps {
 }
 
 export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, autoApprove, onAutoApproveChange, onReset }: TaskFilterBarProps) {
+  const selectStyle = {
+    border: '1px solid var(--os-border-input)',
+    outline: 'none',
+    color: 'var(--os-text-primary)',
+    backgroundColor: 'var(--os-surface)',
+  };
+
   return (
-    <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-3">
-      <div className="flex items-end gap-4 flex-wrap">
+    <div className="px-3 sm:px-6 py-4" style={{ borderBottom: '1px solid var(--os-border)' }}>
+      {/* Row 1: Search + Overall Status (always visible side by side on md+) */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-3">
         {/* Search */}
-        <div className="flex flex-col gap-0.5 flex-1 min-w-[240px]">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Search</label>
+        <div className="flex flex-col gap-0.5 flex-1">
+          <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--os-text-muted)' }}>Search</label>
           <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: 'var(--os-text-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <input
@@ -60,18 +68,22 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
               placeholder="Search by CI No. or assigned user..."
               value={search}
               onChange={e => onSearchChange(e.target.value)}
-              className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] w-full"
+              className="pl-9 pr-4 py-2 text-sm rounded w-full"
+              style={selectStyle}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--os-primary)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(16,104,235,0.15)'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--os-border-input)'; e.currentTarget.style.boxShadow = 'none'; }}
             />
           </div>
         </div>
 
         {/* Overall Status */}
         <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Overall Status</label>
+          <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--os-text-muted)' }}>Overall Status</label>
           <select
             value={statusFilter}
             onChange={e => onStatusChange(e.target.value as TaskStatus | 'All')}
-            className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white min-w-[140px]"
+            className="px-3 py-2 text-sm rounded w-full sm:min-w-[140px]"
+            style={selectStyle}
           >
             <option value="All">All</option>
             {ALL_STATUSES.map(s => (
@@ -79,15 +91,18 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             ))}
           </select>
         </div>
+      </div>
 
-        {/* Tab status filters */}
+      {/* Row 2: Tab status filters — 2-col on mobile, wrap on larger */}
+      <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-3 mb-3">
         {TAB_FILTER_DEFS.map(({ key, label }) => (
           <div key={key} className="flex flex-col gap-0.5">
-            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{label}</label>
+            <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--os-text-muted)' }}>{label}</label>
             <select
               value={tabFilters[key]}
               onChange={e => onTabFilterChange(key, e.target.value as VerificationStatus | 'All')}
-              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white min-w-[140px]"
+              className="px-3 py-2 text-sm rounded w-full sm:min-w-[140px]"
+              style={selectStyle}
             >
               <option value="All">All</option>
               {VERIFICATION_STATUSES.map(s => (
@@ -96,19 +111,18 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             </select>
           </div>
         ))}
+      </div>
 
-        {/* Toggles */}
-        <div className="flex flex-col gap-0.5 pb-[2px]">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide invisible select-none">Options</label>
-          <div className="flex items-center gap-4 py-2">
-            <Toggle checked={onlyMyTasks} onChange={onOnlyMyTasksChange} label="Only My Tasks" />
-            <Toggle checked={autoApprove} onChange={onAutoApproveChange} label="Auto Approve" />
-          </div>
+      {/* Row 3: Toggles + Reset */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-4">
+          <Toggle checked={onlyMyTasks} onChange={onOnlyMyTasksChange} label="Only My Tasks" />
+          <Toggle checked={autoApprove} onChange={onAutoApproveChange} label="Auto Approve" />
         </div>
-
         <button
           onClick={onReset}
-          className="text-sm text-[#0056b8] hover:underline pb-[9px]"
+          className="text-sm hover:underline"
+          style={{ color: 'var(--os-primary)' }}
         >
           Reset Filter
         </button>

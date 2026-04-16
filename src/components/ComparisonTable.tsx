@@ -97,37 +97,43 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
   return (
     <div>
       {/* Filter bar */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 flex-wrap bg-white">
+      <div className="px-4 py-3 flex items-center gap-3 flex-wrap bg-white" style={{ borderBottom: '1px solid var(--os-border)' }}>
         <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Field</label>
+          <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--os-text-muted)' }}>Field</label>
           <div className="relative">
             <select
               value={fieldFilter}
               onChange={e => setFieldFilter(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 min-w-[160px]"
+              className="appearance-none pl-3 pr-8 py-1.5 text-xs rounded bg-white min-w-[160px]"
+              style={{ border: '1px solid var(--os-border)', color: 'var(--os-text-primary)', outline: 'none' }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--os-primary)'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--os-border)'; }}
             >
               <option value="">All</option>
               {uniqueFields.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
-            <svg className="absolute right-2 top-2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute right-2 top-2 w-3 h-3 pointer-events-none" style={{ color: 'var(--os-text-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </div>
         </div>
 
         <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Status</label>
+          <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--os-text-muted)' }}>Status</label>
           <div className="relative">
             <select
               value={statusFilter}
               onChange={e => setStatusFilter(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 min-w-[120px]"
+              className="appearance-none pl-3 pr-8 py-1.5 text-xs rounded bg-white min-w-[120px]"
+              style={{ border: '1px solid var(--os-border)', color: 'var(--os-text-primary)', outline: 'none' }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--os-primary)'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--os-border)'; }}
             >
               <option value="">All</option>
               <option value="Match">Match</option>
               <option value="Mismatch">Mismatch</option>
             </select>
-            <svg className="absolute right-2 top-2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="absolute right-2 top-2 w-3 h-3 pointer-events-none" style={{ color: 'var(--os-text-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
           </div>
@@ -136,7 +142,8 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
         {hasActiveFilter && (
           <button
             onClick={() => { setFieldFilter(''); setStatusFilter(''); }}
-            className="self-end text-xs text-[#0056b8] hover:underline pb-[3px]"
+            className="self-end text-xs hover:underline pb-[3px]"
+            style={{ color: 'var(--os-primary)' }}
           >
             Reset
           </button>
@@ -147,40 +154,40 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-[#d9ecf3] border-b border-gray-200">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36">Field</th>
+            <tr style={{ backgroundColor: '#eef2f7', borderBottom: '1px solid var(--os-border)' }}>
+              <th className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap w-36" style={{ color: 'var(--os-text-secondary)' }}>Field</th>
               {docs.map((doc) => (
-                <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700">
+                <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap" style={{ color: 'var(--os-text-secondary)' }}>
                   {doc.type}
                 </th>
               ))}
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap w-28" style={{ color: 'var(--os-text-secondary)' }}>Status</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row, idx) => (
-              <tr key={row.canonicalField} className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}>
-                <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4">
+              <tr key={row.canonicalField} style={{ borderBottom: '1px solid var(--os-border)', backgroundColor: idx % 2 !== 0 ? 'var(--os-surface-hover)' : '#fff' }}>
+                <td className="px-4 py-3 text-xs font-semibold whitespace-nowrap align-top pt-4" style={{ color: 'var(--os-text-secondary)' }}>
                   {row.canonicalField}
                 </td>
                 {row.cells.map((cell, ci) => (
-                  <td key={ci} className={`px-4 py-3 align-top ${cell.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
-                    <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
-                    <span className="block text-sm font-medium text-gray-900">{cell.value}</span>
+                  <td key={ci} className="px-4 py-3 align-top" style={{ backgroundColor: cell.isMatch ? 'var(--os-success-light)' : 'var(--os-warning-light)' }}>
+                    <span className="block text-xs mb-0.5" style={{ color: 'var(--os-text-muted)' }}>{cell.originalFieldName}</span>
+                    <span className="block text-sm font-medium" style={{ color: 'var(--os-text-primary)' }}>{cell.value}</span>
                   </td>
                 ))}
                 <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
                   {row.rowStatus === 'match' ? (
-                    <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36]">Match</span>
+                    <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--os-success-light)', color: 'var(--os-success)' }}>Match</span>
                   ) : (
-                    <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00]">Mismatch</span>
+                    <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--os-warning-light)', color: 'var(--os-warning)' }}>Mismatch</span>
                   )}
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">
+                <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm" style={{ color: 'var(--os-text-muted)' }}>
                   No rows match the current filter.
                 </td>
               </tr>

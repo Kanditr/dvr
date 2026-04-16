@@ -58,7 +58,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center"
+      className="min-h-screen flex items-center justify-center px-4"
       style={{
         background: `
           radial-gradient(ellipse 90% 70% at 10% 55%, #0d3460 0%, transparent 60%),
@@ -70,7 +70,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         `,
       }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl px-8 py-10 w-full max-w-sm mx-4">
+      <div className="bg-white rounded-2xl w-full max-w-sm px-8 py-10" style={{ boxShadow: 'var(--os-shadow-md)' }}>
 
         {/* Logo */}
         <div className="flex justify-center mb-5">
@@ -78,36 +78,42 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
         </div>
 
         {/* Title */}
-        <h1 className="text-center text-lg font-bold text-gray-800 mb-7">
+        <h1 className="text-center font-semibold mb-7" style={{ fontSize: 'var(--text-lg)', color: 'var(--os-text-primary)' }}>
           Document Verification
         </h1>
 
         <form onSubmit={handleLogin} noValidate>
           {/* Username */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Username <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--os-text-secondary)' }}>
+              Username <span style={{ color: 'var(--os-error)' }}>*</span>
             </label>
             <input
               type="text"
               value={username}
               onChange={e => { setUsername(e.target.value); setError(''); }}
               placeholder="Enter username"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-[#0056b8] focus:ring-1 focus:ring-[#0056b8] transition-colors"
+              className="w-full px-3 py-2 text-sm rounded-md transition-colors"
+              style={{ border: '1px solid var(--os-border-input)', outline: 'none', color: 'var(--os-text-primary)' }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--os-primary)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(16,104,235,0.15)'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--os-border-input)'; e.currentTarget.style.boxShadow = 'none'; }}
             />
           </div>
 
           {/* Password */}
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Password <span className="text-red-500">*</span>
+            <label className="block text-sm font-medium mb-1" style={{ color: 'var(--os-text-secondary)' }}>
+              Password <span style={{ color: 'var(--os-error)' }}>*</span>
             </label>
             <input
               type="password"
               value={password}
               onChange={e => { setPassword(e.target.value); setError(''); }}
               placeholder="Enter password"
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:border-[#0056b8] focus:ring-1 focus:ring-[#0056b8] transition-colors"
+              className="w-full px-3 py-2 text-sm rounded-md transition-colors"
+              style={{ border: '1px solid var(--os-border-input)', outline: 'none', color: 'var(--os-text-primary)' }}
+              onFocus={e => { e.currentTarget.style.borderColor = 'var(--os-primary)'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(16,104,235,0.15)'; }}
+              onBlur={e => { e.currentTarget.style.borderColor = 'var(--os-border-input)'; e.currentTarget.style.boxShadow = 'none'; }}
             />
           </div>
 
@@ -118,13 +124,15 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 type="checkbox"
                 checked={rememberMe}
                 onChange={e => setRememberMe(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 accent-[#0056b8] cursor-pointer"
+                className="w-4 h-4 rounded cursor-pointer"
+                style={{ accentColor: 'var(--os-primary)' }}
               />
-              <span className="text-sm text-gray-600">Remember me</span>
+              <span className="text-sm" style={{ color: 'var(--os-text-secondary)' }}>Remember me</span>
             </label>
             <button
               type="button"
-              className="text-sm text-[#0056b8] hover:underline"
+              className="text-sm hover:underline"
+              style={{ color: 'var(--os-primary)' }}
               onClick={() => {}}
             >
               Forgot password?
@@ -133,14 +141,17 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
           {/* Error message */}
           {error && (
-            <p className="text-xs text-red-500 mb-3 -mt-2">{error}</p>
+            <p className="text-xs mb-3 -mt-2" style={{ color: 'var(--os-error)' }}>{error}</p>
           )}
 
           {/* Login button */}
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 bg-[#0056b8] text-white text-sm font-semibold rounded-md hover:bg-[#004a9f] transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full py-2.5 text-white text-sm font-semibold rounded-md transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            style={{ backgroundColor: 'var(--os-primary)' }}
+            onMouseOver={e => { if (!loading) e.currentTarget.style.backgroundColor = 'var(--os-primary-hover)'; }}
+            onMouseOut={e => { e.currentTarget.style.backgroundColor = 'var(--os-primary)'; }}
           >
             {loading ? (
               <>
@@ -156,9 +167,9 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
 
         {/* Divider */}
         <div className="flex items-center gap-3 my-4">
-          <div className="flex-1 border-t border-gray-200" />
-          <span className="text-xs text-gray-400">or</span>
-          <div className="flex-1 border-t border-gray-200" />
+          <div className="flex-1 border-t" style={{ borderColor: 'var(--os-border)' }} />
+          <span className="text-xs" style={{ color: 'var(--os-text-muted)' }}>or</span>
+          <div className="flex-1 border-t" style={{ borderColor: 'var(--os-border)' }} />
         </div>
 
         {/* Microsoft login */}
@@ -166,11 +177,12 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
           type="button"
           onClick={handleMicrosoftLogin}
           disabled={msLoading}
-          className="w-full py-2.5 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-md hover:bg-gray-50 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2.5"
+          className="w-full py-2.5 bg-white text-sm font-medium rounded-md transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2.5 hover:bg-gray-50"
+          style={{ border: '1px solid var(--os-border)', color: 'var(--os-text-secondary)' }}
         >
           {msLoading ? (
             <>
-              <svg className="w-4 h-4 animate-spin text-gray-400" fill="none" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 animate-spin" style={{ color: 'var(--os-text-muted)' }} fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
               </svg>

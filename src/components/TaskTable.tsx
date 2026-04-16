@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type React from 'react';
 import type { Task, VerificationStatus } from '../data/mockData';
 import { deriveOverallStatus } from '../data/mockData';
 import type { UploadState } from './DocumentUploadGate';
@@ -28,12 +29,12 @@ const TAB_COLS: { key: VerificationType; label: string }[] = [
 ];
 
 
-const STATUS_STYLE: Record<VerificationStatus, string> = {
-  'All Matches':          'bg-green-100 text-green-700',
-  'Approved':             'bg-blue-100 text-blue-700',
-  'Needs Attention':      'bg-orange-100 text-orange-700',
-  'Rejected':             'bg-red-100 text-red-700',
-  'Pending Verification': 'bg-gray-100 text-gray-400',
+const STATUS_STYLE: Record<VerificationStatus, React.CSSProperties> = {
+  'All Matches':          { backgroundColor: 'var(--os-success-light)', color: 'var(--os-success)' },
+  'Approved':             { backgroundColor: 'var(--os-primary-light)',  color: 'var(--os-primary)' },
+  'Needs Attention':      { backgroundColor: 'var(--os-warning-light)', color: 'var(--os-warning)' },
+  'Rejected':             { backgroundColor: 'var(--os-error-light)',   color: 'var(--os-error)' },
+  'Pending Verification': { backgroundColor: '#f1f3f5',                 color: 'var(--os-text-muted)' },
 };
 
 const STATUS_SHORT: Record<VerificationStatus, string> = {
@@ -107,39 +108,45 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
     return [1, '…', safePage - 1, safePage, safePage + 1, '…', totalPages];
   }
 
-  const thBase = 'px-4 py-2 text-left text-xs font-semibold text-gray-700';
+  const thStyle: React.CSSProperties = {
+    color: 'var(--os-text-secondary)',
+    backgroundColor: '#eef2f7',
+    borderBottom: '1px solid var(--os-border)',
+    fontSize: 'var(--text-xs)',
+    fontWeight: 600,
+  };
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto -webkit-overflow-scrolling-touch">
+      <table className="w-full text-sm" style={{ minWidth: '640px' }}>
         <thead>
-          <tr className="bg-[#d9ecf3] border-b border-gray-200">
-            <th className={`${thBase} px-6 cursor-pointer select-none whitespace-nowrap`} onClick={() => handleSort('id')}>
-              <span className="flex items-center">CI No. <SortIcon col="id" sortKey={sortKey} sortDir={sortDir} /></span>
+          <tr>
+            <th className="px-4 sm:px-6 py-2.5 text-left cursor-pointer select-none whitespace-nowrap" style={thStyle} onClick={() => handleSort('id')}>
+              <span className="flex items-center gap-1">CI No. <SortIcon col="id" sortKey={sortKey} sortDir={sortDir} /></span>
             </th>
-            <th className={`${thBase} px-6 cursor-pointer select-none whitespace-nowrap`} onClick={() => handleSort('assignedTo')}>
-              <span className="flex items-center">Task Assignment <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>
+            <th className="px-4 sm:px-6 py-2.5 text-left cursor-pointer select-none whitespace-nowrap" style={thStyle} onClick={() => handleSort('assignedTo')}>
+              <span className="flex items-center gap-1">Task Assignment <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>
             </th>
             {TAB_COLS.map(({ key, label }) => (
-              <th key={key} className={`${thBase} min-w-[140px] whitespace-nowrap`}>
+              <th key={key} className="px-4 py-2.5 text-left whitespace-nowrap" style={{ ...thStyle, minWidth: '130px' }}>
                 {label}
               </th>
             ))}
-            <th className="px-4 py-2 w-10" />
+            <th className="px-4 py-2.5 w-10" style={thStyle} />
           </tr>
         </thead>
         <tbody>
           {paginated.map((task, idx) => (
             <tr
               key={task.id}
-              className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}
+              style={{ borderBottom: '1px solid var(--os-border)', backgroundColor: idx % 2 !== 0 ? 'var(--os-surface-hover)' : 'var(--os-surface)' }}
             >
-              <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap">
+              <td className="px-4 sm:px-6 py-3.5 font-medium whitespace-nowrap" style={{ color: 'var(--os-text-primary)' }}>
                 {task.id}
               </td>
-              <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
+              <td className="px-4 sm:px-6 py-3.5 whitespace-nowrap" style={{ color: 'var(--os-text-secondary)' }}>
                 <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-gray-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
+                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shrink-0" style={{ backgroundColor: 'var(--os-primary)' }}>
                     {task.assignedTo.split(' ').map(n => n[0]).join('')}
                   </div>
                   {task.assignedTo}
@@ -150,20 +157,25 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 return (
                   <td
                     key={key}
-                    className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
+                    className="px-4 py-3.5 cursor-pointer transition-colors"
+                    style={{ ':hover': { backgroundColor: 'var(--os-primary-light)' } } as React.CSSProperties}
+                    onMouseOver={e => (e.currentTarget.style.backgroundColor = 'var(--os-primary-light)')}
+                    onMouseOut={e => (e.currentTarget.style.backgroundColor = '')}
                     onClick={() => onSelectTask(task.id, key)}
                   >
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLE[status]}`}>
+                    <span className="inline-block px-2 py-0.5 rounded text-xs font-medium" style={STATUS_STYLE[status]}>
                       {STATUS_SHORT[status]}
                     </span>
                   </td>
                 );
               })}
               <td
-                className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
+                className="px-4 py-3.5 cursor-pointer transition-colors"
+                onMouseOver={e => (e.currentTarget.style.backgroundColor = 'var(--os-primary-light)')}
+                onMouseOut={e => (e.currentTarget.style.backgroundColor = '')}
                 onClick={() => onSelectTask(task.id, 'customFormality')}
               >
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4" style={{ color: 'var(--os-text-muted)' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </td>
@@ -171,7 +183,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
           ))}
           {processed.length === 0 && (
             <tr>
-              <td colSpan={7} className="px-6 py-12 text-center text-gray-500 text-sm">
+              <td colSpan={7} className="px-6 py-12 text-center text-sm" style={{ color: 'var(--os-text-muted)' }}>
                 No tasks match your filter.
               </td>
             </tr>
@@ -180,7 +192,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
       </table>
 
       {/* Pagination footer */}
-      <div className="flex items-center justify-between px-6 py-3 border-t border-gray-200 text-xs text-gray-500">
+      <div className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-3 gap-2 text-xs" style={{ borderTop: '1px solid var(--os-border)', color: 'var(--os-text-muted)' }}>
         <span>
           Showing {processed.length === 0 ? 0 : pageStart + 1}–{Math.min(pageStart + PAGE_SIZE, processed.length)} of {processed.length} tasks
         </span>
@@ -188,22 +200,23 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
           <button
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={safePage === 1}
-            className="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-2 py-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ border: '1px solid var(--os-border)', color: 'var(--os-text-secondary)' }}
           >
             ‹
           </button>
           {getPageNumbers().map((p, i) =>
             p === '…' ? (
-              <span key={`ellipsis-${i}`} className="px-1 text-gray-400">…</span>
+              <span key={`ellipsis-${i}`} className="px-1" style={{ color: 'var(--os-text-muted)' }}>…</span>
             ) : (
               <button
                 key={p}
                 onClick={() => setPage(p as number)}
-                className={`min-w-[28px] px-2 py-1 rounded border transition-colors ${
-                  p === safePage
-                    ? 'border-[#0056b8] bg-[#0056b8] text-white'
-                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
+                className="min-w-[28px] px-2 py-1 rounded transition-colors"
+                style={p === safePage
+                  ? { border: '1px solid var(--os-primary)', backgroundColor: 'var(--os-primary)', color: '#fff' }
+                  : { border: '1px solid var(--os-border)', color: 'var(--os-text-secondary)' }
+                }
               >
                 {p}
               </button>
@@ -212,7 +225,8 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
           <button
             onClick={() => setPage(p => Math.min(totalPages, p + 1))}
             disabled={safePage === totalPages}
-            className="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-2 py-1 rounded transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            style={{ border: '1px solid var(--os-border)', color: 'var(--os-text-secondary)' }}
           >
             ›
           </button>

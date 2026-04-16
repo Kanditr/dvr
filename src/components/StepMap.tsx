@@ -6,21 +6,22 @@ const steps = [
 
 export default function StepMap() {
   return (
-    <div className="bg-white border border-gray-200 rounded-xl px-5 py-2.5 shadow-sm flex items-center justify-center gap-2 w-full">
+    <div className="bg-white rounded-xl px-4 sm:px-5 py-2.5 flex items-center justify-center gap-2 w-full" style={{ border: '1px solid var(--os-border)', boxShadow: 'var(--os-shadow-sm)' }}>
       {steps.map((step, i) => (
         <>
           <div key={step.number} className="flex items-center gap-1.5 shrink-0">
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
-              step.active ? 'bg-[#0056b8] text-white' : 'bg-gray-200 text-gray-500'
-            }`}>
+            <span
+              className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 text-white"
+              style={{ backgroundColor: step.active ? 'var(--os-primary)' : '#ced4da', color: step.active ? '#fff' : 'var(--os-text-muted)' }}
+            >
               {step.number}
             </span>
-            <span className={`text-xs font-medium ${step.active ? 'text-[#0056b8]' : 'text-gray-500'}`}>
+            <span className="text-xs font-medium" style={{ color: step.active ? 'var(--os-primary)' : 'var(--os-text-muted)' }}>
               {step.label}
             </span>
           </div>
           {i < steps.length - 1 && (
-            <span className="text-gray-400 text-sm select-none">›</span>
+            <span className="text-sm select-none" style={{ color: 'var(--os-text-muted)' }}>›</span>
           )}
         </>
       ))}
