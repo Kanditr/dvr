@@ -134,16 +134,10 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               key={task.id}
               className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}
             >
-              <td
-                className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap font-mono cursor-pointer hover:bg-blue-50 transition-colors"
-                onClick={() => onSelectTask(task.id, 'customFormality')}
-              >
+              <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap font-mono">
                 {task.id}
               </td>
-              <td
-                className="px-6 py-4 text-gray-700 whitespace-nowrap cursor-pointer hover:bg-blue-50 transition-colors"
-                onClick={() => onSelectTask(task.id, 'customFormality')}
-              >
+              <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-gray-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
                     {task.assignedTo.split(' ').map(n => n[0]).join('')}
@@ -165,7 +159,10 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                   </td>
                 );
               })}
-              <td className="px-4 py-4 pointer-events-none">
+              <td
+                className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
+                onClick={() => onSelectTask(task.id, 'customFormality')}
+              >
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
