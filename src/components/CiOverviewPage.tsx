@@ -217,7 +217,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <input ref={reUploadRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleReUpload} />
                   <button
                     onClick={() => reUploadRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-md transition-colors shrink-0"
+                    className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-md transition-colors shrink-0"
                     style={{ color: 'var(--os-primary)', border: '1px solid var(--os-primary)' }}
                     onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--os-primary-light)'; }}
                     onMouseOut={e => { e.currentTarget.style.backgroundColor = ''; }}
@@ -232,7 +232,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               <button
                 onClick={() => !isTabPending && exportVerificationTab(task, activeTab)}
                 disabled={isTabPending}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabPending ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-gray-600 border-gray-300 hover:bg-gray-50'}`}
+                className={`inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabPending ? 'cursor-not-allowed' : ''}`}
+                style={isTabPending
+                  ? { color: 'var(--os-text-disabled)', borderColor: 'var(--os-border)', backgroundColor: '#f1f3f5' }
+                  : { color: 'var(--os-text-secondary)', borderColor: 'var(--os-border)' }}
+                onMouseOver={e => { if (!isTabPending) e.currentTarget.style.backgroundColor = 'var(--os-surface-hover)'; }}
+                onMouseOut={e => { if (!isTabPending) e.currentTarget.style.backgroundColor = ''; }}
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -261,7 +266,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     <button
                       onClick={() => !isTabPending && setConfirm({ action: 'reject', vt: activeTab })}
                       disabled={isTabPending}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending ? 'border border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed' : 'border border-red-600 text-red-600 hover:bg-red-50'}`}
+                      className={`inline-flex items-center h-8 px-4 text-xs rounded-md transition-colors ${isTabPending ? 'cursor-not-allowed' : ''}`}
+                      style={isTabPending
+                        ? { border: '1px solid var(--os-border)', color: 'var(--os-text-disabled)', backgroundColor: '#f1f3f5' }
+                        : { border: '1px solid var(--os-error)', color: 'var(--os-error)' }}
+                      onMouseOver={e => { if (!isTabPending) e.currentTarget.style.backgroundColor = 'var(--os-error-light)'; }}
+                      onMouseOut={e => { if (!isTabPending) e.currentTarget.style.backgroundColor = ''; }}
                     >
                       Reject
                     </button>
@@ -269,7 +279,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       onClick={() => !isTabPending && !(autoApprove && tabStatus !== 'Needs Attention') && setConfirm({ action: 'approve', vt: activeTab })}
                       disabled={isTabPending || (autoApprove && tabStatus !== 'Needs Attention')}
                       title={autoApprove && tabStatus !== 'Needs Attention' ? 'Auto Approve is enabled in Settings' : undefined}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || (autoApprove && tabStatus !== 'Needs Attention') ? 'cursor-not-allowed' : ''}`}
+                      className={`inline-flex items-center h-8 px-4 text-xs rounded-md transition-colors ${isTabPending || (autoApprove && tabStatus !== 'Needs Attention') ? 'cursor-not-allowed' : ''}`}
                       style={
                         isTabPending || (autoApprove && tabStatus !== 'Needs Attention')
                           ? { backgroundColor: '#e9ecef', color: 'var(--os-text-disabled)' }

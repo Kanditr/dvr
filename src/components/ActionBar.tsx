@@ -29,7 +29,7 @@ export default function ActionBar({ task, onApprove, onReject }: ActionBarProps)
         <div className="flex gap-3">
           <button
             onClick={onReject}
-            className="px-6 py-2 text-sm rounded transition-colors"
+            className="inline-flex items-center h-9 px-5 text-sm rounded-md transition-colors"
             style={{ border: '1px solid var(--os-error)', color: 'var(--os-error)' }}
             onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--os-error-light)'; }}
             onMouseOut={e => { e.currentTarget.style.backgroundColor = ''; }}
@@ -38,7 +38,7 @@ export default function ActionBar({ task, onApprove, onReject }: ActionBarProps)
           </button>
           <button
             onClick={onApprove}
-            className="px-6 py-2 text-sm rounded text-white transition-colors"
+            className="inline-flex items-center h-9 px-5 text-sm rounded-md text-white transition-colors"
             style={{ backgroundColor: 'var(--os-primary)' }}
             onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--os-primary-hover)'; }}
             onMouseOut={e => { e.currentTarget.style.backgroundColor = 'var(--os-primary)'; }}
