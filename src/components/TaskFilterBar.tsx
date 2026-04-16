@@ -79,17 +79,22 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
         {/* Overall Status */}
         <div className="flex flex-col gap-0.5">
           <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--os-text-muted)' }}>Overall Status</label>
-          <select
-            value={statusFilter}
-            onChange={e => onStatusChange(e.target.value as TaskStatus | 'All')}
-            className="px-3 py-2 text-sm rounded w-full sm:min-w-[140px]"
-            style={selectStyle}
-          >
-            <option value="All">All</option>
-            {ALL_STATUSES.map(s => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={statusFilter}
+              onChange={e => onStatusChange(e.target.value as TaskStatus | 'All')}
+              className="appearance-none pl-3 pr-8 py-2 text-sm rounded w-full sm:min-w-[140px]"
+              style={selectStyle}
+            >
+              <option value="All">All</option>
+              {ALL_STATUSES.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--os-text-muted)' }}>
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
         </div>
       </div>
 
@@ -98,17 +103,22 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
         {TAB_FILTER_DEFS.map(({ key, label }) => (
           <div key={key} className="flex flex-col gap-0.5">
             <label className="text-[10px] font-medium uppercase tracking-wide" style={{ color: 'var(--os-text-muted)' }}>{label}</label>
-            <select
-              value={tabFilters[key]}
-              onChange={e => onTabFilterChange(key, e.target.value as VerificationStatus | 'All')}
-              className="px-3 py-2 text-sm rounded w-full sm:min-w-[140px]"
-              style={selectStyle}
-            >
-              <option value="All">All</option>
-              {VERIFICATION_STATUSES.map(s => (
-                <option key={s} value={s}>{s === 'Pending Verification' ? 'Pending Documents' : s}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={tabFilters[key]}
+                onChange={e => onTabFilterChange(key, e.target.value as VerificationStatus | 'All')}
+                className="appearance-none pl-3 pr-8 py-2 text-sm rounded w-full sm:min-w-[140px]"
+                style={selectStyle}
+              >
+                <option value="All">All</option>
+                {VERIFICATION_STATUSES.map(s => (
+                  <option key={s} value={s}>{s === 'Pending Verification' ? 'Pending Documents' : s}</option>
+                ))}
+              </select>
+              <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: 'var(--os-text-muted)' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
           </div>
         ))}
       </div>
