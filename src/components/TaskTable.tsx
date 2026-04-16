@@ -2,8 +2,8 @@ import { useState } from 'react';
 import type { Task, VerificationStatus } from '../data/mockData';
 import { deriveOverallStatus } from '../data/mockData';
 import type { UploadState } from './DocumentUploadGate';
+import type { VerificationType } from '../App';
 
-type VerificationType = 'customFormality' | 'insurance' | 'draftBL' | 'blDate';
 type SortKey = 'id' | 'assignedTo' | 'status';
 type SortDir = 'asc' | 'desc';
 
@@ -27,9 +27,6 @@ const TAB_COLS: { key: VerificationType; label: string }[] = [
   { key: 'blDate',          label: 'B/L Date' },
 ];
 
-const VERIFICATION_STATUSES: VerificationStatus[] = [
-  'All Matches', 'Approved', 'Needs Attention', 'Rejected', 'Pending Verification',
-];
 
 const STATUS_STYLE: Record<VerificationStatus, string> = {
   'All Matches':          'bg-green-100 text-green-700',
@@ -66,30 +63,20 @@ function getEffectiveTabStatus(
 interface TaskTableProps {
   tasks: Task[];
   uploadStates: Record<string, Record<string, UploadState>>;
+  tabFilters: Record<VerificationType, VerificationStatus | 'All'>;
   onSelectTask: (taskId: string, tab: VerificationType) => void;
 }
 
 const PAGE_SIZE = 10;
 
-export default function TaskTable({ tasks, uploadStates, onSelectTask }: TaskTableProps) {
+export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask }: TaskTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [tabFilters, setTabFilters] = useState<Record<VerificationType, VerificationStatus | 'All'>>({
-    customFormality: 'All',
-    insurance: 'All',
-    draftBL: 'All',
-    blDate: 'All',
-  });
   const [page, setPage] = useState(1);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
-    setPage(1);
-  }
-
-  function handleTabFilter(key: VerificationType, value: VerificationStatus | 'All') {
-    setTabFilters(prev => ({ ...prev, [key]: value }));
     setPage(1);
   }
 
@@ -134,19 +121,8 @@ export default function TaskTable({ tasks, uploadStates, onSelectTask }: TaskTab
               <span className="flex items-center">Task Assignment <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>
             </th>
             {TAB_COLS.map(({ key, label }) => (
-              <th key={key} className={`${thBase} min-w-[140px]`}>
-                <div className="mb-1 whitespace-nowrap">{label}</div>
-                <select
-                  value={tabFilters[key]}
-                  onChange={e => handleTabFilter(key, e.target.value as VerificationStatus | 'All')}
-                  onClick={e => e.stopPropagation()}
-                  className="w-full text-[10px] font-normal border border-gray-300 rounded px-1 py-0.5 bg-white text-gray-600 focus:outline-none focus:border-[#0056b8]"
-                >
-                  <option value="All">All</option>
-                  {VERIFICATION_STATUSES.map(s => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+              <th key={key} className={`${thBase} min-w-[140px] whitespace-nowrap`}>
+                {label}
               </th>
             ))}
             <th className="px-4 py-2 w-10" />

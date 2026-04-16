@@ -54,7 +54,7 @@ function ColumnFilter({ label, allValues, selected, onChange }: ColumnFilterProp
       >
         <span>{label}</span>
         <svg
-          className={`w-3 h-3 shrink-0 transition-opacity ${isFiltered ? 'opacity-100 text-[#0056b8]' : 'opacity-0 group-hover:opacity-100 text-gray-400'}`}
+          className={`w-3 h-3 shrink-0 transition-opacity ${isFiltered ? 'opacity-100 text-[#0056b8]' : 'opacity-40 group-hover:opacity-100 text-gray-400'}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -111,18 +111,14 @@ export default function BLDateTable({ task }: BLDateTableProps) {
   }
 
   function getUniqueValues(key: string): string[] {
-    if (key === 'docxport') return [...new Set(allRows.map(r => r.fieldName))];
-    if (key === 'obl') return [...new Set(allRows.map(() => blDate || '—'))];
+    if (key === 'field') return [...new Set(allRows.map(r => r.fieldName))];
     if (key === 'status') return ['Match', 'Mismatch'];
     return [];
   }
 
   const rows = allRows.filter(row => {
-    const oblFilter = columnFilters['obl'];
-    if (oblFilter?.length && !oblFilter.includes(blDate || '—')) return false;
-
-    const dxFilter = columnFilters['docxport'];
-    if (dxFilter?.length && !dxFilter.includes(row.fieldName)) return false;
+    const fieldFilter = columnFilters['field'];
+    if (fieldFilter?.length && !fieldFilter.includes(row.fieldName)) return false;
 
     const statusFilter = columnFilters['status'];
     if (statusFilter?.length && !statusFilter.includes(row.isMatch ? 'Match' : 'Mismatch')) return false;
@@ -135,22 +131,18 @@ export default function BLDateTable({ task }: BLDateTableProps) {
       <table className="w-full text-sm">
         <thead>
           <tr className="bg-[#d9ecf3] border-b border-gray-200">
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36">
-              Field
-            </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap group cursor-pointer">
-              <ColumnFilter label="Original B/L"
-                allValues={getUniqueValues('obl')}
-                selected={columnFilters['obl'] ?? []}
-                onChange={v => setFilter('obl', v)}
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 group cursor-pointer">
+              <ColumnFilter label="Field"
+                allValues={getUniqueValues('field')}
+                selected={columnFilters['field'] ?? []}
+                onChange={v => setFilter('field', v)}
               />
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap group cursor-pointer">
-              <ColumnFilter label="DocXPort"
-                allValues={getUniqueValues('docxport')}
-                selected={columnFilters['docxport'] ?? []}
-                onChange={v => setFilter('docxport', v)}
-              />
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">
+              Original B/L
+            </th>
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">
+              DocXPort
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 group cursor-pointer">
               <ColumnFilter label="Status"

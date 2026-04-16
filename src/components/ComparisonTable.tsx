@@ -114,7 +114,7 @@ function ColumnFilter({ label, allValues, selected, onChange }: ColumnFilterProp
       >
         <span>{label}</span>
         <svg
-          className={`w-3 h-3 shrink-0 transition-opacity ${isFiltered ? 'opacity-100 text-[#0056b8]' : 'opacity-0 group-hover:opacity-100 text-gray-400'}`}
+          className={`w-3 h-3 shrink-0 transition-opacity ${isFiltered ? 'opacity-100 text-[#0056b8]' : 'opacity-40 group-hover:opacity-100 text-gray-400'}`}
           fill="none" stroke="currentColor" viewBox="0 0 24 24"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
@@ -170,18 +170,12 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
   function getUniqueValues(key: string): string[] {
     if (key === 'field') return [...new Set(allRows.map(r => r.canonicalField))];
     if (key === 'status') return ['Match', 'Mismatch'];
-    const ci = parseInt(key.replace('doc-', ''));
-    return [...new Set(allRows.map(r => r.cells[ci]?.value || '—'))];
+    return [];
   }
 
   const rows = allRows.filter(row => {
     const fieldFilter = columnFilters['field'];
     if (fieldFilter?.length && !fieldFilter.includes(row.canonicalField)) return false;
-
-    for (let ci = 0; ci < row.cells.length; ci++) {
-      const f = columnFilters[`doc-${ci}`];
-      if (f?.length && !f.includes(row.cells[ci].value || '—')) return false;
-    }
 
     const statusFilter = columnFilters['status'];
     const statusLabel = row.rowStatus === 'match' ? 'Match' : 'Mismatch';
@@ -203,12 +197,8 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
               />
             </th>
             {docs.map((doc, ci) => (
-              <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700 group cursor-pointer">
-                <ColumnFilter colKey={`doc-${ci}`} label={doc.type}
-                  allValues={getUniqueValues(`doc-${ci}`)}
-                  selected={columnFilters[`doc-${ci}`] ?? []}
-                  onChange={v => setFilter(`doc-${ci}`, v)}
-                />
+              <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700">
+                {doc.type}
               </th>
             ))}
             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 group cursor-pointer">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import Navbar from './components/Navbar';
 import TaskTable from './components/TaskTable';
@@ -88,22 +88,33 @@ export default function App() {
 
   const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications }[]>('dvr:taskOverrides', []);
 
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    let loaded = mockTasks.map(t => {
+  // baseTasks: only manually actioned states — never auto-approve mutations
+  const [baseTasks, setBaseTasks] = useState<Task[]>(() =>
+    mockTasks.map(t => {
       const o = taskOverrides.find(x => x.id === t.id);
       return o ? { ...t, status: o.status, verifications: o.verifications } : t;
-    });
-    if (autoApprove) loaded = applyAutoApprove(loaded, uploadStates);
-    return loaded;
-  });
+    })
+  );
 
-  // Keep taskOverrides in sync whenever tasks change
+  // Keep taskOverrides in sync with manual actions only
   useEffect(() => {
-    setTaskOverrides(tasks.map(t => ({ id: t.id, status: t.status, verifications: t.verifications })));
-  }, [tasks]);
+    setTaskOverrides(baseTasks.map(t => ({ id: t.id, status: t.status, verifications: t.verifications })));
+  }, [baseTasks]);
+
+  // Derived: apply auto-approve on top at render time — never persisted
+  const tasks = useMemo(
+    () => autoApprove ? applyAutoApprove(baseTasks, uploadStates) : baseTasks,
+    [baseTasks, autoApprove, uploadStates]
+  );
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'All'>('All');
+  const [tabFilters, setTabFilters] = useState<Record<VerificationType, VerificationStatus | 'All'>>({
+    customFormality: 'All',
+    insurance: 'All',
+    draftBL: 'All',
+    blDate: 'All',
+  });
 
   useEffect(() => {
     function onHashChange() { setView(parseHash()); }
@@ -132,17 +143,17 @@ export default function App() {
   }
 
   function handleApprove(taskId: string) {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Approved' as TaskStatus } : t));
+    setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Approved' as TaskStatus } : t));
     navigateHome();
   }
 
   function handleReject(taskId: string) {
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Rejected' as TaskStatus } : t));
+    setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Rejected' as TaskStatus } : t));
     navigateHome();
   }
 
   function handleApproveVerification(taskId: string, verificationType: VerificationType) {
-    setTasks(prev => prev.map(t => {
+    setBaseTasks(prev => prev.map(t => {
       if (t.id !== taskId) return t;
       const verifications = { ...t.verifications, [verificationType]: 'Approved' as VerificationStatus };
       const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
@@ -153,13 +164,10 @@ export default function App() {
   function handleUploadStateChange(taskId: string, tab: string, state: UploadState) {
     const next = { ...uploadStates, [taskId]: { ...uploadStates[taskId], [tab]: state } };
     setUploadStates(next);
-    if (state === 'done' && autoApprove) {
-      setTasks(prev => applyAutoApprove(prev, next));
-    }
   }
 
   function handleRejectVerification(taskId: string, verificationType: VerificationType) {
-    setTasks(prev => prev.map(t => {
+    setBaseTasks(prev => prev.map(t => {
       if (t.id !== taskId) return t;
       const verifications = { ...t.verifications, [verificationType]: 'Rejected' as VerificationStatus };
       const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
@@ -185,7 +193,7 @@ export default function App() {
 
   function handleAutoApproveChange(value: boolean) {
     setAutoApprove(value);
-    if (value) setTasks(prev => applyAutoApprove(prev, uploadStates));
+    if (value) setOnlyMyTasks(true);
   }
 
   function navigateToLlmCompare() {
@@ -222,7 +230,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f3f6f8]">
-      <Navbar currentView={view.page} currentUser={currentUser} onNavigateHome={navigateHome} onNavigateToLlmCompare={navigateToLlmCompare} onNavigateToSettings={navigateToSettings} onLogout={handleLogout} />
+      <Navbar currentUser={currentUser} onNavigateHome={navigateHome} onLogout={handleLogout} />
 
       {view.page === 'home' && (
         <div className="max-w-screen-xl mx-auto px-6 py-6">
@@ -238,9 +246,15 @@ export default function App() {
               onSearchChange={setSearch}
               statusFilter={statusFilter}
               onStatusChange={setStatusFilter}
-              onReset={() => { setSearch(''); setStatusFilter('All'); }}
+              tabFilters={tabFilters}
+              onTabFilterChange={(key, value) => setTabFilters(prev => ({ ...prev, [key]: value }))}
+              onlyMyTasks={onlyMyTasks}
+              onOnlyMyTasksChange={setOnlyMyTasks}
+              autoApprove={autoApprove}
+              onAutoApproveChange={handleAutoApproveChange}
+              onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); }}
             />
-            <TaskTable tasks={filteredTasks} uploadStates={uploadStates} onSelectTask={(id, tab) => navigateToCiOverview(id, tab)} />
+            <TaskTable tasks={filteredTasks} uploadStates={uploadStates} tabFilters={tabFilters} onSelectTask={(id, tab) => navigateToCiOverview(id, tab)} />
           </div>
         </div>
       )}

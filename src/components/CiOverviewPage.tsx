@@ -7,7 +7,6 @@ import ComparisonTable from './ComparisonTable';
 import BLDateTable from './BLDateTable';
 import DocumentUploadGate, { type UploadState } from './DocumentUploadGate';
 import ConfirmModal from './ConfirmModal';
-import StatusBadge from './StatusBadge';
 
 interface TabDef {
   type: VerificationType;
@@ -86,6 +85,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   const reUploadRef = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [decisions, setDecisions] = useState<Record<string, { action: 'approve' | 'reject'; reason: string; remark: string }>>({});
   const prevTabRef = useRef<{ tab: VerificationType; status: VerificationStatus }>({
     tab: activeTab,
     status: task.verifications[activeTab],
@@ -157,10 +157,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             </svg>
             Back to Tasks
           </button>
-          <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-base font-bold text-gray-800">CI {task.id}</h1>
-            <StatusBadge status={effectiveStatus} />
-          </div>
+          <h1 className="text-base font-bold text-gray-800">CI {task.id}</h1>
         </div>
 
       </div>
@@ -263,11 +260,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   );
                 }
                 if (isTabActioned) {
-                  return (
-                    <p className="text-sm text-gray-500 transition-opacity duration-300">
-                      <VerificationBadge status={tabStatus} />
-                    </p>
-                  );
+                  return null;
                 }
                 return (
                   <>
@@ -292,6 +285,19 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             </div>
           </div>
         </div>
+        {decisions[activeTab] && (
+          <div className={`px-6 py-3 border-b border-gray-200 shrink-0 text-xs ${decisions[activeTab].action === 'approve' ? 'bg-[#ebf7ed]' : 'bg-[#faeaea]'}`}>
+            <span className="font-semibold text-gray-700">Status: </span>
+            <span className={`font-medium ${decisions[activeTab].action === 'approve' ? 'text-[#267d36]' : 'text-[#8c1d1d]'}`}>
+              {decisions[activeTab].reason}
+            </span>
+            {decisions[activeTab].remark && (
+              <span className="text-gray-600">
+                &nbsp;&nbsp;·&nbsp;&nbsp;<span className="font-semibold text-gray-700">Remark: </span>{decisions[activeTab].remark}
+              </span>
+            )}
+          </div>
+        )}
         <div className="overflow-auto flex-1">
           {activeTab === 'insurance' ? (
             <DocumentUploadGate
@@ -323,9 +329,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       <ConfirmModal
         action={confirm.action}
         tabLabel={TABS.find(t => t.type === confirm.vt)?.label ?? confirm.vt}
-        onConfirm={() => {
+        onConfirm={(reason, remark) => {
           if (confirm.action === 'approve') onApproveVerification(confirm.vt);
           else onRejectVerification(confirm.vt);
+          setDecisions(prev => ({ ...prev, [confirm.vt]: { action: confirm.action, reason, remark } }));
           setConfirm(null);
         }}
         onCancel={() => setConfirm(null)}
