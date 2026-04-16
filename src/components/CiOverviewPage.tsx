@@ -132,7 +132,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
 
   return (
     <>
-    <div className="max-w-screen-xl mx-auto w-full px-3 sm:px-6 py-4 flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
+    <div className="max-w-screen-xl mx-auto w-full px-3 sm:px-6 py-4 flex flex-col">
 
       {/* ── Header: back + CI No. ── */}
       <div className="flex items-center gap-3 mb-4 shrink-0 flex-wrap">
@@ -200,7 +200,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       </div>
 
       {/* ── Comparison table ── */}
-      <div className="bg-white rounded-b-lg overflow-hidden flex flex-col flex-1 min-h-0" style={{ border: '1px solid var(--os-border)', borderTop: 'none' }}>
+      <div className="bg-white rounded-b-lg overflow-hidden flex flex-col" style={{ border: '1px solid var(--os-border)', borderTop: 'none' }}>
         <div className="px-4 sm:px-6 py-3 shrink-0" style={{ borderBottom: '1px solid var(--os-border)' }}>
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
@@ -316,7 +316,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             )}
           </div>
         )}
-        <div className="overflow-auto flex-1">
+        <div className="overflow-auto">
           {activeTab === 'insurance' ? (
             <DocumentUploadGate
               docLabel="Draft Insurance"
