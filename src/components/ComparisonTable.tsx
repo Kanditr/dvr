@@ -178,13 +178,9 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
                 ))}
                 <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
                   {row.rowStatus === 'match' ? (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--os-success-light)', color: 'var(--os-success)' }}>
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--os-success)' }} />Match
-                    </span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--os-success-light)', color: 'var(--os-success)' }}>Match</span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--os-warning-light)', color: 'var(--os-warning)' }}>
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--os-warning)' }} />Mismatch
-                    </span>
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: 'var(--os-warning-light)', color: 'var(--os-warning)' }}>Mismatch</span>
                   )}
                 </td>
               </tr>

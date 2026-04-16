@@ -43,12 +43,12 @@
 
   /* Typography scale */
   --text-xs:    12px;
-  --text-sm:    13px;
-  --text-base:  14px;
-  --text-md:    15px;
-  --text-lg:    16px;
-  --text-xl:    18px;
-  --text-2xl:   20px;
+  --text-sm:    14px;
+  --text-base:  16px;
+  --text-md:    17px;
+  --text-lg:    18px;
+  --text-xl:    20px;
+  --text-2xl:   24px;
 }
 
 /* ─── Base Reset ─────────────────────────────────────────────────── */
@@ -57,7 +57,7 @@
 }
 
 html {
-  font-size: var(--text-base);
+  font-size: 16px;
   -webkit-text-size-adjust: 100%;
 }
 

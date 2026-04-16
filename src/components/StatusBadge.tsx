@@ -17,10 +17,9 @@ export default function StatusBadge({ status, className = '' }: StatusBadgeProps
   const { bg, color } = STATUS_CONFIG[status];
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`}
+      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`}
       style={{ backgroundColor: bg, color }}
     >
-      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: color }} />
       {status}
     </span>
   );

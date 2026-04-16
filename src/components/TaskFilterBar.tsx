@@ -106,7 +106,7 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             >
               <option value="All">All</option>
               {VERIFICATION_STATUSES.map(s => (
-                <option key={s} value={s}>{s}</option>
+                <option key={s} value={s}>{s === 'Pending Verification' ? 'Pending Documents' : s}</option>
               ))}
             </select>
           </div>

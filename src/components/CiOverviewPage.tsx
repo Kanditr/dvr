@@ -41,19 +41,18 @@ const TABS: TabDef[] = [
   },
 ];
 
-const STATUS_CONFIG: Record<VerificationStatus, { bg: string; color: string; dot: string }> = {
-  'Pending Verification': { bg: '#f1f3f5',                    color: 'var(--os-text-muted)',      dot: 'var(--os-text-disabled)' },
-  'Needs Attention':      { bg: 'var(--os-warning-light)',    color: 'var(--os-warning)',         dot: 'var(--os-warning)' },
-  'Rejected':             { bg: 'var(--os-error-light)',      color: 'var(--os-error)',           dot: 'var(--os-error)' },
-  'All Matches':          { bg: 'var(--os-success-light)',    color: 'var(--os-success)',         dot: 'var(--os-success)' },
-  'Approved':             { bg: 'var(--os-primary-light)',    color: 'var(--os-primary)',         dot: 'var(--os-primary)' },
+const STATUS_CONFIG: Record<VerificationStatus, { bg: string; color: string }> = {
+  'Pending Verification': { bg: '#f1f3f5',                    color: 'var(--os-text-muted)' },
+  'Needs Attention':      { bg: 'var(--os-warning-light)',    color: 'var(--os-warning)' },
+  'Rejected':             { bg: 'var(--os-error-light)',      color: 'var(--os-error)' },
+  'All Matches':          { bg: 'var(--os-success-light)',    color: 'var(--os-success)' },
+  'Approved':             { bg: 'var(--os-primary-light)',    color: 'var(--os-primary)' },
 };
 
 function VerificationBadge({ status }: { status: VerificationStatus }) {
-  const { bg, color, dot } = STATUS_CONFIG[status];
+  const { bg, color } = STATUS_CONFIG[status];
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: bg, color }}>
-      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: dot }} />
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: bg, color }}>
       {status}
     </span>
   );
@@ -61,9 +60,8 @@ function VerificationBadge({ status }: { status: VerificationStatus }) {
 
 function PendingDocumentBadge() {
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#f1f3f5', color: 'var(--os-text-muted)' }}>
-      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: 'var(--os-text-disabled)' }} />
-      Pending Document
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium" style={{ backgroundColor: '#f1f3f5', color: 'var(--os-text-muted)' }}>
+      Pending Documents
     </span>
   );
 }
@@ -217,7 +215,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <input ref={reUploadRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleReUpload} />
                   <button
                     onClick={() => reUploadRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium rounded-md transition-colors shrink-0"
+                    className="inline-flex items-center gap-1.5 py-1.5 px-3 text-xs font-medium rounded-md transition-colors shrink-0"
                     style={{ color: 'var(--os-primary)', border: '1px solid var(--os-primary)' }}
                     onMouseOver={e => { e.currentTarget.style.backgroundColor = 'var(--os-primary-light)'; }}
                     onMouseOut={e => { e.currentTarget.style.backgroundColor = ''; }}
@@ -232,7 +230,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               <button
                 onClick={() => !isTabPending && exportVerificationTab(task, activeTab)}
                 disabled={isTabPending}
-                className={`inline-flex items-center gap-1.5 h-8 px-3 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabPending ? 'cursor-not-allowed' : ''}`}
+                className={`inline-flex items-center gap-1.5 py-1.5 px-3 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabPending ? 'cursor-not-allowed' : ''}`}
                 style={isTabPending
                   ? { color: 'var(--os-text-disabled)', borderColor: 'var(--os-border)', backgroundColor: '#f1f3f5' }
                   : { color: 'var(--os-text-secondary)', borderColor: 'var(--os-border)' }}
@@ -266,7 +264,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     <button
                       onClick={() => !isTabPending && setConfirm({ action: 'reject', vt: activeTab })}
                       disabled={isTabPending}
-                      className={`inline-flex items-center h-8 px-4 text-xs rounded-md transition-colors ${isTabPending ? 'cursor-not-allowed' : ''}`}
+                      className={`inline-flex items-center py-1.5 px-4 text-xs rounded-md transition-colors ${isTabPending ? 'cursor-not-allowed' : ''}`}
                       style={isTabPending
                         ? { border: '1px solid var(--os-border)', color: 'var(--os-text-disabled)', backgroundColor: '#f1f3f5' }
                         : { border: '1px solid var(--os-error)', color: 'var(--os-error)' }}
@@ -279,7 +277,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       onClick={() => !isTabPending && !(autoApprove && tabStatus !== 'Needs Attention') && setConfirm({ action: 'approve', vt: activeTab })}
                       disabled={isTabPending || (autoApprove && tabStatus !== 'Needs Attention')}
                       title={autoApprove && tabStatus !== 'Needs Attention' ? 'Auto Approve is enabled in Settings' : undefined}
-                      className={`inline-flex items-center h-8 px-4 text-xs rounded-md transition-colors ${isTabPending || (autoApprove && tabStatus !== 'Needs Attention') ? 'cursor-not-allowed' : ''}`}
+                      className={`inline-flex items-center py-1.5 px-4 text-xs rounded-md transition-colors ${isTabPending || (autoApprove && tabStatus !== 'Needs Attention') ? 'cursor-not-allowed' : ''}`}
                       style={
                         isTabPending || (autoApprove && tabStatus !== 'Needs Attention')
                           ? { backgroundColor: '#e9ecef', color: 'var(--os-text-disabled)' }

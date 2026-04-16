@@ -163,8 +163,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                     onMouseOut={e => (e.currentTarget.style.backgroundColor = '')}
                     onClick={() => onSelectTask(task.id, key)}
                   >
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium" style={STATUS_STYLE[status]}>
-                      <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: STATUS_STYLE[status].color as string }} />
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium" style={STATUS_STYLE[status]}>
                       {STATUS_SHORT[status]}
                     </span>
                   </td>
