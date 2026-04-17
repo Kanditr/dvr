@@ -22,14 +22,15 @@ const DRAFT_BL_DOC_TYPES: ShipDoc['type'][] = [
 ];
 
 const CF_DOCXPORT_FIELD_NAMES: Record<string, string> = {
-  'PROFORMA INVOICE NO.': 'Reference Number',
-  'Invoice no.': 'Commercial Invoice No',
-  "Buyer's order No.": "Buyer's order No.",
-  'etd <port>': 'Port of Loading (From)',
-  'eta <port>': 'Port of Discharge / Port of Destination (To)',
-  'product (line item)': 'Description of Goods',
-  'quantity (line item)': 'quantity',
-  'Quantity (Total)': 'Quantity (Sum of line item)',
+  'INVOICE NO.':          'COMMERCIAL INVOICE NO.',
+  'REF NO.':              'REFERENCE NO.',
+  "BUYER'S ORDER NO.":    "BUYER'S ORDER NO.",
+  'ETD PORT':             'PORT OF LOADING (FROM)',
+  'ETA PORT':             'PORT OF DISCHARGE / PORT OF DESTINATION (TO)',
+  'PAYMENT TERM':         'PAYMENT TERM',
+  'PRODUCT LINE ITEM#1':  'DESCRIPTION OF GOODS',
+  'QUANTITY LINE ITEM#1': 'QUANTITY',
+  'AMOUNT LINE ITEM#1':   'AMOUNT',
 };
 
 function buildDocXPortDoc(task: Task, fields: string[], fieldNameMap: Record<string, string> = {}): ShipDoc {
@@ -48,8 +49,10 @@ function buildDocXPortDoc(task: Task, fields: string[], fieldNameMap: Record<str
 function getDocsForVerification(task: Task, verificationType: VerificationType): ShipDoc[] {
   if (verificationType === 'customFormality') {
     const cfFields = [
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
+      'INVOICE NO.', 'REF NO.', "BUYER'S ORDER NO.", 'ETD PORT', 'ETA PORT',
+      'PAYMENT TERM', 'PRODUCT LINE ITEM#1', 'QUANTITY LINE ITEM#1', 'TOTAL QUANTITY',
+      'AMOUNT LINE ITEM#1', 'TOTAL AMOUNT', 'FREIGHT', 'INCOTERMS',
+      'TOTAL NET WEIGHT', 'TOTAL GROSS WEIGHT', 'MARKS & NOS',
     ];
     const cfDocs = task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
     return [...cfDocs, buildDocXPortDoc(task, cfFields, CF_DOCXPORT_FIELD_NAMES)];
@@ -166,9 +169,11 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
                   {row.canonicalField}
                 </td>
                 {row.cells.map((cell, ci) => (
-                  <td key={ci} className={`px-4 py-3 align-top ${cell.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
+                  <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : cell.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
                     <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
-                    <span className="block text-sm font-medium text-gray-900">{cell.value}</span>
+                    <span className={`block text-sm font-medium ${!cell.isApplicable ? 'text-gray-300' : 'text-gray-900'}`}>
+                      {cell.isApplicable ? cell.value : '—'}
+                    </span>
                   </td>
                 ))}
                 <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
