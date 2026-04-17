@@ -77,19 +77,20 @@ interface TaskTableProps {
   uploadStates: Record<string, Record<string, UploadState>>;
   tabFilters: Record<VerificationType, VerificationStatus | 'All'>;
   onSelectTask: (taskId: string, tab: VerificationType) => void;
+  page: number;
+  onPageChange: (page: number) => void;
 }
 
 const PAGE_SIZE = 10;
 
-export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask }: TaskTableProps) {
+export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange }: TaskTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [page, setPage] = useState(1);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
     else { setSortKey(key); setSortDir('asc'); }
-    setPage(1);
+    onPageChange(1);
   }
 
   const processed = [...tasks]
@@ -150,12 +151,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 {task.id}
               </td>
               <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-full bg-gray-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                    {task.assignedTo.split('@')[0].split('.').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
-                  </div>
-                  {task.assignedTo}
-                </div>
+                {task.assignedTo}
               </td>
               {TAB_COLS.map(({ key }) => {
                 const status = getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {});
@@ -199,7 +195,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
         </span>
         <div className="flex items-center gap-1">
           <button
-            onClick={() => setPage(p => Math.max(1, p - 1))}
+            onClick={() => onPageChange(p => Math.max(1, p - 1))}
             disabled={safePage === 1}
             className="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
@@ -211,7 +207,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
             ) : (
               <button
                 key={p}
-                onClick={() => setPage(p as number)}
+                onClick={() => onPageChange(p as number)}
                 className={`min-w-[28px] px-2 py-1 rounded border transition-colors ${
                   p === safePage
                     ? 'border-[#0056b8] bg-[#0056b8] text-white'
@@ -223,7 +219,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
             )
           )}
           <button
-            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            onClick={() => onPageChange(p => Math.min(totalPages, p + 1))}
             disabled={safePage === totalPages}
             className="px-2 py-1 rounded border border-gray-200 text-gray-500 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >

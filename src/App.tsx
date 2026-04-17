@@ -134,6 +134,7 @@ export default function App() {
   );
 
   const [search, setSearch] = useState('');
+  const [taskPage, setTaskPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'All'>('All');
   const [tabFilters, setTabFilters] = useState<Record<VerificationType, VerificationStatus | 'All'>>({
     customFormality: 'All',
@@ -287,18 +288,18 @@ export default function App() {
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
             <TaskFilterBar
               search={search}
-              onSearchChange={setSearch}
+              onSearchChange={v => { setSearch(v); setTaskPage(1); }}
               statusFilter={statusFilter}
-              onStatusChange={setStatusFilter}
+              onStatusChange={v => { setStatusFilter(v); setTaskPage(1); }}
               tabFilters={tabFilters}
-              onTabFilterChange={(key, value) => setTabFilters(prev => ({ ...prev, [key]: value }))}
+              onTabFilterChange={(key, value) => { setTabFilters(prev => ({ ...prev, [key]: value })); setTaskPage(1); }}
               onlyMyTasks={onlyMyTasks}
-              onOnlyMyTasksChange={setOnlyMyTasks}
+              onOnlyMyTasksChange={v => { setOnlyMyTasks(v); setTaskPage(1); }}
               autoApprove={autoApprove}
               onAutoApproveChange={handleAutoApproveChange}
-              onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); }}
+              onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setTaskPage(1); }}
             />
-            <TaskTable tasks={filteredTasks} uploadStates={uploadStates} tabFilters={tabFilters} onSelectTask={(id, tab) => navigateToCiOverview(id, tab)} />
+            <TaskTable tasks={filteredTasks} uploadStates={uploadStates} tabFilters={tabFilters} onSelectTask={(id, tab) => navigateToCiOverview(id, tab)} page={taskPage} onPageChange={setTaskPage} />
           </div>
         </div>
       )}
