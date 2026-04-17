@@ -3,9 +3,36 @@ import type { VerificationType } from '../App';
 
 const ALL_STATUSES: TaskStatus[] = ['Pending', 'Needs Attention', 'All Match', 'Approved', 'Rejected'];
 
+const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
+  'Pending':         'Pending Document',
+  'Needs Attention': 'Needs Attention',
+  'All Match':       'All Match',
+  'Approved':        'Approved',
+  'Rejected':        'Rejected',
+};
+
 const VERIFICATION_STATUSES: VerificationStatus[] = [
-  'All Matches', 'Approved', 'Needs Attention', 'Rejected', 'Pending Verification',
+  'Pending Verification', 'Needs Attention', 'All Matches', 'Approved', 'Rejected',
 ];
+
+const NO_PENDING_DOC_STATUSES: VerificationStatus[] = [
+  'Needs Attention', 'All Matches', 'Approved', 'Rejected',
+];
+
+const TAB_STATUSES: Record<VerificationType, VerificationStatus[]> = {
+  customFormality: NO_PENDING_DOC_STATUSES,
+  insurance:       VERIFICATION_STATUSES,
+  draftBL:         VERIFICATION_STATUSES,
+  blDate:          VERIFICATION_STATUSES,
+};
+
+const VERIFICATION_STATUS_LABEL: Record<VerificationStatus, string> = {
+  'All Matches':          'All Matches',
+  'Approved':             'Approved',
+  'Needs Attention':      'Needs Attention',
+  'Rejected':             'Rejected',
+  'Pending Verification': 'Pending Document',
+};
 
 const TAB_FILTER_DEFS: { key: VerificationType; label: string }[] = [
   { key: 'customFormality', label: 'Custom Formality' },
@@ -75,7 +102,7 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           >
             <option value="All">All</option>
             {ALL_STATUSES.map(s => (
-              <option key={s} value={s}>{s}</option>
+              <option key={s} value={s}>{TASK_STATUS_LABEL[s]}</option>
             ))}
           </select>
         </div>
@@ -90,8 +117,8 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
               className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white min-w-[140px]"
             >
               <option value="All">All</option>
-              {VERIFICATION_STATUSES.map(s => (
-                <option key={s} value={s}>{s}</option>
+              {TAB_STATUSES[key].map(s => (
+                <option key={s} value={s}>{VERIFICATION_STATUS_LABEL[s]}</option>
               ))}
             </select>
           </div>

@@ -29,11 +29,19 @@ const TAB_COLS: { key: VerificationType; label: string }[] = [
 
 
 const STATUS_STYLE: Record<VerificationStatus, string> = {
-  'All Matches':          'bg-green-100 text-green-700',
-  'Approved':             'bg-blue-100 text-blue-700',
-  'Needs Attention':      'bg-orange-100 text-orange-700',
-  'Rejected':             'bg-red-100 text-red-700',
-  'Pending Verification': 'bg-gray-100 text-gray-400',
+  'All Matches':          'bg-[#ebf7ed] text-[#267d36]',
+  'Approved':             'bg-[#e8f0fb] text-[#0056b8]',
+  'Needs Attention':      'bg-[#fef5e5] text-[#ac6f00]',
+  'Rejected':             'bg-[#faeaea] text-[#8c1d1d]',
+  'Pending Verification': 'bg-gray-100 text-gray-500',
+};
+
+const STATUS_DOT: Record<VerificationStatus, string> = {
+  'All Matches':          'bg-[#34a853]',
+  'Approved':             'bg-[#0056b8]',
+  'Needs Attention':      'bg-[#f5a623]',
+  'Rejected':             'bg-[#d94040]',
+  'Pending Verification': 'bg-gray-400',
 };
 
 const STATUS_SHORT: Record<VerificationStatus, string> = {
@@ -57,7 +65,11 @@ function getEffectiveTabStatus(
     const hasData = !!(oblDoc && oblDoc.values[oblDoc.fieldMapping['B/L Date']]);
     if (!hasData) return 'Pending Verification';
   }
-  return task.verifications[tabKey];
+  const status = task.verifications[tabKey];
+  if ((tabKey === 'customFormality' || tabKey === 'blDate') && status === 'Pending Verification') {
+    return 'Needs Attention';
+  }
+  return status;
 }
 
 interface TaskTableProps {
@@ -140,7 +152,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
                 <div className="flex items-center gap-2">
                   <div className="w-7 h-7 rounded-full bg-gray-500 flex items-center justify-center text-xs font-bold text-white shrink-0">
-                    {task.assignedTo.split(' ').map(n => n[0]).join('')}
+                    {task.assignedTo.split('@')[0].split('.').map((n: string) => n[0]).join('').toUpperCase().slice(0, 2)}
                   </div>
                   {task.assignedTo}
                 </div>
@@ -153,7 +165,8 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                     className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
                     onClick={() => onSelectTask(task.id, key)}
                   >
-                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_STYLE[status]}`}>
+                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[status]}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
                       {STATUS_SHORT[status]}
                     </span>
                   </td>

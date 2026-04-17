@@ -42,7 +42,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     // Mock auth: accept any non-empty credentials
     setTimeout(() => {
       setLoading(false);
-      onLogin(toDisplayName(username.trim()));
+      onLogin(username.trim());
     }, 800);
   }
 
@@ -52,7 +52,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
     // Mock: Microsoft SSO resolves to Jane Doe
     setTimeout(() => {
       setMsLoading(false);
-      onLogin('Jane Doe');
+      onLogin('jane.doe@pttgcgroup.com');
     }, 1000);
   }
 

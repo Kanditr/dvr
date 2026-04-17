@@ -36,7 +36,7 @@ export default function Navbar({ currentUser, onNavigateHome, onLogout }: Navbar
     setCountdown(3);
   }
 
-  const initials = currentUser.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  const initials = currentUser.split('@')[0].split('.').map(n => n[0]).join('').toUpperCase().slice(0, 2);
 
   return (
     <>

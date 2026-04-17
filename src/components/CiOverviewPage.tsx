@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import type { Task, VerificationStatus, Verifications } from '../data/mockData';
 import { deriveOverallStatus } from '../data/mockData';
-import type { VerificationType } from '../App';
+import type { VerificationType, ActionLog } from '../App';
 import { exportVerificationTab } from '../utils/exportExcel';
 import ComparisonTable from './ComparisonTable';
 import BLDateTable from './BLDateTable';
@@ -50,12 +50,20 @@ const STATUS_CONFIG: Record<VerificationStatus, { bg: string; text: string; dot:
   'Approved':             { bg: 'bg-[#e8f0fb]',  text: 'text-[#0056b8]', dot: 'bg-[#0056b8]' },
 };
 
+const STATUS_LABEL: Record<VerificationStatus, string> = {
+  'All Matches':          'All Match',
+  'Approved':             'Approved',
+  'Needs Attention':      'Needs Attention',
+  'Rejected':             'Rejected',
+  'Pending Verification': 'Pending Verification',
+};
+
 function VerificationBadge({ status }: { status: VerificationStatus }) {
   const { bg, text, dot } = STATUS_CONFIG[status];
   return (
     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${bg} ${text}`}>
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dot}`} />
-      {status}
+      {STATUS_LABEL[status]}
     </span>
   );
 }
@@ -74,18 +82,24 @@ interface CiOverviewPageProps {
   activeTab: VerificationType;
   onTabChange: (tab: VerificationType) => void;
   onBack: () => void;
-  onApproveVerification: (vt: VerificationType) => void;
-  onRejectVerification: (vt: VerificationType) => void;
+  onApproveVerification: (vt: VerificationType, reason?: string, remark?: string) => void;
+  onRejectVerification: (vt: VerificationType, reason?: string, remark?: string) => void;
   autoApprove: boolean;
   uploadStates: Record<string, UploadState>;
   onUploadStateChange: (tab: string, state: UploadState) => void;
+  actionLogs: Record<string, ActionLog>;
+  onLogVerified: (vt: VerificationType) => void;
 }
 
-export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove }: CiOverviewPageProps) {
+function formatActionTimestamp(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, actionLogs, onLogVerified }: CiOverviewPageProps) {
   const reUploadRef = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [decisions, setDecisions] = useState<Record<string, { action: 'approve' | 'reject'; reason: string; remark: string }>>({});
   const prevTabRef = useRef<{ tab: VerificationType; status: VerificationStatus }>({
     tab: activeTab,
     status: task.verifications[activeTab],
@@ -131,11 +145,19 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     ((activeTab === 'insurance' || activeTab === 'draftBL') && (uploadStates[activeTab] ?? 'idle') !== 'done')
     || (activeTab === 'blDate' && !blDateHasData);
 
+  // Auto-log "verified" the first time a tab is viewed with a non-pending status
+  useEffect(() => {
+    if (!isTabPending && !actionLogs[activeTab]) {
+      onLogVerified(activeTab);
+    }
+  }, [activeTab, task.id, isTabPending]);
+
   const effectiveVerifications: Verifications = {
     ...task.verifications,
+    customFormality: task.verifications.customFormality === 'Pending Verification' ? 'Needs Attention' : task.verifications.customFormality,
     insurance: (uploadStates['insurance'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.insurance,
     draftBL:   (uploadStates['draftBL']   ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
-    blDate:    !blDateHasData                                    ? 'Pending Verification' : task.verifications.blDate,
+    blDate:    !blDateHasData ? 'Pending Verification' : task.verifications.blDate === 'Pending Verification' ? 'Needs Attention' : task.verifications.blDate,
   };
   const effectiveStatus = deriveOverallStatus(effectiveVerifications);
   const activeTabDef = TABS.find(t => t.type === activeTab)!;
@@ -185,11 +207,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       <div className="bg-white rounded-t-lg border border-gray-200 border-b-0 shrink-0">
         <div className="flex overflow-x-auto">
           {TABS.map((tab) => {
-            const status = task.verifications[tab.type];
             const isActive = activeTab === tab.type;
             const isPendingDocument =
               ((tab.type === 'insurance' || tab.type === 'draftBL') && (uploadStates[tab.type] ?? 'idle') !== 'done')
               || (tab.type === 'blDate' && !blDateHasData);
+            let tabStatus: VerificationStatus = task.verifications[tab.type];
+            if (tab.type === 'blDate' && !blDateHasData) tabStatus = 'Pending Verification';
+            else if ((tab.type === 'customFormality' || tab.type === 'blDate') && tabStatus === 'Pending Verification') tabStatus = 'Needs Attention';
             return (
               <button
                 key={tab.type}
@@ -203,7 +227,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 <span className={`text-xs font-semibold ${isActive ? 'text-[#0056b8]' : 'text-gray-500'}`}>
                   {tab.shortLabel}
                 </span>
-                {isPendingDocument ? <PendingDocumentBadge /> : <VerificationBadge status={status} />}
+                {isPendingDocument ? <PendingDocumentBadge /> : <VerificationBadge status={tabStatus} />}
               </button>
             );
           })}
@@ -219,6 +243,16 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               <p className="text-xs text-gray-500 mt-0.5">
                 Green cells indicate matching values. Orange cells indicate mismatches.
               </p>
+              {actionLogs[activeTab] && (() => {
+                const log = actionLogs[activeTab];
+                const label = log.action === 'approve' ? 'Last approved' : log.action === 'reject' ? 'Last rejected' : 'Last verified';
+                const color = log.action === 'approve' ? 'text-[#0056b8]' : log.action === 'reject' ? 'text-[#8c1d1d]' : 'text-gray-500';
+                return (
+                  <p className={`text-xs mt-1 font-medium ${color}`}>
+                    {label}: {formatActionTimestamp(log.timestamp)} · by {log.by}
+                  </p>
+                );
+              })()}
             </div>
             <div className="flex items-center gap-3">
               {isUploadTab && currentUploadState === 'done' && (
@@ -246,7 +280,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 Export
               </button>
               {(() => {
-                const tabStatus = task.verifications[activeTab];
+                let tabStatus: VerificationStatus = task.verifications[activeTab];
+                if (activeTab === 'blDate' && !blDateHasData) tabStatus = 'Pending Verification';
+                else if ((activeTab === 'customFormality' || activeTab === 'blDate') && tabStatus === 'Pending Verification') tabStatus = 'Needs Attention';
                 const isTabActioned = tabStatus === 'Approved' || tabStatus === 'Rejected';
                 if (isTransitioning) {
                   return (
@@ -285,20 +321,20 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             </div>
           </div>
         </div>
-        {decisions[activeTab] && (
-          <div className={`px-6 py-3 border-b border-gray-200 shrink-0 text-xs ${decisions[activeTab].action === 'approve' ? 'bg-[#ebf7ed]' : 'bg-[#faeaea]'}`}>
+        {actionLogs[activeTab]?.reason && (
+          <div className={`px-6 py-3 border-b border-gray-200 shrink-0 text-xs ${actionLogs[activeTab].action === 'approve' ? 'bg-[#ebf7ed]' : 'bg-[#faeaea]'}`}>
             <span className="font-semibold text-gray-700">Status: </span>
-            <span className={`font-medium ${decisions[activeTab].action === 'approve' ? 'text-[#267d36]' : 'text-[#8c1d1d]'}`}>
-              {decisions[activeTab].reason}
+            <span className={`font-medium ${actionLogs[activeTab].action === 'approve' ? 'text-[#267d36]' : 'text-[#8c1d1d]'}`}>
+              {actionLogs[activeTab].reason}
             </span>
-            {decisions[activeTab].remark && (
+            {actionLogs[activeTab].remark && (
               <span className="text-gray-600">
-                &nbsp;&nbsp;·&nbsp;&nbsp;<span className="font-semibold text-gray-700">Remark: </span>{decisions[activeTab].remark}
+                &nbsp;&nbsp;·&nbsp;&nbsp;<span className="font-semibold text-gray-700">Remark: </span>{actionLogs[activeTab].remark}
               </span>
             )}
           </div>
         )}
-        <div className="overflow-auto flex-1">
+        <div className="flex-1 flex flex-col min-h-0">
           {activeTab === 'insurance' ? (
             <DocumentUploadGate
               docLabel="Draft Insurance"
@@ -330,9 +366,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
         action={confirm.action}
         tabLabel={TABS.find(t => t.type === confirm.vt)?.label ?? confirm.vt}
         onConfirm={(reason, remark) => {
-          if (confirm.action === 'approve') onApproveVerification(confirm.vt);
-          else onRejectVerification(confirm.vt);
-          setDecisions(prev => ({ ...prev, [confirm.vt]: { action: confirm.action, reason, remark } }));
+          if (confirm.action === 'approve') onApproveVerification(confirm.vt, reason, remark);
+          else onRejectVerification(confirm.vt, reason, remark);
           setConfirm(null);
         }}
         onCancel={() => setConfirm(null)}

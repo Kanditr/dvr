@@ -12,6 +12,7 @@ import type { Task, TaskStatus, VerificationStatus, Verifications } from './data
 import type { UploadState } from './components/DocumentUploadGate';
 
 export type VerificationType = 'customFormality' | 'insurance' | 'draftBL' | 'blDate';
+export type ActionLog = { action: 'verified' | 'approve' | 'reject'; timestamp: string; by: string; reason?: string; remark?: string };
 
 const VALID_TABS: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
 
@@ -42,11 +43,20 @@ function setHash(view: View) {
 function getEffectiveVerifications(task: Task, taskUploadStates: Record<string, UploadState>): Verifications {
   const oblDoc = task.documents.find(d => d.type === 'Original B/L');
   const blDateHasData = !!(oblDoc && oblDoc.values[oblDoc.fieldMapping['B/L Date']]);
+  const customFormality = task.verifications.customFormality === 'Pending Verification'
+    ? 'Needs Attention' as VerificationStatus
+    : task.verifications.customFormality;
+  const blDate = !blDateHasData
+    ? 'Pending Verification' as VerificationStatus
+    : task.verifications.blDate === 'Pending Verification'
+      ? 'Needs Attention' as VerificationStatus
+      : task.verifications.blDate;
   return {
     ...task.verifications,
+    customFormality,
     insurance: (taskUploadStates['insurance'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.insurance,
     draftBL:   (taskUploadStates['draftBL']   ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
-    blDate:    !blDateHasData                                        ? 'Pending Verification' : task.verifications.blDate,
+    blDate,
   };
 }
 
@@ -71,8 +81,22 @@ function applyAutoApprove(
   });
 }
 
+const DATA_VERSION = 'v2026-04c';
+
+function clearStaleStorage() {
+  const stored = localStorage.getItem('dvr:dataVersion');
+  if (stored !== DATA_VERSION) {
+    ['dvr:taskOverrides', 'dvr:uploadStates', 'dvr:actionLogs'].forEach(k => localStorage.removeItem(k));
+    localStorage.setItem('dvr:dataVersion', DATA_VERSION);
+  }
+}
+clearStaleStorage();
+
 export default function App() {
   const [currentUser, setCurrentUser] = useLocalStorage<string | null>('dvr:currentUser', null);
+
+  // Clear stale non-email values stored before the email migration
+  const effectiveUser = currentUser && currentUser.includes('@') ? currentUser : null;
 
   const [view, setView] = useState<View>(parseHash);
   const [prevView, setPrevView] = useState<View>({ page: 'home' });
@@ -80,13 +104,15 @@ export default function App() {
   const [autoApprove, setAutoApprove] = useLocalStorage<boolean>('dvr:autoApprove', false);
   const [onlyMyTasks, setOnlyMyTasks] = useLocalStorage<boolean>('dvr:onlyMyTasks', false);
 
-  const CURRENT_USER = currentUser ?? 'Jane Doe';
+  const CURRENT_USER = effectiveUser ?? 'jane.doe@pttgcgroup.com';
 
   const [uploadStates, setUploadStates] = useLocalStorage<Record<string, Record<string, UploadState>>>(
     'dvr:uploadStates', {}
   );
 
   const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications }[]>('dvr:taskOverrides', []);
+
+  const [actionLogs, setActionLogs] = useLocalStorage<Record<string, Record<string, ActionLog>>>('dvr:actionLogs', {});
 
   // baseTasks: only manually actioned states — never auto-approve mutations
   const [baseTasks, setBaseTasks] = useState<Task[]>(() =>
@@ -152,12 +178,16 @@ export default function App() {
     navigateHome();
   }
 
-  function handleApproveVerification(taskId: string, verificationType: VerificationType) {
+  function handleApproveVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
     setBaseTasks(prev => prev.map(t => {
       if (t.id !== taskId) return t;
       const verifications = { ...t.verifications, [verificationType]: 'Approved' as VerificationStatus };
       const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
       return { ...t, verifications, status: deriveOverallStatus(effective) };
+    }));
+    setActionLogs(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [verificationType]: { action: 'approve', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark } },
     }));
   }
 
@@ -166,13 +196,27 @@ export default function App() {
     setUploadStates(next);
   }
 
-  function handleRejectVerification(taskId: string, verificationType: VerificationType) {
+  function handleRejectVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
     setBaseTasks(prev => prev.map(t => {
       if (t.id !== taskId) return t;
       const verifications = { ...t.verifications, [verificationType]: 'Rejected' as VerificationStatus };
       const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
       return { ...t, verifications, status: deriveOverallStatus(effective) };
     }));
+    setActionLogs(prev => ({
+      ...prev,
+      [taskId]: { ...prev[taskId], [verificationType]: { action: 'reject', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark } },
+    }));
+  }
+
+  function handleLogVerified(taskId: string, verificationType: VerificationType) {
+    setActionLogs(prev => {
+      if (prev[taskId]?.[verificationType]) return prev; // already logged, don't overwrite
+      return {
+        ...prev,
+        [taskId]: { ...prev[taskId], [verificationType]: { action: 'verified', timestamp: new Date().toISOString(), by: CURRENT_USER } },
+      };
+    });
   }
 
   const currentTask =
@@ -224,13 +268,13 @@ export default function App() {
     setHash({ page: 'home' });
   }
 
-  if (!currentUser) {
+  if (!effectiveUser) {
     return <LoginPage onLogin={handleLogin} />;
   }
 
   return (
     <div className="min-h-screen bg-[#f3f6f8]">
-      <Navbar currentUser={currentUser} onNavigateHome={navigateHome} onLogout={handleLogout} />
+      <Navbar currentUser={effectiveUser} onNavigateHome={navigateHome} onLogout={handleLogout} />
 
       {view.page === 'home' && (
         <div className="max-w-screen-xl mx-auto px-6 py-6">
@@ -277,11 +321,13 @@ export default function App() {
           activeTab={view.tab}
           onTabChange={handleTabChange}
           onBack={navigateHome}
-          onApproveVerification={(vt) => handleApproveVerification(currentTask.id, vt)}
-          onRejectVerification={(vt) => handleRejectVerification(currentTask.id, vt)}
+          onApproveVerification={(vt, reason, remark) => handleApproveVerification(currentTask.id, vt, reason, remark)}
+          onRejectVerification={(vt, reason, remark) => handleRejectVerification(currentTask.id, vt, reason, remark)}
           uploadStates={uploadStates[currentTask.id] ?? {}}
           onUploadStateChange={(tab, state) => handleUploadStateChange(currentTask.id, tab, state)}
           autoApprove={autoApprove}
+          actionLogs={actionLogs[currentTask.id] ?? {}}
+          onLogVerified={(vt) => handleLogVerified(currentTask.id, vt)}
         />
       )}
     </div>

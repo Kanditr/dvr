@@ -1,8 +1,8 @@
 export interface ShipDoc {
   id: string;
   type: 'Shipping Advice' | 'Custom Invoice' | 'Packing List' | 'Letter of Credit' | 'Shipping Instruction' | 'DocXPort' | 'Draft Insurance' | 'Detail for Insurance Purpose' | 'Draft B/L' | 'Shipping Particular' | 'Original B/L';
-  fieldMapping: Record<string, string>; // canonical field → original field name in this doc
-  values: Record<string, string>;       // original field name → actual value
+  fieldMapping: Record<string, string>;
+  values: Record<string, string>;
 }
 
 export type TaskStatus =
@@ -33,8 +33,8 @@ export interface Task {
   consignee: string;
   submittedDate: string;
   assignedTo: string;
-  documents: ShipDoc[];       // variable: 2–5 documents
-  canonicalFields: string[];  // fields to compare, specific to this task
+  documents: ShipDoc[];
+  canonicalFields: string[];
   correctValues: Record<string, string>;
   status: TaskStatus;
   verifications: Verifications;
@@ -49,2503 +49,725 @@ export function deriveOverallStatus(v: Verifications): TaskStatus {
   return 'All Match';
 }
 
+// Helper to build standard CF docs
+function cfDocs(id: string, vals: Record<string, string>, ciMismatches?: Record<string, string>): ShipDoc[] {
+  return [
+    {
+      id: `${id}-sa`,
+      type: 'Shipping Advice',
+      fieldMapping: {
+        'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
+        'Invoice no.':          'Invoice no.',
+        "Buyer's order No.":    "Buyer's order No.",
+        'etd <port>':           'etd <port>',
+        'eta <port>':           'eta <port>',
+        'product (line item)':  'product (line item)',
+        'quantity (line item)': 'quantity (line item)',
+        'Quantity (Total)':     'Quantity (Total)',
+      },
+      values: {
+        'PROFORMA INVOICE NO.': vals['PROFORMA INVOICE NO.'],
+        'Invoice no.':          vals['Invoice no.'],
+        "Buyer's order No.":    vals["Buyer's order No."],
+        'etd <port>':           vals['etd <port>'],
+        'eta <port>':           vals['eta <port>'],
+        'product (line item)':  vals['product (line item)'],
+        'quantity (line item)': vals['quantity (line item)'],
+        'Quantity (Total)':     vals['Quantity (Total)'],
+      },
+    },
+    {
+      id: `${id}-ci`,
+      type: 'Custom Invoice',
+      fieldMapping: {
+        'PROFORMA INVOICE NO.': 'Contract No.',
+        'Invoice no.':          'Invoice No.',
+        "Buyer's order No.":    'PO No.',
+        'etd <port>':           'Port of Loading',
+        'eta <port>':           'Port of Discharge',
+        'product (line item)':  'Description',
+        'quantity (line item)': 'Quantity',
+        'Quantity (Total)':     'Total Quantity',
+      },
+      values: {
+        'Contract No.':     ciMismatches?.['PROFORMA INVOICE NO.'] ?? vals['PROFORMA INVOICE NO.'],
+        'Invoice No.':      ciMismatches?.['Invoice no.']          ?? vals['Invoice no.'],
+        'PO No.':           ciMismatches?.["Buyer's order No."]    ?? vals["Buyer's order No."],
+        'Port of Loading':  ciMismatches?.['etd <port>']           ?? vals['etd <port>'],
+        'Port of Discharge':ciMismatches?.['eta <port>']           ?? vals['eta <port>'],
+        'Description':      ciMismatches?.['product (line item)']  ?? vals['product (line item)'],
+        'Quantity':         ciMismatches?.['quantity (line item)']  ?? vals['quantity (line item)'],
+        'Total Quantity':   ciMismatches?.['Quantity (Total)']      ?? vals['Quantity (Total)'],
+      },
+    },
+  ];
+}
+
+function insDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>): ShipDoc[] {
+  return [
+    {
+      id: `${id}-ins`,
+      type: 'Draft Insurance',
+      fieldMapping: {
+        'Insured':           'insured_name',
+        'Sum Insured':       'sum_insured',
+        'Commodity':         'commodity',
+        'Port of Loading':   'pol',
+        'Port of Discharge': 'pod',
+      },
+      values: {
+        insured_name: mismatch?.['Insured']            ?? vals['Insured'],
+        sum_insured:  mismatch?.['Sum Insured']        ?? vals['Sum Insured'],
+        commodity:    mismatch?.['Commodity']          ?? vals['Commodity'],
+        pol:          mismatch?.['Port of Loading']    ?? vals['Port of Loading'],
+        pod:          mismatch?.['Port of Discharge']  ?? vals['Port of Discharge'],
+      },
+    },
+  ];
+}
+
+function dblDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>): ShipDoc[] {
+  return [
+    {
+      id: `${id}-dbl`,
+      type: 'Draft B/L',
+      fieldMapping: {
+        'Shipper':     'shipper',
+        'Consignee':   'consignee',
+        'Vessel Name': 'vessel_name',
+        'Gross Weight':'gross_weight',
+      },
+      values: {
+        shipper:      mismatch?.['Shipper']      ?? vals['Shipper'],
+        consignee:    mismatch?.['Consignee']    ?? vals['Consignee'],
+        vessel_name:  mismatch?.['Vessel Name']  ?? vals['Vessel Name'],
+        gross_weight: mismatch?.['Gross Weight'] ?? vals['Gross Weight'],
+      },
+    },
+  ];
+}
+
+function oblDoc(id: string, date: string): ShipDoc {
+  return {
+    id: `${id}-obl`,
+    type: 'Original B/L',
+    fieldMapping: { 'B/L Date': 'bl_date' },
+    values: { bl_date: date },
+  };
+}
+
 export const mockTasks: Task[] = [
-  // T001 — 1015030621 — CF: All Matches
+
+  // ─── T01 ─ CF: All Matches | Ins: All Matches | BL: All Matches | BL Date: All Matches (has OBL)
+  // Overall: All Match
   {
-    id: '1015030621',
-    shipmentRef: 'SHP-2025-001',
-    shipper: 'Petronas Trading Sdn Bhd',
-    consignee: 'China National Chemical Corp',
-    submittedDate: '2025-11-03',
-    assignedTo: 'Jane Doe',
+    id: '2026030001',
+    shipmentRef: 'SHP-2026-001',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Sinopec International Ltd',
+    submittedDate: '2026-03-01',
+    assignedTo: 'jane.doe@pttgcgroup.com',
     status: 'All Match',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
-    canonicalFields: [
-      // CF fields
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      // Insurance fields
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      // DraftBL fields
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      // BL Date fields
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
     correctValues: {
-      // CF fields
-      'PROFORMA INVOICE NO.':  'PFI-2025-001',
-      'Invoice no.':           'CI-2025-001',
-      "Buyer's order No.":     'BO-55001',
-      'etd <port>':            'Port Klang, Malaysia',
-      'eta <port>':            'Huangpu, China',
-      'product (line item)':   'Crude Palm Oil',
-      'quantity (line item)':  '250 MT',
-      'Quantity (Total)':      '250 MT',
-      // Insurance fields
-      'Insured':               'Petronas Trading Sdn Bhd',
-      'Sum Insured':           'USD 50,000.00',
-      'Commodity':             'Crude Palm Oil',
-      'Port of Loading':       'Port Klang, Malaysia',
-      'Port of Discharge':     'Huangpu, China',
-      // DraftBL fields
-      'Shipper':               'Petronas Trading Sdn Bhd',
-      'Consignee':             'China National Chemical Corp',
-      'Vessel Name':           'MV Pacific Glory',
-      'Gross Weight':          '250,000 KG',
-      // BL Date fields
-      'GI Date':               '03 Nov 2025',
-      'ETD Date':              '03 Nov 2025',
-      'Manual Billing Date':   '03 Nov 2025',
+      'PROFORMA INVOICE NO.': 'PFI-2026-001', 'Invoice no.': 'CI-2026-001', "Buyer's order No.": 'BO-30001',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Tianjin, China',
+      'product (line item)': 'Polyethylene', 'quantity (line item)': '500 MT', 'Quantity (Total)': '500 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 350,000.00', 'Commodity': 'Polyethylene',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Tianjin, China',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec International Ltd', 'Vessel Name': 'MV Pacific Express', 'Gross Weight': '500,000 KG',
+      'GI Date': '01 Mar 2026', 'ETD Date': '01 Mar 2026', 'Manual Billing Date': '01 Mar 2026',
     },
     documents: [
-      {
-        id: 'doc-T001-1',
-        type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
-          'Invoice no.':          'Invoice no.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'etd <port>',
-          'eta <port>':           'eta <port>',
-          'product (line item)':  'product (line item)',
-          'quantity (line item)': 'quantity (line item)',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-001',
-          'Invoice no.':          'CI-2025-001',
-          "Buyer's order No.":    'BO-55001',
-          'etd <port>':           'Port Klang, Malaysia',
-          'eta <port>':           'Huangpu, China',
-          'product (line item)':  'Crude Palm Oil',
-          'quantity (line item)': '250 MT',
-          'Quantity (Total)':     '250 MT',
-        },
-      },
-      {
-        id: 'doc-T001-2',
-        type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-001',
-          'No.':                  'CI-2025-001',
-          "Buyer's order No.":    'BO-55001',
-          'from':                 'Port Klang, Malaysia',
-          'to':                   'Huangpu, China',
-          'description of goods': 'Crude Palm Oil',
-          'quantity':             '250 MT',
-          'Quantity (Total)':     '250 MT',
-        },
-      },
-      {
-        id: 'doc-T001-3',
-        type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-001',
-          'No.':                  'CI-2025-001',
-          "Buyer's order No.":    'BO-55001',
-          'from':                 'Port Klang, Malaysia',
-          'to':                   'Huangpu, China',
-          'description of goods': 'Crude Palm Oil',
-          'quantity':             '250 MT',
-          'Quantity (Total)':     '250 MT',
-        },
-      },
-      {
-        id: 'doc-T001-4',
-        type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.',
-          'Invoice no.':          'Invoice No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'Port of Loading',
-          'eta <port>':           'Port of Discharge',
-          'product (line item)':  'Description of Goods',
-          'quantity (line item)': 'Quantity',
-          'Quantity (Total)':     'Total Quantity',
-        },
-        values: {
-          'Contract No.':        'PFI-2025-001',
-          'Invoice No.':         'CI-2025-001',
-          "Buyer's order No.":   'BO-55001',
-          'Port of Loading':     'Port Klang, Malaysia',
-          'Port of Discharge':   'Huangpu, China',
-          'Description of Goods':'Crude Palm Oil',
-          'Quantity':            '250 MT',
-          'Total Quantity':      '250 MT',
-        },
-      },
-      {
-        id: 'doc-T001-ins1',
-        type: 'Draft Insurance',
-        fieldMapping: {
-          'Insured':           'insured_name',
-          'Sum Insured':       'sum_insured',
-          'Commodity':         'commodity',
-          'Port of Loading':   'pol',
-          'Port of Discharge': 'pod',
-        },
-        values: {
-          insured_name: 'Petronas Trading Sdn Bhd',
-          sum_insured:  'USD 50,000.00',
-          commodity:    'Crude Palm Oil',
-          pol:          'Port Klang, Malaysia',
-          pod:          'Huangpu, China',
-        },
-      },
-      {
-        id: 'doc-T001-ins2',
-        type: 'Detail for Insurance Purpose',
-        fieldMapping: {
-          'Insured':           'insured',
-          'Sum Insured':       'declared_value',
-          'Commodity':         'goods_description',
-          'Port of Loading':   'loading_port',
-          'Port of Discharge': 'discharge_port',
-        },
-        values: {
-          insured:           'Petronas Trading Sdn Bhd',
-          declared_value:    'USD 50,000.00',
-          goods_description: 'Crude Palm Oil',
-          loading_port:      'Port Klang, Malaysia',
-          discharge_port:    'Huangpu, China',
-        },
-      },
-      {
-        id: 'doc-T001-bl1',
-        type: 'Draft B/L',
-        fieldMapping: {
-          'Shipper':     'shipper',
-          'Consignee':   'consignee',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_weight',
-        },
-        values: {
-          shipper:      'Petronas Trading Sdn Bhd',
-          consignee:    'China National Chemical Corp',
-          vessel_name:  'MV Pacific Glory',
-          gross_weight: '250,000 KG',
-        },
-      },
-      {
-        id: 'doc-T001-bl2',
-        type: 'Shipping Particular',
-        fieldMapping: {
-          'Shipper':     'exporter',
-          'Consignee':   'importer',
-          'Vessel Name': 'vessel',
-          'Gross Weight':'gross_wt_kg',
-        },
-        values: {
-          exporter:    'Petronas Trading Sdn Bhd',
-          importer:    'China National Chemical Corp',
-          vessel:      'MV Pacific Glory',
-          gross_wt_kg: '250,000 KG',
-        },
-      },
-      {
-        id: 'doc-T001-obl',
-        type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '03 Nov 2025' },
-      },
+      ...cfDocs('doc-T01', { 'PROFORMA INVOICE NO.': 'PFI-2026-001', 'Invoice no.': 'CI-2026-001', "Buyer's order No.": 'BO-30001', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Tianjin, China', 'product (line item)': 'Polyethylene', 'quantity (line item)': '500 MT', 'Quantity (Total)': '500 MT' }),
+      ...insDocs('doc-T01', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 350,000.00', 'Commodity': 'Polyethylene', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Tianjin, China' }),
+      ...dblDocs('doc-T01', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec International Ltd', 'Vessel Name': 'MV Pacific Express', 'Gross Weight': '500,000 KG' }),
+      oblDoc('doc-T01', '01 Mar 2026'),
     ],
   },
 
-  // T002 — 1015030622 — CF: All Matches
+  // ─── T02 ─ CF: Needs Attention | Ins: All Matches | BL: All Matches | BL Date: All Matches
+  // Overall: Needs Attention
   {
-    id: '1015030622',
-    shipmentRef: 'SHP-2025-002',
-    shipper: 'Mayur Exports Pte Ltd',
-    consignee: 'Al Fatah Trading LLC',
-    submittedDate: '2025-11-05',
-    assignedTo: 'John Smith',
-    status: 'Needs Attention',
-    verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
-    canonicalFields: [
-      // CF fields
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      // Insurance fields
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      // DraftBL fields
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      // BL Date fields
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      // CF fields
-      'PROFORMA INVOICE NO.':  'PFI-2025-002',
-      'Invoice no.':           'CI-2025-002',
-      "Buyer's order No.":     'BO-66002',
-      'etd <port>':            'Port Klang, Malaysia',
-      'eta <port>':            'Jebel Ali, UAE',
-      'product (line item)':   'Natural Rubber (RSS3)',
-      'quantity (line item)':  '125 MT',
-      'Quantity (Total)':      '125 MT',
-      // Insurance fields
-      'Insured':               'Mayur Exports Pte Ltd',
-      'Sum Insured':           'USD 125,000.00',
-      'Commodity':             'Natural Rubber (RSS3)',
-      'Port of Loading':       'Port Klang, Malaysia',
-      'Port of Discharge':     'Jebel Ali, UAE',
-      // DraftBL fields
-      'Shipper':               'Mayur Exports Pte Ltd',
-      'Consignee':             'Al Fatah Trading LLC',
-      'Vessel Name':           'MV Gulf Trader',
-      'Gross Weight':          '125,000 KG',
-      // BL Date fields
-      'GI Date':               '05 Nov 2025',
-      'ETD Date':              '05 Nov 2025',
-      'Manual Billing Date':   '05 Nov 2025',
-    },
-    documents: [
-      {
-        id: 'doc-T002-0',
-        type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
-          'Invoice no.':          'Invoice no.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'etd <port>',
-          'eta <port>':           'eta <port>',
-          'product (line item)':  'product (line item)',
-          'quantity (line item)': 'quantity (line item)',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-002',
-          'Invoice no.':          'CI-2025-002',
-          "Buyer's order No.":    'BO-66002',
-          'etd <port>':           'Port Klang, Malaysia',
-          'eta <port>':           'Jebel Ali, UAE',
-          'product (line item)':  'Natural Rubber (RSS3)',
-          'quantity (line item)': '125 MT',
-          'Quantity (Total)':     '125 MT',
-        },
-      },
-      {
-        id: 'doc-T002-1',
-        type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-002',
-          'No.':                  'CI-2025-002',
-          "Buyer's order No.":    'BO-66002',
-          'from':                 'Port Klang, Malaysia',
-          'to':                   'Jebel Ali, UAE',
-          'description of goods': 'Natural Rubber (RSS3)',
-          'quantity':             '125 MT',
-          'Quantity (Total)':     '125 MT',
-        },
-      },
-      {
-        id: 'doc-T002-2',
-        type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-002',
-          'No.':                  'CI-2025-002',
-          "Buyer's order No.":    'BO-66002',
-          'from':                 'Port Klang, Malaysia',
-          'to':                   'Jebel Ali, UAE',
-          'description of goods': 'Natural Rubber (RSS3)',
-          'quantity':             '125 MT',
-          'Quantity (Total)':     '125 MT',
-        },
-      },
-      {
-        id: 'doc-T002-3',
-        type: 'Letter of Credit',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.',
-          'Invoice no.':          'Invoice No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'Port of Loading',
-          'eta <port>':           'Port of Discharge',
-          'product (line item)':  'Description of Goods',
-          'quantity (line item)': 'Quantity',
-          'Quantity (Total)':     'Total Quantity',
-        },
-        values: {
-          'Contract No.':        'PFI-2025-002',
-          'Invoice No.':         'CI-2025-002',
-          "Buyer's order No.":   'BO-66002',
-          'Port of Loading':     'Port Klang, Malaysia',
-          'Port of Discharge':   'Jebel Ali, UAE',
-          'Description of Goods':'Natural Rubber (RSS3)',
-          'Quantity':            '125 MT',
-          'Total Quantity':      '125 MT',
-        },
-      },
-      {
-        id: 'doc-T002-ins1',
-        type: 'Draft Insurance',
-        fieldMapping: {
-          'Insured':           'insured_name',
-          'Sum Insured':       'sum_insured',
-          'Commodity':         'commodity',
-          'Port of Loading':   'pol',
-          'Port of Discharge': 'pod',
-        },
-        values: {
-          insured_name: 'Mayur Exports Pte Ltd',
-          sum_insured:  'USD 125,000.00',
-          commodity:    'Natural Rubber (RSS3)',
-          pol:          'Port Klang, Malaysia',
-          pod:          'Jebel Ali, UAE',
-        },
-      },
-      {
-        id: 'doc-T002-ins2',
-        type: 'Detail for Insurance Purpose',
-        fieldMapping: {
-          'Insured':           'insured',
-          'Sum Insured':       'declared_value',
-          'Commodity':         'cargo',
-          'Port of Loading':   'loading_port',
-          'Port of Discharge': 'discharge_port',
-        },
-        values: {
-          insured:        'Mayur Exports Pte Ltd',
-          declared_value: 'USD 130,000.00', // ← mismatch: overstated value
-          cargo:          'Natural Rubber (RSS3)',
-          loading_port:   'Port Klang, Malaysia',
-          discharge_port: 'Jebel Ali, UAE',
-        },
-      },
-      {
-        id: 'doc-T002-bl1',
-        type: 'Draft B/L',
-        fieldMapping: {
-          'Shipper':     'shipper',
-          'Consignee':   'consignee',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_weight',
-        },
-        values: {
-          shipper:      'Mayur Exports Pte Ltd',
-          consignee:    'Al Fatah Trading LLC',
-          vessel_name:  'MV Gulf Trader',
-          gross_weight: '125,000 KG',
-        },
-      },
-      {
-        id: 'doc-T002-bl2',
-        type: 'Shipping Particular',
-        fieldMapping: {
-          'Shipper':     'exporter',
-          'Consignee':   'importer',
-          'Vessel Name': 'vessel',
-          'Gross Weight':'gross_wt',
-        },
-        values: {
-          exporter: 'Mayur Exports Pte Ltd',
-          importer: 'Al Fatah Trading LLC',
-          vessel:   'MV Gulf Trader',
-          gross_wt: '125,000 KG',
-        },
-      },
-      {
-        id: 'doc-T002-obl',
-        type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '' },
-      },
-    ],
-  },
-
-  // T003 — 1015030623 — CF: Needs Attention (Port of Discharge mismatch in Shipping Instruction)
-  {
-    id: '1015030623',
-    shipmentRef: 'SHP-2025-003',
-    shipper: 'Genting Plantations Berhad',
-    consignee: 'Wilmar International Ltd',
-    submittedDate: '2025-11-07',
-    assignedTo: 'Aisha Patel',
-    status: 'Needs Attention',
-    verifications: { customFormality: 'Needs Attention', insurance: 'All Matches', draftBL: 'Needs Attention', blDate: 'Pending Verification' },
-    canonicalFields: [
-      // CF fields
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      // Insurance fields
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      // DraftBL fields
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      // BL Date fields
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      // CF fields
-      'PROFORMA INVOICE NO.':  'PFI-2025-003',
-      'Invoice no.':           'CI-2025-003',
-      "Buyer's order No.":     'BO-77003',
-      'etd <port>':            'Port Klang, Malaysia',
-      'eta <port>':            'Tanjung Priok, Indonesia',
-      'product (line item)':   'RBD Palm Olein',
-      'quantity (line item)':  '500 MT',
-      'Quantity (Total)':      '500 MT',
-      // Insurance fields
-      'Insured':               'Genting Plantations Berhad',
-      'Sum Insured':           'USD 280,000.00',
-      'Commodity':             'RBD Palm Olein',
-      'Port of Loading':       'Port Klang, Malaysia',
-      'Port of Discharge':     'Tanjung Priok, Indonesia',
-      // DraftBL fields
-      'Shipper':               'Genting Plantations Berhad',
-      'Consignee':             'Wilmar International Ltd',
-      'Vessel Name':           'MV Pacific Star',
-      'Gross Weight':          '500,000 KG',
-      // BL Date fields
-      'GI Date':               '07 Nov 2025',
-      'ETD Date':              '07 Nov 2025',
-      'Manual Billing Date':   '07 Nov 2025',
-    },
-    documents: [
-      {
-        id: 'doc-T003-1',
-        type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
-          'Invoice no.':          'Invoice no.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'etd <port>',
-          'eta <port>':           'eta <port>',
-          'product (line item)':  'product (line item)',
-          'quantity (line item)': 'quantity (line item)',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-003',
-          'Invoice no.':          'CI-2025-003',
-          "Buyer's order No.":    'BO-77003',
-          'etd <port>':           'Port Klang, Malaysia',
-          'eta <port>':           'Tanjung Priok, Indonesia',
-          'product (line item)':  'RBD Palm Olein',
-          'quantity (line item)': '500 MT',
-          'Quantity (Total)':     '500 MT',
-        },
-      },
-      {
-        id: 'doc-T003-2',
-        type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-003',
-          'No.':                  'CI-2025-003',
-          "Buyer's order No.":    'BO-77003',
-          'from':                 'Port Klang, Malaysia',
-          'to':                   'Tanjung Priok, Indonesia',
-          'description of goods': 'RBD Palm Olein',
-          'quantity':             '500 MT',
-          'Quantity (Total)':     '500 MT',
-        },
-      },
-      {
-        id: 'doc-T003-3',
-        type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-003',
-          'No.':                  'CI-2025-003',
-          "Buyer's order No.":    'BO-77003',
-          'from':                 'Port Klang, Malaysia',
-          'to':                   'Tanjung Priok, Indonesia',
-          'description of goods': 'RBD Palm Olein',
-          'quantity':             '500 MT',
-          'Quantity (Total)':     '500 MT',
-        },
-      },
-      {
-        id: 'doc-T003-4',
-        type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.',
-          'Invoice no.':          'Invoice No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'Port of Loading',
-          'eta <port>':           'Port of Discharge',
-          'product (line item)':  'Description of Goods',
-          'quantity (line item)': 'Quantity',
-          'Quantity (Total)':     'Total Quantity',
-        },
-        values: {
-          'Contract No.':        'PFI-2025-003',
-          'Invoice No.':         'CI-2025-003',
-          "Buyer's order No.":   'BO-77003',
-          'Port of Loading':     'Port Klang, Malaysia',
-          'Port of Discharge':   'Belawan, Indonesia', // ← wrong port (mismatch)
-          'Description of Goods':'RBD Palm Olein',
-          'Quantity':            '500 MT',
-          'Total Quantity':      '500 MT',
-        },
-      },
-      {
-        id: 'doc-T003-ins1',
-        type: 'Draft Insurance',
-        fieldMapping: {
-          'Insured':           'insured_name',
-          'Sum Insured':       'sum_insured',
-          'Commodity':         'commodity',
-          'Port of Loading':   'pol',
-          'Port of Discharge': 'pod',
-        },
-        values: {
-          insured_name: 'Genting Plantations Berhad',
-          sum_insured:  'USD 280,000.00',
-          commodity:    'RBD Palm Olein',
-          pol:          'Port Klang, Malaysia',
-          pod:          'Tanjung Priok, Indonesia',
-        },
-      },
-      {
-        id: 'doc-T003-ins2',
-        type: 'Detail for Insurance Purpose',
-        fieldMapping: {
-          'Insured':           'insured',
-          'Sum Insured':       'declared_value',
-          'Commodity':         'goods_description',
-          'Port of Loading':   'loading_port',
-          'Port of Discharge': 'discharge_port',
-        },
-        values: {
-          insured:           'Genting Plantations Berhad',
-          declared_value:    'USD 280,000.00',
-          goods_description: 'RBD Palm Olein',
-          loading_port:      'Port Klang, Malaysia',
-          discharge_port:    'Tanjung Priok, Indonesia',
-        },
-      },
-      {
-        id: 'doc-T003-bl1',
-        type: 'Draft B/L',
-        fieldMapping: {
-          'Shipper':     'shipper',
-          'Consignee':   'consignee',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_weight',
-        },
-        values: {
-          shipper:      'Genting Plantations Berhad',
-          consignee:    'Wilmar International Ltd',
-          vessel_name:  'MV Pacific Star',
-          gross_weight: '500,000 KG',
-        },
-      },
-      {
-        id: 'doc-T003-bl2',
-        type: 'Shipping Particular',
-        fieldMapping: {
-          'Shipper':     'exporter',
-          'Consignee':   'importer',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_wt',
-        },
-        values: {
-          exporter:    'Genting Plantations Berhad',
-          importer:    'Wilmar International Ltd',
-          vessel_name: 'MV Pacific Star',
-          gross_wt:    '500,000 KG',
-        },
-      },
-      {
-        id: 'doc-T003-obl',
-        type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '' },
-      },
-    ],
-  },
-
-  // T004 — 1015030624 — CF: Approved (all match)
-  {
-    id: '1015030624',
-    shipmentRef: 'SHP-2025-004',
-    shipper: 'IOI Corporation Berhad',
-    consignee: 'Olam International Ltd',
-    submittedDate: '2025-10-28',
-    assignedTo: 'James Tan',
-    status: 'Approved',
-    verifications: { customFormality: 'Approved', insurance: 'Approved', draftBL: 'Approved', blDate: 'Approved' },
-    canonicalFields: [
-      // CF fields
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      // Insurance fields
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      // DraftBL fields
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      // BL Date fields
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      // CF fields
-      'PROFORMA INVOICE NO.':  'PFI-2025-004',
-      'Invoice no.':           'CI-2025-004',
-      "Buyer's order No.":     'BO-88004',
-      'etd <port>':            'Pasir Gudang, Malaysia',
-      'eta <port>':            'Mumbai, India',
-      'product (line item)':   'RBD Palm Olein',
-      'quantity (line item)':  '480 MT',
-      'Quantity (Total)':      '480 MT',
-      // Insurance fields
-      'Insured':               'IOI Corporation Berhad',
-      'Sum Insured':           'USD 350,000.00',
-      'Commodity':             'RBD Palm Olein',
-      'Port of Loading':       'Pasir Gudang, Malaysia',
-      'Port of Discharge':     'Mumbai, India',
-      // DraftBL fields
-      'Shipper':               'IOI Corporation Berhad',
-      'Consignee':             'Olam International Ltd',
-      'Vessel Name':           'MV Indian Star',
-      'Gross Weight':          '480,000 KG',
-      // BL Date fields
-      'GI Date':               '28 Oct 2025',
-      'ETD Date':              '28 Oct 2025',
-      'Manual Billing Date':   '28 Oct 2025',
-    },
-    documents: [
-      {
-        id: 'doc-T004-0',
-        type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
-          'Invoice no.':          'Invoice no.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'etd <port>',
-          'eta <port>':           'eta <port>',
-          'product (line item)':  'product (line item)',
-          'quantity (line item)': 'quantity (line item)',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-004',
-          'Invoice no.':          'CI-2025-004',
-          "Buyer's order No.":    'BO-88004',
-          'etd <port>':           'Pasir Gudang, Malaysia',
-          'eta <port>':           'Mumbai, India',
-          'product (line item)':  'RBD Palm Olein',
-          'quantity (line item)': '480 MT',
-          'Quantity (Total)':     '480 MT',
-        },
-      },
-      {
-        id: 'doc-T004-1',
-        type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-004',
-          'No.':                  'CI-2025-004',
-          "Buyer's order No.":    'BO-88004',
-          'from':                 'Pasir Gudang, Malaysia',
-          'to':                   'Mumbai, India',
-          'description of goods': 'RBD Palm Olein',
-          'quantity':             '480 MT',
-          'Quantity (Total)':     '480 MT',
-        },
-      },
-      {
-        id: 'doc-T004-2',
-        type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-004',
-          'No.':                  'CI-2025-004',
-          "Buyer's order No.":    'BO-88004',
-          'from':                 'Pasir Gudang, Malaysia',
-          'to':                   'Mumbai, India',
-          'description of goods': 'RBD Palm Olein',
-          'quantity':             '480 MT',
-          'Quantity (Total)':     '480 MT',
-        },
-      },
-      {
-        id: 'doc-T004-3',
-        type: 'Letter of Credit',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.',
-          'Invoice no.':          'Invoice No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'Port of Loading',
-          'eta <port>':           'Port of Discharge',
-          'product (line item)':  'Description of Goods',
-          'quantity (line item)': 'Quantity',
-          'Quantity (Total)':     'Total Quantity',
-        },
-        values: {
-          'Contract No.':        'PFI-2025-004',
-          'Invoice No.':         'CI-2025-004',
-          "Buyer's order No.":   'BO-88004',
-          'Port of Loading':     'Pasir Gudang, Malaysia',
-          'Port of Discharge':   'Mumbai, India',
-          'Description of Goods':'RBD Palm Olein',
-          'Quantity':            '480 MT',
-          'Total Quantity':      '480 MT',
-        },
-      },
-      {
-        id: 'doc-T004-ins1',
-        type: 'Draft Insurance',
-        fieldMapping: {
-          'Insured':           'insured_name',
-          'Sum Insured':       'sum_insured',
-          'Commodity':         'commodity',
-          'Port of Loading':   'pol',
-          'Port of Discharge': 'pod',
-        },
-        values: {
-          insured_name: 'IOI Corporation Berhad',
-          sum_insured:  'USD 350,000.00',
-          commodity:    'RBD Palm Olein',
-          pol:          'Pasir Gudang, Malaysia',
-          pod:          'Mumbai, India',
-        },
-      },
-      {
-        id: 'doc-T004-ins2',
-        type: 'Detail for Insurance Purpose',
-        fieldMapping: {
-          'Insured':           'insured',
-          'Sum Insured':       'declared_value',
-          'Commodity':         'goods_desc',
-          'Port of Loading':   'loading_port',
-          'Port of Discharge': 'discharge_port',
-        },
-        values: {
-          insured:        'IOI Corporation Berhad',
-          declared_value: 'USD 350,000.00',
-          goods_desc:     'RBD Palm Olein',
-          loading_port:   'Pasir Gudang, Malaysia',
-          discharge_port: 'Mumbai, India',
-        },
-      },
-      {
-        id: 'doc-T004-bl1',
-        type: 'Draft B/L',
-        fieldMapping: {
-          'Shipper':     'shipper',
-          'Consignee':   'consignee',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_weight',
-        },
-        values: {
-          shipper:      'IOI Corporation Berhad',
-          consignee:    'Olam International Ltd',
-          vessel_name:  'MV Indian Star',
-          gross_weight: '480,000 KG',
-        },
-      },
-      {
-        id: 'doc-T004-bl2',
-        type: 'Shipping Particular',
-        fieldMapping: {
-          'Shipper':     'exporter',
-          'Consignee':   'importer',
-          'Vessel Name': 'vessel',
-          'Gross Weight':'gross_wt',
-        },
-        values: {
-          exporter: 'IOI Corporation Berhad',
-          importer: 'Olam International Ltd',
-          vessel:   'MV Indian Star',
-          gross_wt: '480,000 KG',
-        },
-      },
-      {
-        id: 'doc-T004-obl',
-        type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '28 Oct 2025' },
-      },
-    ],
-  },
-
-  // T005 — 1015030625 — CF: All Matches
-  {
-    id: '1015030625',
-    shipmentRef: 'SHP-2025-005',
-    shipper: 'KL-Kepong Bhd',
-    consignee: 'Louis Dreyfus Company Asia Pte Ltd',
-    submittedDate: '2025-11-10',
-    assignedTo: 'Sarah Lim',
-    status: 'Needs Attention',
-    verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'All Matches', blDate: 'Pending Verification' },
-    canonicalFields: [
-      // CF fields
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      // Insurance fields
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      // DraftBL fields
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      // BL Date fields
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      // CF fields
-      'PROFORMA INVOICE NO.':  'PFI-2025-005',
-      'Invoice no.':           'CI-2025-005',
-      "Buyer's order No.":     'BO-99005',
-      'etd <port>':            'Pasir Gudang, Malaysia',
-      'eta <port>':            'Rotterdam, Netherlands',
-      'product (line item)':   'Palm Kernel Oil',
-      'quantity (line item)':  '300 MT',
-      'Quantity (Total)':      '300 MT',
-      // Insurance fields
-      'Insured':               'KL-Kepong Bhd',
-      'Sum Insured':           'USD 195,000.00',
-      'Commodity':             'Palm Kernel Oil',
-      'Port of Loading':       'Pasir Gudang, Malaysia',
-      'Port of Discharge':     'Rotterdam, Netherlands',
-      // DraftBL fields
-      'Shipper':               'KL-Kepong Bhd',
-      'Consignee':             'Louis Dreyfus Company Asia Pte Ltd',
-      'Vessel Name':           'MV Maersk Rotterdam',
-      'Gross Weight':          '300,000 KG',
-      // BL Date fields
-      'GI Date':               '10 Nov 2025',
-      'ETD Date':              '10 Nov 2025',
-      'Manual Billing Date':   '10 Nov 2025',
-    },
-    documents: [
-      {
-        id: 'doc-T005-1',
-        type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
-          'Invoice no.':          'Invoice no.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'etd <port>',
-          'eta <port>':           'eta <port>',
-          'product (line item)':  'product (line item)',
-          'quantity (line item)': 'quantity (line item)',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-005',
-          'Invoice no.':          'CI-2025-005',
-          "Buyer's order No.":    'BO-99005',
-          'etd <port>':           'Pasir Gudang, Malaysia',
-          'eta <port>':           'Rotterdam, Netherlands',
-          'product (line item)':  'Palm Kernel Oil',
-          'quantity (line item)': '300 MT',
-          'Quantity (Total)':     '300 MT',
-        },
-      },
-      {
-        id: 'doc-T005-2',
-        type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-005',
-          'No.':                  'CI-2025-005',
-          "Buyer's order No.":    'BO-99005',
-          'from':                 'Pasir Gudang, Malaysia',
-          'to':                   'Rotterdam, Netherlands',
-          'description of goods': 'Palm Kernel Oil',
-          'quantity':             '300 MT',
-          'Quantity (Total)':     '300 MT',
-        },
-      },
-      {
-        id: 'doc-T005-3',
-        type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-005',
-          'No.':                  'CI-2025-005',
-          "Buyer's order No.":    'BO-99005',
-          'from':                 'Pasir Gudang, Malaysia',
-          'to':                   'Rotterdam, Netherlands',
-          'description of goods': 'Palm Kernel Oil',
-          'quantity':             '300 MT',
-          'Quantity (Total)':     '300 MT',
-        },
-      },
-      {
-        id: 'doc-T005-4',
-        type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.',
-          'Invoice no.':          'Invoice No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'Port of Loading',
-          'eta <port>':           'Port of Discharge',
-          'product (line item)':  'Description of Goods',
-          'quantity (line item)': 'Quantity',
-          'Quantity (Total)':     'Total Quantity',
-        },
-        values: {
-          'Contract No.':        'PFI-2025-005',
-          'Invoice No.':         'CI-2025-005',
-          "Buyer's order No.":   'BO-99005',
-          'Port of Loading':     'Pasir Gudang, Malaysia',
-          'Port of Discharge':   'Rotterdam, Netherlands',
-          'Description of Goods':'Palm Kernel Oil',
-          'Quantity':            '300 MT',
-          'Total Quantity':      '300 MT',
-        },
-      },
-      {
-        id: 'doc-T005-ins1',
-        type: 'Draft Insurance',
-        fieldMapping: {
-          'Insured':           'insured_name',
-          'Sum Insured':       'sum_insured',
-          'Commodity':         'commodity',
-          'Port of Loading':   'pol',
-          'Port of Discharge': 'pod',
-        },
-        values: {
-          insured_name: 'KL-Kepong Bhd',
-          sum_insured:  'USD 195,000.00',
-          commodity:    'Palm Kernel Oil',
-          pol:          'Pasir Gudang, Malaysia',
-          pod:          'Rotterdam, Netherlands',
-        },
-      },
-      {
-        id: 'doc-T005-ins2',
-        type: 'Detail for Insurance Purpose',
-        fieldMapping: {
-          'Insured':           'insured',
-          'Sum Insured':       'declared_value',
-          'Commodity':         'cargo',
-          'Port of Loading':   'loading_port',
-          'Port of Discharge': 'discharge_port',
-        },
-        values: {
-          insured:        'KL-Kepong Bhd',
-          declared_value: 'USD 200,000.00', // ← mismatch: slightly higher
-          cargo:          'Palm Kernel Oil',
-          loading_port:   'Pasir Gudang, Malaysia',
-          discharge_port: 'Rotterdam, Netherlands',
-        },
-      },
-      {
-        id: 'doc-T005-bl1',
-        type: 'Draft B/L',
-        fieldMapping: {
-          'Shipper':     'shipper',
-          'Consignee':   'consignee',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_weight',
-        },
-        values: {
-          shipper:      'KL-Kepong Bhd',
-          consignee:    'Louis Dreyfus Company Asia Pte Ltd',
-          vessel_name:  'MV Maersk Rotterdam',
-          gross_weight: '300,000 KG',
-        },
-      },
-      {
-        id: 'doc-T005-bl2',
-        type: 'Shipping Particular',
-        fieldMapping: {
-          'Shipper':     'exporter',
-          'Consignee':   'importer',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_wt',
-        },
-        values: {
-          exporter:    'KL-Kepong Bhd',
-          importer:    'Louis Dreyfus Company Asia Pte Ltd',
-          vessel_name: 'MV Maersk Rotterdam',
-          gross_wt:    '300,000 KG',
-        },
-      },
-      {
-        id: 'doc-T005-obl',
-        type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '' },
-      },
-    ],
-  },
-
-  // T006 — 1015030630 — CF: Needs Attention
-  {
-    id: '1015030630',
-    shipmentRef: 'SHP-2025-006',
-    shipper: 'Sime Darby Plantation Sdn Bhd',
-    consignee: 'Cargill Asia Pacific Ltd',
-    submittedDate: '2025-10-30',
-    assignedTo: 'Aisha Patel',
-    status: 'Needs Attention',
-    verifications: { customFormality: 'Needs Attention', insurance: 'Rejected', draftBL: 'Rejected', blDate: 'Needs Attention' },
-    canonicalFields: [
-      // CF fields
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      // Insurance fields
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      // DraftBL fields
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      // BL Date fields
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      // CF fields
-      'PROFORMA INVOICE NO.':  'PFI-2025-006',
-      'Invoice no.':           'CI-2025-006',
-      "Buyer's order No.":     'BO-11006',
-      'etd <port>':            'Lumut Port, Malaysia',
-      'eta <port>':            'Karachi, Pakistan',
-      'product (line item)':   'Palm Fatty Acid Distillate (PFAD)',
-      'quantity (line item)':  '320 MT',
-      'Quantity (Total)':      '320 MT',
-      // Insurance fields
-      'Insured':               'Sime Darby Plantation Sdn Bhd',
-      'Sum Insured':           'USD 144,000.00',
-      'Commodity':             'Palm Fatty Acid Distillate (PFAD)',
-      'Port of Loading':       'Lumut Port, Malaysia',
-      'Port of Discharge':     'Karachi, Pakistan',
-      // DraftBL fields
-      'Shipper':               'Sime Darby Plantation Sdn Bhd',
-      'Consignee':             'Cargill Asia Pacific Ltd',
-      'Vessel Name':           'MV Arabian Star',
-      'Gross Weight':          '320,000 KG',
-      // BL Date fields
-      'GI Date':               '30 Oct 2025',
-      'ETD Date':              '30 Oct 2025',
-      'Manual Billing Date':   '30 Oct 2025',
-    },
-    documents: [
-      {
-        id: 'doc-T006-0',
-        type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
-          'Invoice no.':          'Invoice no.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'etd <port>',
-          'eta <port>':           'eta <port>',
-          'product (line item)':  'product (line item)',
-          'quantity (line item)': 'quantity (line item)',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-006',
-          'Invoice no.':          'CI-2025-006',
-          "Buyer's order No.":    'BO-11006',
-          'etd <port>':           'Lumut Port, Malaysia',
-          'eta <port>':           'Karachi, Pakistan',
-          'product (line item)':  'Palm Fatty Acid Distillate (PFAD)',
-          'quantity (line item)': '320 MT',
-          'Quantity (Total)':     '320 MT',
-        },
-      },
-      {
-        id: 'doc-T006-ci',
-        type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-006',
-          'No.':                  'CI-2025-006',
-          "Buyer's order No.":    'BO-11006',
-          'from':                 'Lumut Port, Malaysia',
-          'to':                   'Karachi, Pakistan',
-          'description of goods': 'Palm Fatty Acid Distillate (PFAD)',
-          'quantity':             '320 MT',
-          'Quantity (Total)':     '320 MT',
-        },
-      },
-      {
-        id: 'doc-T006-1',
-        type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-006',
-          'No.':                  'CI-2025-006',
-          "Buyer's order No.":    'BO-11006',
-          'from':                 'Lumut Port, Malaysia',
-          'to':                   'Karachi, Pakistan',
-          'description of goods': 'Palm Fatty Acid Distillate (PFAD)',
-          'quantity':             '320 MT',
-          'Quantity (Total)':     '320 MT',
-        },
-      },
-      {
-        id: 'doc-T006-2',
-        type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.',
-          'Invoice no.':          'Invoice No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'Port of Loading',
-          'eta <port>':           'Port of Discharge',
-          'product (line item)':  'Description of Goods',
-          'quantity (line item)': 'Quantity',
-          'Quantity (Total)':     'Total Quantity',
-        },
-        values: {
-          'Contract No.':        'PFI-2025-006',
-          'Invoice No.':         'CI-2025-006',
-          "Buyer's order No.":   'BO-11006',
-          'Port of Loading':     'Lumut Port, Malaysia',
-          'Port of Discharge':   'Karachi, Pakistan',
-          'Description of Goods':'PFAD (Palm Fatty Acid Distillate)', // ← description differs (mismatch)
-          'Quantity':            '315 MT',    // ← quantity short (mismatch)
-          'Total Quantity':      '315 MT',    // ← quantity short (mismatch)
-        },
-      },
-      {
-        id: 'doc-T006-ins1',
-        type: 'Draft Insurance',
-        fieldMapping: {
-          'Insured':           'insured_name',
-          'Sum Insured':       'sum_insured',
-          'Commodity':         'commodity',
-          'Port of Loading':   'pol',
-          'Port of Discharge': 'pod',
-        },
-        values: {
-          insured_name: 'Sime Darby Plantation Sdn Bhd',
-          sum_insured:  'USD 144,000.00',
-          commodity:    'Palm Fatty Acid Distillate (PFAD)',
-          pol:          'Lumut Port, Malaysia',
-          pod:          'Karachi, Pakistan',
-        },
-      },
-      {
-        id: 'doc-T006-ins2',
-        type: 'Detail for Insurance Purpose',
-        fieldMapping: {
-          'Insured':           'insured',
-          'Sum Insured':       'declared_value',
-          'Commodity':         'goods_desc',
-          'Port of Loading':   'loading_port',
-          'Port of Discharge': 'discharge_port',
-        },
-        values: {
-          insured:        'Sime Darby Plantations',       // ← name differs (mismatch)
-          declared_value: 'USD 135,000.00',               // ← value differs (mismatch)
-          goods_desc:     'PFAD (Palm Fatty Acid Distillate)', // ← description differs
-          loading_port:   'Lumut Port, Malaysia',
-          discharge_port: 'Karachi, Pakistan',
-        },
-      },
-      {
-        id: 'doc-T006-bl1',
-        type: 'Draft B/L',
-        fieldMapping: {
-          'Shipper':     'shipper',
-          'Consignee':   'consignee',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_weight',
-        },
-        values: {
-          shipper:      'Sime Darby Plantation Sdn Bhd',
-          consignee:    'Cargill Asia Pacific Ltd',
-          vessel_name:  'MV Arabian Star',
-          gross_weight: '320,000 KG',
-        },
-      },
-      {
-        id: 'doc-T006-bl2',
-        type: 'Shipping Particular',
-        fieldMapping: {
-          'Shipper':     'exporter',
-          'Consignee':   'importer',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_wt',
-        },
-        values: {
-          exporter:    'Sime Darby Plantations Bhd',  // ← name differs (mismatch)
-          importer:    'Cargill Asia Pacific Ltd',
-          vessel_name: 'MV Arabian Star',
-          gross_wt:    '315,000 KG',                  // ← weight wrong (mismatch)
-        },
-      },
-      {
-        id: 'doc-T006-obl',
-        type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '01 Nov 2025' }, // ← B/L Date doesn't match any DocXPort date
-      },
-    ],
-  },
-
-  // T007 — 1015030631 — CF: All Matches
-  {
-    id: '1015030631',
-    shipmentRef: 'SHP-2025-007',
-    shipper: 'Felda Global Ventures Sdn Bhd',
-    consignee: 'Bunge Asia Pte Ltd',
-    submittedDate: '2025-11-12',
-    assignedTo: 'John Smith',
-    status: 'All Match',
-    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
-    canonicalFields: [
-      // CF fields
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      // Insurance fields
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      // DraftBL fields
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      // BL Date fields
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      // CF fields
-      'PROFORMA INVOICE NO.':  'PFI-2025-007',
-      'Invoice no.':           'CI-2025-007',
-      "Buyer's order No.":     'BO-22007',
-      'etd <port>':            'Kemaman Supply Base, Malaysia',
-      'eta <port>':            'Hamburg, Germany',
-      'product (line item)':   'Crude Coconut Oil',
-      'quantity (line item)':  '200 MT',
-      'Quantity (Total)':      '200 MT',
-      // Insurance fields
-      'Insured':               'Felda Global Ventures Sdn Bhd',
-      'Sum Insured':           'USD 85,500.00',
-      'Commodity':             'Crude Coconut Oil',
-      'Port of Loading':       'Kemaman Supply Base, Malaysia',
-      'Port of Discharge':     'Hamburg, Germany',
-      // DraftBL fields
-      'Shipper':               'Felda Global Ventures Sdn Bhd',
-      'Consignee':             'Bunge Asia Pte Ltd',
-      'Vessel Name':           'MV Euro Bridge',
-      'Gross Weight':          '200,000 KG',
-      // BL Date fields
-      'GI Date':               '12 Nov 2025',
-      'ETD Date':              '12 Nov 2025',
-      'Manual Billing Date':   '12 Nov 2025',
-    },
-    documents: [
-      {
-        id: 'doc-T007-0',
-        type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
-          'Invoice no.':          'Invoice no.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'etd <port>',
-          'eta <port>':           'eta <port>',
-          'product (line item)':  'product (line item)',
-          'quantity (line item)': 'quantity (line item)',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-007',
-          'Invoice no.':          'CI-2025-007',
-          "Buyer's order No.":    'BO-22007',
-          'etd <port>':           'Kemaman Supply Base, Malaysia',
-          'eta <port>':           'Hamburg, Germany',
-          'product (line item)':  'Crude Coconut Oil',
-          'quantity (line item)': '200 MT',
-          'Quantity (Total)':     '200 MT',
-        },
-      },
-      {
-        id: 'doc-T007-1',
-        type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-007',
-          'No.':                  'CI-2025-007',
-          "Buyer's order No.":    'BO-22007',
-          'from':                 'Kemaman Supply Base, Malaysia',
-          'to':                   'Hamburg, Germany',
-          'description of goods': 'Crude Coconut Oil',
-          'quantity':             '200 MT',
-          'Quantity (Total)':     '200 MT',
-        },
-      },
-      {
-        id: 'doc-T007-2',
-        type: 'Letter of Credit',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.',
-          'Invoice no.':          'Invoice No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'Port of Loading',
-          'eta <port>':           'Port of Discharge',
-          'product (line item)':  'Description of Goods',
-          'quantity (line item)': 'Quantity',
-          'Quantity (Total)':     'Total Quantity',
-        },
-        values: {
-          'Contract No.':        'PFI-2025-007',
-          'Invoice No.':         'CI-2025-007',
-          "Buyer's order No.":   'BO-22007',
-          'Port of Loading':     'Kemaman Supply Base, Malaysia',
-          'Port of Discharge':   'Hamburg, Germany',
-          'Description of Goods':'Crude Coconut Oil',
-          'Quantity':            '200 MT',
-          'Total Quantity':      '200 MT',
-        },
-      },
-      {
-        id: 'doc-T007-3',
-        type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-007',
-          'No.':                  'CI-2025-007',
-          "Buyer's order No.":    'BO-22007',
-          'from':                 'Kemaman Supply Base, Malaysia',
-          'to':                   'Hamburg, Germany',
-          'description of goods': 'Crude Coconut Oil',
-          'quantity':             '200 MT',
-          'Quantity (Total)':     '200 MT',
-        },
-      },
-      {
-        id: 'doc-T007-ins1',
-        type: 'Draft Insurance',
-        fieldMapping: {
-          'Insured':           'insured_name',
-          'Sum Insured':       'sum_insured',
-          'Commodity':         'commodity',
-          'Port of Loading':   'pol',
-          'Port of Discharge': 'pod',
-        },
-        values: {
-          insured_name: 'Felda Global Ventures Sdn Bhd',
-          sum_insured:  'USD 85,500.00',
-          commodity:    'Crude Coconut Oil',
-          pol:          'Kemaman Supply Base, Malaysia',
-          pod:          'Hamburg, Germany',
-        },
-      },
-      {
-        id: 'doc-T007-ins2',
-        type: 'Detail for Insurance Purpose',
-        fieldMapping: {
-          'Insured':           'insured',
-          'Sum Insured':       'declared_value',
-          'Commodity':         'goods_description',
-          'Port of Loading':   'loading_port',
-          'Port of Discharge': 'discharge_port',
-        },
-        values: {
-          insured:           'Felda Global Ventures Sdn Bhd',
-          declared_value:    'USD 85,500.00',
-          goods_description: 'Crude Coconut Oil',
-          loading_port:      'Kemaman Supply Base, Malaysia',
-          discharge_port:    'Hamburg, Germany',
-        },
-      },
-      {
-        id: 'doc-T007-bl1',
-        type: 'Draft B/L',
-        fieldMapping: {
-          'Shipper':     'shipper',
-          'Consignee':   'consignee',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_weight',
-        },
-        values: {
-          shipper:      'Felda Global Ventures Sdn Bhd',
-          consignee:    'Bunge Asia Pte Ltd',
-          vessel_name:  'MV Euro Bridge',
-          gross_weight: '200,000 KG',
-        },
-      },
-      {
-        id: 'doc-T007-bl2',
-        type: 'Shipping Particular',
-        fieldMapping: {
-          'Shipper':     'exporter',
-          'Consignee':   'importer',
-          'Vessel Name': 'vessel',
-          'Gross Weight':'gross_wt',
-        },
-        values: {
-          exporter: 'Felda Global Ventures Sdn Bhd',
-          importer: 'Bunge Asia Pte Ltd',
-          vessel:   'MV Euro Bridge',
-          gross_wt: '200,000 KG',
-        },
-      },
-      {
-        id: 'doc-T007-obl',
-        type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '12 Nov 2025' },
-      },
-    ],
-  },
-
-  // T008 — 1015045137 — CF: All Matches
-  {
-    id: '1015045137',
-    shipmentRef: 'SHP-2025-008',
-    shipper: 'TH Plantations Berhad',
-    consignee: 'Musim Mas Holdings Pte Ltd',
-    submittedDate: '2025-11-14',
-    assignedTo: 'James Tan',
-    status: 'Needs Attention',
-    verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'All Matches', blDate: 'Needs Attention' },
-    canonicalFields: [
-      // CF fields
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      // Insurance fields
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      // DraftBL fields
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      // BL Date fields
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      // CF fields
-      'PROFORMA INVOICE NO.':  'PFI-2025-008',
-      'Invoice no.':           'CI-2025-008',
-      "Buyer's order No.":     'BO-33008',
-      'etd <port>':            'Kuantan Port, Malaysia',
-      'eta <port>':            'Kandla Port, India',
-      'product (line item)':   'RBD Palm Stearin',
-      'quantity (line item)':  '420 MT',
-      'Quantity (Total)':      '420 MT',
-      // Insurance fields
-      'Insured':               'TH Plantations Berhad',
-      'Sum Insured':           'USD 210,000.00',
-      'Commodity':             'RBD Palm Stearin',
-      'Port of Loading':       'Kuantan Port, Malaysia',
-      'Port of Discharge':     'Kandla Port, India',
-      // DraftBL fields
-      'Shipper':               'TH Plantations Berhad',
-      'Consignee':             'Musim Mas Holdings Pte Ltd',
-      'Vessel Name':           'MV Asian Emerald',
-      'Gross Weight':          '420,000 KG',
-      // BL Date fields
-      'GI Date':               '14 Nov 2025',
-      'ETD Date':              '14 Nov 2025',
-      'Manual Billing Date':   '12 Nov 2025', // ← manual billing date differs
-    },
-    documents: [
-      {
-        id: 'doc-T008-1',
-        type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.',
-          'Invoice no.':          'Invoice no.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'etd <port>',
-          'eta <port>':           'eta <port>',
-          'product (line item)':  'product (line item)',
-          'quantity (line item)': 'quantity (line item)',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-008',
-          'Invoice no.':          'CI-2025-008',
-          "Buyer's order No.":    'BO-33008',
-          'etd <port>':           'Kuantan Port, Malaysia',
-          'eta <port>':           'Kandla Port, India',
-          'product (line item)':  'RBD Palm Stearin',
-          'quantity (line item)': '420 MT',
-          'Quantity (Total)':     '420 MT',
-        },
-      },
-      {
-        id: 'doc-T008-2',
-        type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-008',
-          'No.':                  'CI-2025-008',
-          "Buyer's order No.":    'BO-33008',
-          'from':                 'Kuantan Port, Malaysia',
-          'to':                   'Kandla Port, India',
-          'description of goods': 'RBD Palm Stearin',
-          'quantity':             '420 MT',
-          'Quantity (Total)':     '420 MT',
-        },
-      },
-      {
-        id: 'doc-T008-3',
-        type: 'Letter of Credit',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.',
-          'Invoice no.':          'Invoice No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'Port of Loading',
-          'eta <port>':           'Port of Discharge',
-          'product (line item)':  'Description of Goods',
-          'quantity (line item)': 'Quantity',
-          'Quantity (Total)':     'Total Quantity',
-        },
-        values: {
-          'Contract No.':        'PFI-2025-008',
-          'Invoice No.':         'CI-2025-008',
-          "Buyer's order No.":   'BO-33008',
-          'Port of Loading':     'Kuantan Port, Malaysia',
-          'Port of Discharge':   'Kandla Port, India',
-          'Description of Goods':'RBD Palm Stearin',
-          'Quantity':            '420 MT',
-          'Total Quantity':      '420 MT',
-        },
-      },
-      {
-        id: 'doc-T008-4',
-        type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.',
-          'Invoice no.':          'No.',
-          "Buyer's order No.":    "Buyer's order No.",
-          'etd <port>':           'from',
-          'eta <port>':           'to',
-          'product (line item)':  'description of goods',
-          'quantity (line item)': 'quantity',
-          'Quantity (Total)':     'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.':        'PFI-2025-008',
-          'No.':                  'CI-2025-008',
-          "Buyer's order No.":    'BO-33008',
-          'from':                 'Kuantan Port, Malaysia',
-          'to':                   'Kandla Port, India',
-          'description of goods': 'RBD Palm Stearin',
-          'quantity':             '420 MT',
-          'Quantity (Total)':     '420 MT',
-        },
-      },
-      {
-        id: 'doc-T008-ins1',
-        type: 'Draft Insurance',
-        fieldMapping: {
-          'Insured':           'insured_name',
-          'Sum Insured':       'sum_insured',
-          'Commodity':         'commodity',
-          'Port of Loading':   'pol',
-          'Port of Discharge': 'pod',
-        },
-        values: {
-          insured_name: 'TH Plantations Berhad',
-          sum_insured:  'USD 210,000.00',
-          commodity:    'RBD Palm Stearin',
-          pol:          'Kuantan Port, Malaysia',
-          pod:          'Kandla Port, India',
-        },
-      },
-      {
-        id: 'doc-T008-ins2',
-        type: 'Detail for Insurance Purpose',
-        fieldMapping: {
-          'Insured':           'insured',
-          'Sum Insured':       'declared_value',
-          'Commodity':         'goods_desc',
-          'Port of Loading':   'loading_port',
-          'Port of Discharge': 'discharge_port',
-        },
-        values: {
-          insured:        'TH Plantations Berhad',
-          declared_value: 'USD 210,000.00',
-          goods_desc:     'RBD Palm Stearin',
-          loading_port:   'Port Klang, Malaysia', // ← wrong port (mismatch)
-          discharge_port: 'Kandla Port, India',
-        },
-      },
-      {
-        id: 'doc-T008-bl1',
-        type: 'Draft B/L',
-        fieldMapping: {
-          'Shipper':     'shipper',
-          'Consignee':   'consignee',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_weight',
-        },
-        values: {
-          shipper:      'TH Plantations Berhad',
-          consignee:    'Musim Mas Holdings Pte Ltd',
-          vessel_name:  'MV Asian Emerald',
-          gross_weight: '420,000 KG',
-        },
-      },
-      {
-        id: 'doc-T008-bl2',
-        type: 'Shipping Particular',
-        fieldMapping: {
-          'Shipper':     'exporter',
-          'Consignee':   'importer',
-          'Vessel Name': 'vessel_name',
-          'Gross Weight':'gross_wt',
-        },
-        values: {
-          exporter:    'TH Plantations Berhad',
-          importer:    'Musim Mas Holdings Pte Ltd',
-          vessel_name: 'MV Asian Emerald',
-          gross_wt:    '420,000 KG',
-        },
-      },
-      {
-        id: 'doc-T008-obl',
-        type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '14 Nov 2025' },
-      },
-    ],
-  },
-
-  // T009 — Needs Attention (quantity mismatch in CF)
-  {
-    id: '1015030640',
-    shipmentRef: 'SHP-2025-009',
-    shipper: 'IOI Loders Croklaan BV',
-    consignee: 'Unilever Supply Chain Company AG',
-    submittedDate: '2025-11-10',
-    assignedTo: 'Jane Doe',
+    id: '2026030002',
+    shipmentRef: 'SHP-2026-002',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Dow Chemical Asia Pacific',
+    submittedDate: '2026-03-02',
+    assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'Needs Attention', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
-    canonicalFields: [
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
     correctValues: {
-      'PROFORMA INVOICE NO.': 'PFI-2025-009', 'Invoice no.': 'CI-2025-009', "Buyer's order No.": 'BO-55009',
-      'etd <port>': 'Port Klang, Malaysia', 'eta <port>': 'Rotterdam, Netherlands',
-      'product (line item)': 'Refined Palm Oil', 'quantity (line item)': '500 MT', 'Quantity (Total)': '500 MT',
-      'Insured': 'IOI Loders Croklaan BV', 'Sum Insured': 'USD 120,000.00', 'Commodity': 'Refined Palm Oil',
-      'Port of Loading': 'Port Klang, Malaysia', 'Port of Discharge': 'Rotterdam, Netherlands',
-      'Shipper': 'IOI Loders Croklaan BV', 'Consignee': 'Unilever Supply Chain Company AG',
-      'Vessel Name': 'MV Ocean Star', 'Gross Weight': '500,000 KG',
-      'GI Date': '10 Nov 2025', 'ETD Date': '10 Nov 2025', 'Manual Billing Date': '10 Nov 2025',
+      'PROFORMA INVOICE NO.': 'PFI-2026-002', 'Invoice no.': 'CI-2026-002', "Buyer's order No.": 'BO-30002',
+      'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Singapore',
+      'product (line item)': 'Polypropylene', 'quantity (line item)': '300 MT', 'Quantity (Total)': '300 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 210,000.00', 'Commodity': 'Polypropylene',
+      'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Singapore',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Dow Chemical Asia Pacific', 'Vessel Name': 'MV Asian Star', 'Gross Weight': '300,000 KG',
+      'GI Date': '02 Mar 2026', 'ETD Date': '02 Mar 2026', 'Manual Billing Date': '02 Mar 2026',
     },
     documents: [
-      {
-        id: 'doc-T009-1', type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.', 'Invoice no.': 'Invoice no.',
-          "Buyer's order No.": "Buyer's order No.", 'etd <port>': 'etd <port>', 'eta <port>': 'eta <port>',
-          'product (line item)': 'product (line item)', 'quantity (line item)': 'quantity (line item)', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-009', 'Invoice no.': 'CI-2025-009', "Buyer's order No.": 'BO-55009',
-          'etd <port>': 'Port Klang, Malaysia', 'eta <port>': 'Rotterdam, Netherlands',
-          'product (line item)': 'Refined Palm Oil', 'quantity (line item)': '450 MT', 'Quantity (Total)': '450 MT',
-        },
-      },
-      {
-        id: 'doc-T009-2', type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-009', 'No.': 'CI-2025-009', "Buyer's order No.": 'BO-55009',
-          'from': 'Port Klang, Malaysia', 'to': 'Rotterdam, Netherlands',
-          'description of goods': 'Refined Palm Oil', 'quantity': '500 MT', 'Quantity (Total)': '500 MT',
-        },
-      },
-      {
-        id: 'doc-T009-3', type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-009', 'No.': 'CI-2025-009', "Buyer's order No.": 'BO-55009',
-          'from': 'Port Klang, Malaysia', 'to': 'Rotterdam, Netherlands',
-          'description of goods': 'Refined Palm Oil', 'quantity': '500 MT', 'Quantity (Total)': '500 MT',
-        },
-      },
-      {
-        id: 'doc-T009-4', type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.', 'Invoice no.': 'Invoice No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'Port of Loading', 'eta <port>': 'Port of Discharge',
-          'product (line item)': 'Description of Goods', 'quantity (line item)': 'Quantity', 'Quantity (Total)': 'Total Quantity',
-        },
-        values: {
-          'Contract No.': 'PFI-2025-009', 'Invoice No.': 'CI-2025-009', "Buyer's order No.": 'BO-55009',
-          'Port of Loading': 'Port Klang, Malaysia', 'Port of Discharge': 'Rotterdam, Netherlands',
-          'Description of Goods': 'Refined Palm Oil', 'Quantity': '500 MT', 'Total Quantity': '500 MT',
-        },
-      },
-      {
-        id: 'doc-T009-ins1', type: 'Draft Insurance',
-        fieldMapping: { 'Insured': 'insured_name', 'Sum Insured': 'sum_insured', 'Commodity': 'commodity', 'Port of Loading': 'pol', 'Port of Discharge': 'pod' },
-        values: { insured_name: 'IOI Loders Croklaan BV', sum_insured: 'USD 120,000.00', commodity: 'Refined Palm Oil', pol: 'Port Klang, Malaysia', pod: 'Rotterdam, Netherlands' },
-      },
-      {
-        id: 'doc-T009-ins2', type: 'Detail for Insurance Purpose',
-        fieldMapping: { 'Insured': 'insured', 'Sum Insured': 'declared_value', 'Commodity': 'goods_description', 'Port of Loading': 'loading_port', 'Port of Discharge': 'discharge_port' },
-        values: { insured: 'IOI Loders Croklaan BV', declared_value: 'USD 120,000.00', goods_description: 'Refined Palm Oil', loading_port: 'Port Klang, Malaysia', discharge_port: 'Rotterdam, Netherlands' },
-      },
-      {
-        id: 'doc-T009-bl1', type: 'Draft B/L',
-        fieldMapping: { 'Shipper': 'shipper', 'Consignee': 'consignee', 'Vessel Name': 'vessel_name', 'Gross Weight': 'gross_weight' },
-        values: { shipper: 'IOI Loders Croklaan BV', consignee: 'Unilever Supply Chain Company AG', vessel_name: 'MV Ocean Star', gross_weight: '500,000 KG' },
-      },
-      {
-        id: 'doc-T009-bl2', type: 'Shipping Particular',
-        fieldMapping: { 'Shipper': 'exporter', 'Consignee': 'importer', 'Vessel Name': 'vessel', 'Gross Weight': 'gross_wt_kg' },
-        values: { exporter: 'IOI Loders Croklaan BV', importer: 'Unilever Supply Chain Company AG', vessel: 'MV Ocean Star', gross_wt_kg: '500,000 KG' },
-      },
-      {
-        id: 'doc-T009-obl', type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '10 Nov 2025' },
-      },
+      ...cfDocs('doc-T02',
+        { 'PROFORMA INVOICE NO.': 'PFI-2026-002', 'Invoice no.': 'CI-2026-002', "Buyer's order No.": 'BO-30002', 'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Singapore', 'product (line item)': 'Polypropylene', 'quantity (line item)': '300 MT', 'Quantity (Total)': '300 MT' },
+        { "Buyer's order No.": 'BO-99999' }  // ← mismatch
+      ),
+      ...insDocs('doc-T02', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 210,000.00', 'Commodity': 'Polypropylene', 'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Singapore' }),
+      ...dblDocs('doc-T02', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Dow Chemical Asia Pacific', 'Vessel Name': 'MV Asian Star', 'Gross Weight': '300,000 KG' }),
+      oblDoc('doc-T02', '02 Mar 2026'),
     ],
   },
 
-  // T010 — All Match
+  // ─── T03 ─ CF: All Matches | Ins: Pending | BL: Pending | BL Date: Pending (no OBL)
+  // Overall: Pending Document
   {
-    id: '1015030641',
-    shipmentRef: 'SHP-2025-010',
-    shipper: 'Wilmar International Ltd',
-    consignee: 'Cargill Deutschland GmbH',
-    submittedDate: '2025-11-11',
-    assignedTo: 'John Smith',
-    status: 'All Match',
-    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
-    canonicalFields: [
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      'PROFORMA INVOICE NO.': 'PFI-2025-010', 'Invoice no.': 'CI-2025-010', "Buyer's order No.": 'BO-55010',
-      'etd <port>': 'Pasir Gudang, Malaysia', 'eta <port>': 'Hamburg, Germany',
-      'product (line item)': 'Palm Kernel Oil', 'quantity (line item)': '800 MT', 'Quantity (Total)': '800 MT',
-      'Insured': 'Wilmar International Ltd', 'Sum Insured': 'USD 200,000.00', 'Commodity': 'Palm Kernel Oil',
-      'Port of Loading': 'Pasir Gudang, Malaysia', 'Port of Discharge': 'Hamburg, Germany',
-      'Shipper': 'Wilmar International Ltd', 'Consignee': 'Cargill Deutschland GmbH',
-      'Vessel Name': 'MV Baltic Breeze', 'Gross Weight': '800,000 KG',
-      'GI Date': '11 Nov 2025', 'ETD Date': '11 Nov 2025', 'Manual Billing Date': '11 Nov 2025',
-    },
-    documents: [
-      {
-        id: 'doc-T010-1', type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.', 'Invoice no.': 'Invoice no.',
-          "Buyer's order No.": "Buyer's order No.", 'etd <port>': 'etd <port>', 'eta <port>': 'eta <port>',
-          'product (line item)': 'product (line item)', 'quantity (line item)': 'quantity (line item)', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-010', 'Invoice no.': 'CI-2025-010', "Buyer's order No.": 'BO-55010',
-          'etd <port>': 'Pasir Gudang, Malaysia', 'eta <port>': 'Hamburg, Germany',
-          'product (line item)': 'Palm Kernel Oil', 'quantity (line item)': '800 MT', 'Quantity (Total)': '800 MT',
-        },
-      },
-      {
-        id: 'doc-T010-2', type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-010', 'No.': 'CI-2025-010', "Buyer's order No.": 'BO-55010',
-          'from': 'Pasir Gudang, Malaysia', 'to': 'Hamburg, Germany',
-          'description of goods': 'Palm Kernel Oil', 'quantity': '800 MT', 'Quantity (Total)': '800 MT',
-        },
-      },
-      {
-        id: 'doc-T010-3', type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-010', 'No.': 'CI-2025-010', "Buyer's order No.": 'BO-55010',
-          'from': 'Pasir Gudang, Malaysia', 'to': 'Hamburg, Germany',
-          'description of goods': 'Palm Kernel Oil', 'quantity': '800 MT', 'Quantity (Total)': '800 MT',
-        },
-      },
-      {
-        id: 'doc-T010-4', type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.', 'Invoice no.': 'Invoice No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'Port of Loading', 'eta <port>': 'Port of Discharge',
-          'product (line item)': 'Description of Goods', 'quantity (line item)': 'Quantity', 'Quantity (Total)': 'Total Quantity',
-        },
-        values: {
-          'Contract No.': 'PFI-2025-010', 'Invoice No.': 'CI-2025-010', "Buyer's order No.": 'BO-55010',
-          'Port of Loading': 'Pasir Gudang, Malaysia', 'Port of Discharge': 'Hamburg, Germany',
-          'Description of Goods': 'Palm Kernel Oil', 'Quantity': '800 MT', 'Total Quantity': '800 MT',
-        },
-      },
-      {
-        id: 'doc-T010-ins1', type: 'Draft Insurance',
-        fieldMapping: { 'Insured': 'insured_name', 'Sum Insured': 'sum_insured', 'Commodity': 'commodity', 'Port of Loading': 'pol', 'Port of Discharge': 'pod' },
-        values: { insured_name: 'Wilmar International Ltd', sum_insured: 'USD 200,000.00', commodity: 'Palm Kernel Oil', pol: 'Pasir Gudang, Malaysia', pod: 'Hamburg, Germany' },
-      },
-      {
-        id: 'doc-T010-ins2', type: 'Detail for Insurance Purpose',
-        fieldMapping: { 'Insured': 'insured', 'Sum Insured': 'declared_value', 'Commodity': 'goods_description', 'Port of Loading': 'loading_port', 'Port of Discharge': 'discharge_port' },
-        values: { insured: 'Wilmar International Ltd', declared_value: 'USD 200,000.00', goods_description: 'Palm Kernel Oil', loading_port: 'Pasir Gudang, Malaysia', discharge_port: 'Hamburg, Germany' },
-      },
-      {
-        id: 'doc-T010-bl1', type: 'Draft B/L',
-        fieldMapping: { 'Shipper': 'shipper', 'Consignee': 'consignee', 'Vessel Name': 'vessel_name', 'Gross Weight': 'gross_weight' },
-        values: { shipper: 'Wilmar International Ltd', consignee: 'Cargill Deutschland GmbH', vessel_name: 'MV Baltic Breeze', gross_weight: '800,000 KG' },
-      },
-      {
-        id: 'doc-T010-bl2', type: 'Shipping Particular',
-        fieldMapping: { 'Shipper': 'exporter', 'Consignee': 'importer', 'Vessel Name': 'vessel', 'Gross Weight': 'gross_wt_kg' },
-        values: { exporter: 'Wilmar International Ltd', importer: 'Cargill Deutschland GmbH', vessel: 'MV Baltic Breeze', gross_wt_kg: '800,000 KG' },
-      },
-      {
-        id: 'doc-T010-obl', type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '11 Nov 2025' },
-      },
-    ],
-  },
-
-  // T011 — Approved
-  {
-    id: '1015030642',
-    shipmentRef: 'SHP-2025-011',
-    shipper: 'Felda Global Ventures Holdings',
-    consignee: 'Bunge Limited',
-    submittedDate: '2025-11-12',
-    assignedTo: 'Jane Doe',
-    status: 'Approved',
-    verifications: { customFormality: 'Approved', insurance: 'Approved', draftBL: 'Approved', blDate: 'Approved' },
-    canonicalFields: [
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
-    correctValues: {
-      'PROFORMA INVOICE NO.': 'PFI-2025-011', 'Invoice no.': 'CI-2025-011', "Buyer's order No.": 'BO-55011',
-      'etd <port>': 'Penang, Malaysia', 'eta <port>': 'Karachi, Pakistan',
-      'product (line item)': 'Crude Palm Olein', 'quantity (line item)': '350 MT', 'Quantity (Total)': '350 MT',
-      'Insured': 'Felda Global Ventures Holdings', 'Sum Insured': 'USD 75,000.00', 'Commodity': 'Crude Palm Olein',
-      'Port of Loading': 'Penang, Malaysia', 'Port of Discharge': 'Karachi, Pakistan',
-      'Shipper': 'Felda Global Ventures Holdings', 'Consignee': 'Bunge Limited',
-      'Vessel Name': 'MV Malay Pride', 'Gross Weight': '350,000 KG',
-      'GI Date': '12 Nov 2025', 'ETD Date': '12 Nov 2025', 'Manual Billing Date': '12 Nov 2025',
-    },
-    documents: [
-      {
-        id: 'doc-T011-1', type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.', 'Invoice no.': 'Invoice no.',
-          "Buyer's order No.": "Buyer's order No.", 'etd <port>': 'etd <port>', 'eta <port>': 'eta <port>',
-          'product (line item)': 'product (line item)', 'quantity (line item)': 'quantity (line item)', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-011', 'Invoice no.': 'CI-2025-011', "Buyer's order No.": 'BO-55011',
-          'etd <port>': 'Penang, Malaysia', 'eta <port>': 'Karachi, Pakistan',
-          'product (line item)': 'Crude Palm Olein', 'quantity (line item)': '350 MT', 'Quantity (Total)': '350 MT',
-        },
-      },
-      {
-        id: 'doc-T011-2', type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-011', 'No.': 'CI-2025-011', "Buyer's order No.": 'BO-55011',
-          'from': 'Penang, Malaysia', 'to': 'Karachi, Pakistan',
-          'description of goods': 'Crude Palm Olein', 'quantity': '350 MT', 'Quantity (Total)': '350 MT',
-        },
-      },
-      {
-        id: 'doc-T011-3', type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-011', 'No.': 'CI-2025-011', "Buyer's order No.": 'BO-55011',
-          'from': 'Penang, Malaysia', 'to': 'Karachi, Pakistan',
-          'description of goods': 'Crude Palm Olein', 'quantity': '350 MT', 'Quantity (Total)': '350 MT',
-        },
-      },
-      {
-        id: 'doc-T011-4', type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.', 'Invoice no.': 'Invoice No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'Port of Loading', 'eta <port>': 'Port of Discharge',
-          'product (line item)': 'Description of Goods', 'quantity (line item)': 'Quantity', 'Quantity (Total)': 'Total Quantity',
-        },
-        values: {
-          'Contract No.': 'PFI-2025-011', 'Invoice No.': 'CI-2025-011', "Buyer's order No.": 'BO-55011',
-          'Port of Loading': 'Penang, Malaysia', 'Port of Discharge': 'Karachi, Pakistan',
-          'Description of Goods': 'Crude Palm Olein', 'Quantity': '350 MT', 'Total Quantity': '350 MT',
-        },
-      },
-      {
-        id: 'doc-T011-ins1', type: 'Draft Insurance',
-        fieldMapping: { 'Insured': 'insured_name', 'Sum Insured': 'sum_insured', 'Commodity': 'commodity', 'Port of Loading': 'pol', 'Port of Discharge': 'pod' },
-        values: { insured_name: 'Felda Global Ventures Holdings', sum_insured: 'USD 75,000.00', commodity: 'Crude Palm Olein', pol: 'Penang, Malaysia', pod: 'Karachi, Pakistan' },
-      },
-      {
-        id: 'doc-T011-ins2', type: 'Detail for Insurance Purpose',
-        fieldMapping: { 'Insured': 'insured', 'Sum Insured': 'declared_value', 'Commodity': 'goods_description', 'Port of Loading': 'loading_port', 'Port of Discharge': 'discharge_port' },
-        values: { insured: 'Felda Global Ventures Holdings', declared_value: 'USD 75,000.00', goods_description: 'Crude Palm Olein', loading_port: 'Penang, Malaysia', discharge_port: 'Karachi, Pakistan' },
-      },
-      {
-        id: 'doc-T011-bl1', type: 'Draft B/L',
-        fieldMapping: { 'Shipper': 'shipper', 'Consignee': 'consignee', 'Vessel Name': 'vessel_name', 'Gross Weight': 'gross_weight' },
-        values: { shipper: 'Felda Global Ventures Holdings', consignee: 'Bunge Limited', vessel_name: 'MV Malay Pride', gross_weight: '350,000 KG' },
-      },
-      {
-        id: 'doc-T011-bl2', type: 'Shipping Particular',
-        fieldMapping: { 'Shipper': 'exporter', 'Consignee': 'importer', 'Vessel Name': 'vessel', 'Gross Weight': 'gross_wt_kg' },
-        values: { exporter: 'Felda Global Ventures Holdings', importer: 'Bunge Limited', vessel: 'MV Malay Pride', gross_wt_kg: '350,000 KG' },
-      },
-      {
-        id: 'doc-T011-obl', type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '12 Nov 2025' },
-      },
-    ],
-  },
-
-  // T012 — Pending (CF docs only, insurance/BL pending upload)
-  {
-    id: '1015030643',
-    shipmentRef: 'SHP-2025-012',
-    shipper: 'Sime Darby Plantation Bhd',
-    consignee: 'Louis Dreyfus Company',
-    submittedDate: '2025-11-13',
-    assignedTo: 'John Smith',
+    id: '2026030003',
+    shipmentRef: 'SHP-2026-003',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'BASF SE',
+    submittedDate: '2026-03-03',
+    assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'Pending',
-    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
-    canonicalFields: [
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
+    verifications: { customFormality: 'All Matches', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
     correctValues: {
-      'PROFORMA INVOICE NO.': 'PFI-2025-012', 'Invoice no.': 'CI-2025-012', "Buyer's order No.": 'BO-55012',
-      'etd <port>': 'Port Klang, Malaysia', 'eta <port>': 'Mumbai, India',
-      'product (line item)': 'RBD Palm Olein', 'quantity (line item)': '600 MT', 'Quantity (Total)': '600 MT',
-      'Insured': 'Sime Darby Plantation Bhd', 'Sum Insured': 'USD 150,000.00', 'Commodity': 'RBD Palm Olein',
-      'Port of Loading': 'Port Klang, Malaysia', 'Port of Discharge': 'Mumbai, India',
-      'Shipper': 'Sime Darby Plantation Bhd', 'Consignee': 'Louis Dreyfus Company',
-      'Vessel Name': 'MV Darby Spirit', 'Gross Weight': '600,000 KG',
-      'GI Date': '13 Nov 2025', 'ETD Date': '13 Nov 2025', 'Manual Billing Date': '13 Nov 2025',
+      'PROFORMA INVOICE NO.': 'PFI-2026-003', 'Invoice no.': 'CI-2026-003', "Buyer's order No.": 'BO-30003',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Hamburg, Germany',
+      'product (line item)': 'Styrene Monomer', 'quantity (line item)': '800 MT', 'Quantity (Total)': '800 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 600,000.00', 'Commodity': 'Styrene Monomer',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Hamburg, Germany',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'BASF SE', 'Vessel Name': 'MV Euro Bridge', 'Gross Weight': '800,000 KG',
+      'GI Date': '03 Mar 2026', 'ETD Date': '03 Mar 2026', 'Manual Billing Date': '03 Mar 2026',
     },
     documents: [
-      {
-        id: 'doc-T012-1', type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.', 'Invoice no.': 'Invoice no.',
-          "Buyer's order No.": "Buyer's order No.", 'etd <port>': 'etd <port>', 'eta <port>': 'eta <port>',
-          'product (line item)': 'product (line item)', 'quantity (line item)': 'quantity (line item)', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-012', 'Invoice no.': 'CI-2025-012', "Buyer's order No.": 'BO-55012',
-          'etd <port>': 'Port Klang, Malaysia', 'eta <port>': 'Mumbai, India',
-          'product (line item)': 'RBD Palm Olein', 'quantity (line item)': '600 MT', 'Quantity (Total)': '600 MT',
-        },
-      },
-      {
-        id: 'doc-T012-2', type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-012', 'No.': 'CI-2025-012', "Buyer's order No.": 'BO-55012',
-          'from': 'Port Klang, Malaysia', 'to': 'Mumbai, India',
-          'description of goods': 'RBD Palm Olein', 'quantity': '600 MT', 'Quantity (Total)': '600 MT',
-        },
-      },
-      {
-        id: 'doc-T012-3', type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-012', 'No.': 'CI-2025-012', "Buyer's order No.": 'BO-55012',
-          'from': 'Port Klang, Malaysia', 'to': 'Mumbai, India',
-          'description of goods': 'RBD Palm Olein', 'quantity': '600 MT', 'Quantity (Total)': '600 MT',
-        },
-      },
-      {
-        id: 'doc-T012-4', type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.', 'Invoice no.': 'Invoice No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'Port of Loading', 'eta <port>': 'Port of Discharge',
-          'product (line item)': 'Description of Goods', 'quantity (line item)': 'Quantity', 'Quantity (Total)': 'Total Quantity',
-        },
-        values: {
-          'Contract No.': 'PFI-2025-012', 'Invoice No.': 'CI-2025-012', "Buyer's order No.": 'BO-55012',
-          'Port of Loading': 'Port Klang, Malaysia', 'Port of Discharge': 'Mumbai, India',
-          'Description of Goods': 'RBD Palm Olein', 'Quantity': '600 MT', 'Total Quantity': '600 MT',
-        },
-      },
+      ...cfDocs('doc-T03', { 'PROFORMA INVOICE NO.': 'PFI-2026-003', 'Invoice no.': 'CI-2026-003', "Buyer's order No.": 'BO-30003', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Hamburg, Germany', 'product (line item)': 'Styrene Monomer', 'quantity (line item)': '800 MT', 'Quantity (Total)': '800 MT' }),
+      // No Draft Insurance, Draft B/L, or Original B/L (all pending upload)
     ],
   },
 
-  // T013 — Needs Attention (vessel name mismatch in Draft B/L)
+  // ─── T04 ─ CF: All Matches | Ins: Needs Attention | BL: All Matches | BL Date: Pending (no OBL)
+  // Overall: Needs Attention
   {
-    id: '1015030644',
-    shipmentRef: 'SHP-2025-013',
-    shipper: 'Golden Agri-Resources Ltd',
-    consignee: 'Musim Mas Holdings Pte Ltd',
-    submittedDate: '2025-11-14',
-    assignedTo: 'Alice Tan',
+    id: '2026030004',
+    shipmentRef: 'SHP-2026-004',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'LG Chem Ltd',
+    submittedDate: '2026-03-04',
+    assignedTo: 'james.tan@pttgcgroup.com',
+    status: 'Needs Attention',
+    verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'All Matches', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-004', 'Invoice no.': 'CI-2026-004', "Buyer's order No.": 'BO-30004',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Ulsan, South Korea',
+      'product (line item)': 'Ethylene Oxide', 'quantity (line item)': '200 MT', 'Quantity (Total)': '200 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 180,000.00', 'Commodity': 'Ethylene Oxide',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Ulsan, South Korea',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd', 'Vessel Name': 'MV Korea Star', 'Gross Weight': '200,000 KG',
+      'GI Date': '04 Mar 2026', 'ETD Date': '04 Mar 2026', 'Manual Billing Date': '04 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T04', { 'PROFORMA INVOICE NO.': 'PFI-2026-004', 'Invoice no.': 'CI-2026-004', "Buyer's order No.": 'BO-30004', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Ulsan, South Korea', 'product (line item)': 'Ethylene Oxide', 'quantity (line item)': '200 MT', 'Quantity (Total)': '200 MT' }),
+      ...insDocs('doc-T04',
+        { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 180,000.00', 'Commodity': 'Ethylene Oxide', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Ulsan, South Korea' },
+        { 'Insured': 'PTT GC International PCL' }  // ← mismatch
+      ),
+      ...dblDocs('doc-T04', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd', 'Vessel Name': 'MV Korea Star', 'Gross Weight': '200,000 KG' }),
+      // No Original B/L
+    ],
+  },
+
+  // ─── T05 ─ CF: All Matches | Ins: All Matches | BL: All Matches | BL Date: Pending (no OBL)
+  // Overall: Pending Document
+  {
+    id: '2026030005',
+    shipmentRef: 'SHP-2026-005',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Shell Eastern Petroleum',
+    submittedDate: '2026-03-05',
+    assignedTo: 'sarah.lim@pttgcgroup.com',
+    status: 'Pending',
+    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-005', 'Invoice no.': 'CI-2026-005', "Buyer's order No.": 'BO-30005',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Pulau Bukom, Singapore',
+      'product (line item)': 'Paraxylene', 'quantity (line item)': '700 MT', 'Quantity (Total)': '700 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 490,000.00', 'Commodity': 'Paraxylene',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Pulau Bukom, Singapore',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Shell Eastern Petroleum', 'Vessel Name': 'MV Shell Trader', 'Gross Weight': '700,000 KG',
+      'GI Date': '05 Mar 2026', 'ETD Date': '05 Mar 2026', 'Manual Billing Date': '05 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T05', { 'PROFORMA INVOICE NO.': 'PFI-2026-005', 'Invoice no.': 'CI-2026-005', "Buyer's order No.": 'BO-30005', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Pulau Bukom, Singapore', 'product (line item)': 'Paraxylene', 'quantity (line item)': '700 MT', 'Quantity (Total)': '700 MT' }),
+      ...insDocs('doc-T05', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 490,000.00', 'Commodity': 'Paraxylene', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Pulau Bukom, Singapore' }),
+      ...dblDocs('doc-T05', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Shell Eastern Petroleum', 'Vessel Name': 'MV Shell Trader', 'Gross Weight': '700,000 KG' }),
+      // No Original B/L
+    ],
+  },
+
+  // ─── T06 ─ CF: All Matches | Ins: All Matches | BL: Needs Attention | BL Date: All Matches
+  // Overall: Needs Attention
+  {
+    id: '2026030006',
+    shipmentRef: 'SHP-2026-006',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Mitsui Chemicals Inc',
+    submittedDate: '2026-03-06',
+    assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'Needs Attention', blDate: 'All Matches' },
-    canonicalFields: [
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
     correctValues: {
-      'PROFORMA INVOICE NO.': 'PFI-2025-013', 'Invoice no.': 'CI-2025-013', "Buyer's order No.": 'BO-55013',
-      'etd <port>': 'Belawan, Indonesia', 'eta <port>': 'Shanghai, China',
-      'product (line item)': 'Crude Palm Oil', 'quantity (line item)': '700 MT', 'Quantity (Total)': '700 MT',
-      'Insured': 'Golden Agri-Resources Ltd', 'Sum Insured': 'USD 175,000.00', 'Commodity': 'Crude Palm Oil',
-      'Port of Loading': 'Belawan, Indonesia', 'Port of Discharge': 'Shanghai, China',
-      'Shipper': 'Golden Agri-Resources Ltd', 'Consignee': 'Musim Mas Holdings Pte Ltd',
-      'Vessel Name': 'MV Golden Harvest', 'Gross Weight': '700,000 KG',
-      'GI Date': '14 Nov 2025', 'ETD Date': '14 Nov 2025', 'Manual Billing Date': '14 Nov 2025',
+      'PROFORMA INVOICE NO.': 'PFI-2026-006', 'Invoice no.': 'CI-2026-006', "Buyer's order No.": 'BO-30006',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Nagoya, Japan',
+      'product (line item)': 'Polyvinyl Chloride', 'quantity (line item)': '600 MT', 'Quantity (Total)': '600 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 420,000.00', 'Commodity': 'Polyvinyl Chloride',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Nagoya, Japan',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Mitsui Chemicals Inc', 'Vessel Name': 'MV Japan Arrow', 'Gross Weight': '600,000 KG',
+      'GI Date': '06 Mar 2026', 'ETD Date': '06 Mar 2026', 'Manual Billing Date': '06 Mar 2026',
     },
     documents: [
-      {
-        id: 'doc-T013-1', type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.', 'Invoice no.': 'Invoice no.',
-          "Buyer's order No.": "Buyer's order No.", 'etd <port>': 'etd <port>', 'eta <port>': 'eta <port>',
-          'product (line item)': 'product (line item)', 'quantity (line item)': 'quantity (line item)', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-013', 'Invoice no.': 'CI-2025-013', "Buyer's order No.": 'BO-55013',
-          'etd <port>': 'Belawan, Indonesia', 'eta <port>': 'Shanghai, China',
-          'product (line item)': 'Crude Palm Oil', 'quantity (line item)': '700 MT', 'Quantity (Total)': '700 MT',
-        },
-      },
-      {
-        id: 'doc-T013-2', type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-013', 'No.': 'CI-2025-013', "Buyer's order No.": 'BO-55013',
-          'from': 'Belawan, Indonesia', 'to': 'Shanghai, China',
-          'description of goods': 'Crude Palm Oil', 'quantity': '700 MT', 'Quantity (Total)': '700 MT',
-        },
-      },
-      {
-        id: 'doc-T013-3', type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-013', 'No.': 'CI-2025-013', "Buyer's order No.": 'BO-55013',
-          'from': 'Belawan, Indonesia', 'to': 'Shanghai, China',
-          'description of goods': 'Crude Palm Oil', 'quantity': '700 MT', 'Quantity (Total)': '700 MT',
-        },
-      },
-      {
-        id: 'doc-T013-4', type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.', 'Invoice no.': 'Invoice No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'Port of Loading', 'eta <port>': 'Port of Discharge',
-          'product (line item)': 'Description of Goods', 'quantity (line item)': 'Quantity', 'Quantity (Total)': 'Total Quantity',
-        },
-        values: {
-          'Contract No.': 'PFI-2025-013', 'Invoice No.': 'CI-2025-013', "Buyer's order No.": 'BO-55013',
-          'Port of Loading': 'Belawan, Indonesia', 'Port of Discharge': 'Shanghai, China',
-          'Description of Goods': 'Crude Palm Oil', 'Quantity': '700 MT', 'Total Quantity': '700 MT',
-        },
-      },
-      {
-        id: 'doc-T013-ins1', type: 'Draft Insurance',
-        fieldMapping: { 'Insured': 'insured_name', 'Sum Insured': 'sum_insured', 'Commodity': 'commodity', 'Port of Loading': 'pol', 'Port of Discharge': 'pod' },
-        values: { insured_name: 'Golden Agri-Resources Ltd', sum_insured: 'USD 175,000.00', commodity: 'Crude Palm Oil', pol: 'Belawan, Indonesia', pod: 'Shanghai, China' },
-      },
-      {
-        id: 'doc-T013-ins2', type: 'Detail for Insurance Purpose',
-        fieldMapping: { 'Insured': 'insured', 'Sum Insured': 'declared_value', 'Commodity': 'goods_description', 'Port of Loading': 'loading_port', 'Port of Discharge': 'discharge_port' },
-        values: { insured: 'Golden Agri-Resources Ltd', declared_value: 'USD 175,000.00', goods_description: 'Crude Palm Oil', loading_port: 'Belawan, Indonesia', discharge_port: 'Shanghai, China' },
-      },
-      {
-        id: 'doc-T013-bl1', type: 'Draft B/L',
-        fieldMapping: { 'Shipper': 'shipper', 'Consignee': 'consignee', 'Vessel Name': 'vessel_name', 'Gross Weight': 'gross_weight' },
-        values: { shipper: 'Golden Agri-Resources Ltd', consignee: 'Musim Mas Holdings Pte Ltd', vessel_name: 'MV Golden Eagle', gross_weight: '700,000 KG' },
-      },
-      {
-        id: 'doc-T013-bl2', type: 'Shipping Particular',
-        fieldMapping: { 'Shipper': 'exporter', 'Consignee': 'importer', 'Vessel Name': 'vessel', 'Gross Weight': 'gross_wt_kg' },
-        values: { exporter: 'Golden Agri-Resources Ltd', importer: 'Musim Mas Holdings Pte Ltd', vessel: 'MV Golden Harvest', gross_wt_kg: '700,000 KG' },
-      },
-      {
-        id: 'doc-T013-obl', type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '14 Nov 2025' },
-      },
+      ...cfDocs('doc-T06', { 'PROFORMA INVOICE NO.': 'PFI-2026-006', 'Invoice no.': 'CI-2026-006', "Buyer's order No.": 'BO-30006', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Nagoya, Japan', 'product (line item)': 'Polyvinyl Chloride', 'quantity (line item)': '600 MT', 'Quantity (Total)': '600 MT' }),
+      ...insDocs('doc-T06', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 420,000.00', 'Commodity': 'Polyvinyl Chloride', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Nagoya, Japan' }),
+      ...dblDocs('doc-T06',
+        { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Mitsui Chemicals Inc', 'Vessel Name': 'MV Japan Arrow', 'Gross Weight': '600,000 KG' },
+        { 'Gross Weight': '550,000 KG' }  // ← mismatch
+      ),
+      oblDoc('doc-T06', '06 Mar 2026'),
     ],
   },
 
-  // T014 — Rejected (CF rejected)
+  // ─── T07 ─ CF: Needs Attention | Ins: Pending | BL: Pending | BL Date: Pending (no OBL)
+  // Overall: Needs Attention
   {
-    id: '1015030645',
-    shipmentRef: 'SHP-2025-014',
-    shipper: 'Kuala Lumpur Kepong Bhd',
-    consignee: 'ADM Hamburg AG',
-    submittedDate: '2025-11-15',
-    assignedTo: 'Alice Tan',
-    status: 'Rejected',
-    verifications: { customFormality: 'Rejected', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
-    canonicalFields: [
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
+    id: '2026030007',
+    shipmentRef: 'SHP-2026-007',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Toray Industries Inc',
+    submittedDate: '2026-03-07',
+    assignedTo: 'aisha.patel@pttgcgroup.com',
+    status: 'Needs Attention',
+    verifications: { customFormality: 'Needs Attention', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
     correctValues: {
-      'PROFORMA INVOICE NO.': 'PFI-2025-014', 'Invoice no.': 'CI-2025-014', "Buyer's order No.": 'BO-55014',
-      'etd <port>': 'Port Klang, Malaysia', 'eta <port>': 'Jeddah, Saudi Arabia',
-      'product (line item)': 'Palm Stearin', 'quantity (line item)': '900 MT', 'Quantity (Total)': '900 MT',
-      'Insured': 'Kuala Lumpur Kepong Bhd', 'Sum Insured': 'USD 220,000.00', 'Commodity': 'Palm Stearin',
-      'Port of Loading': 'Port Klang, Malaysia', 'Port of Discharge': 'Jeddah, Saudi Arabia',
-      'Shipper': 'Kuala Lumpur Kepong Bhd', 'Consignee': 'ADM Hamburg AG',
-      'Vessel Name': 'MV KL Express', 'Gross Weight': '900,000 KG',
-      'GI Date': '15 Nov 2025', 'ETD Date': '15 Nov 2025', 'Manual Billing Date': '15 Nov 2025',
+      'PROFORMA INVOICE NO.': 'PFI-2026-007', 'Invoice no.': 'CI-2026-007', "Buyer's order No.": 'BO-30007',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Osaka, Japan',
+      'product (line item)': 'Acrylonitrile', 'quantity (line item)': '450 MT', 'Quantity (Total)': '450 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 315,000.00', 'Commodity': 'Acrylonitrile',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Osaka, Japan',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Toray Industries Inc', 'Vessel Name': 'MV Toray Maru', 'Gross Weight': '450,000 KG',
+      'GI Date': '07 Mar 2026', 'ETD Date': '07 Mar 2026', 'Manual Billing Date': '07 Mar 2026',
     },
     documents: [
-      {
-        id: 'doc-T014-1', type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.', 'Invoice no.': 'Invoice no.',
-          "Buyer's order No.": "Buyer's order No.", 'etd <port>': 'etd <port>', 'eta <port>': 'eta <port>',
-          'product (line item)': 'product (line item)', 'quantity (line item)': 'quantity (line item)', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-014', 'Invoice no.': 'CI-2025-014', "Buyer's order No.": 'BO-55014',
-          'etd <port>': 'Port Klang, Malaysia', 'eta <port>': 'Jeddah, Saudi Arabia',
-          'product (line item)': 'Palm Stearin', 'quantity (line item)': '900 MT', 'Quantity (Total)': '900 MT',
-        },
-      },
-      {
-        id: 'doc-T014-2', type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-014', 'No.': 'CI-2025-014', "Buyer's order No.": 'BO-55014',
-          'from': 'Port Klang, Malaysia', 'to': 'Jeddah, Saudi Arabia',
-          'description of goods': 'Palm Stearin', 'quantity': '900 MT', 'Quantity (Total)': '900 MT',
-        },
-      },
-      {
-        id: 'doc-T014-3', type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-014', 'No.': 'CI-2025-014', "Buyer's order No.": 'BO-55014',
-          'from': 'Port Klang, Malaysia', 'to': 'Jeddah, Saudi Arabia',
-          'description of goods': 'Palm Stearin', 'quantity': '900 MT', 'Quantity (Total)': '900 MT',
-        },
-      },
-      {
-        id: 'doc-T014-4', type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.', 'Invoice no.': 'Invoice No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'Port of Loading', 'eta <port>': 'Port of Discharge',
-          'product (line item)': 'Description of Goods', 'quantity (line item)': 'Quantity', 'Quantity (Total)': 'Total Quantity',
-        },
-        values: {
-          'Contract No.': 'PFI-2025-014', 'Invoice No.': 'CI-2025-014', "Buyer's order No.": 'BO-55014',
-          'Port of Loading': 'Port Klang, Malaysia', 'Port of Discharge': 'Jeddah, Saudi Arabia',
-          'Description of Goods': 'Palm Stearin', 'Quantity': '900 MT', 'Total Quantity': '900 MT',
-        },
-      },
-      {
-        id: 'doc-T014-ins1', type: 'Draft Insurance',
-        fieldMapping: { 'Insured': 'insured_name', 'Sum Insured': 'sum_insured', 'Commodity': 'commodity', 'Port of Loading': 'pol', 'Port of Discharge': 'pod' },
-        values: { insured_name: 'Kuala Lumpur Kepong Bhd', sum_insured: 'USD 220,000.00', commodity: 'Palm Stearin', pol: 'Port Klang, Malaysia', pod: 'Jeddah, Saudi Arabia' },
-      },
-      {
-        id: 'doc-T014-ins2', type: 'Detail for Insurance Purpose',
-        fieldMapping: { 'Insured': 'insured', 'Sum Insured': 'declared_value', 'Commodity': 'goods_description', 'Port of Loading': 'loading_port', 'Port of Discharge': 'discharge_port' },
-        values: { insured: 'Kuala Lumpur Kepong Bhd', declared_value: 'USD 220,000.00', goods_description: 'Palm Stearin', loading_port: 'Port Klang, Malaysia', discharge_port: 'Jeddah, Saudi Arabia' },
-      },
-      {
-        id: 'doc-T014-bl1', type: 'Draft B/L',
-        fieldMapping: { 'Shipper': 'shipper', 'Consignee': 'consignee', 'Vessel Name': 'vessel_name', 'Gross Weight': 'gross_weight' },
-        values: { shipper: 'Kuala Lumpur Kepong Bhd', consignee: 'ADM Hamburg AG', vessel_name: 'MV KL Express', gross_weight: '900,000 KG' },
-      },
-      {
-        id: 'doc-T014-bl2', type: 'Shipping Particular',
-        fieldMapping: { 'Shipper': 'exporter', 'Consignee': 'importer', 'Vessel Name': 'vessel', 'Gross Weight': 'gross_wt_kg' },
-        values: { exporter: 'Kuala Lumpur Kepong Bhd', importer: 'ADM Hamburg AG', vessel: 'MV KL Express', gross_wt_kg: '900,000 KG' },
-      },
-      {
-        id: 'doc-T014-obl', type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '15 Nov 2025' },
-      },
+      ...cfDocs('doc-T07',
+        { 'PROFORMA INVOICE NO.': 'PFI-2026-007', 'Invoice no.': 'CI-2026-007', "Buyer's order No.": 'BO-30007', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Osaka, Japan', 'product (line item)': 'Acrylonitrile', 'quantity (line item)': '450 MT', 'Quantity (Total)': '450 MT' },
+        { 'quantity (line item)': '350 MT', 'Quantity (Total)': '350 MT' }  // ← mismatch
+      ),
+      // No Draft Insurance, Draft B/L, or Original B/L
     ],
   },
 
-  // T015 — All Match
+  // ─── T08 ─ CF: All Matches | Ins: All Matches | BL: All Matches | BL Date: All Matches
+  // Overall: All Match
   {
-    id: '1015030646',
-    shipmentRef: 'SHP-2025-015',
-    shipper: 'Genting Plantations Berhad',
-    consignee: 'Fuji Oil Co Ltd',
-    submittedDate: '2025-11-16',
-    assignedTo: 'John Smith',
+    id: '2026030008',
+    shipmentRef: 'SHP-2026-008',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Ineos Group Holdings',
+    submittedDate: '2026-03-08',
+    assignedTo: 'james.tan@pttgcgroup.com',
     status: 'All Match',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
-    canonicalFields: [
-      'PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>',
-      'product (line item)', 'quantity (line item)', 'Quantity (Total)',
-      'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge',
-      'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight',
-      'GI Date', 'ETD Date', 'Manual Billing Date',
-    ],
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
     correctValues: {
-      'PROFORMA INVOICE NO.': 'PFI-2025-015', 'Invoice no.': 'CI-2025-015', "Buyer's order No.": 'BO-55015',
-      'etd <port>': 'Dumai, Indonesia', 'eta <port>': 'Osaka, Japan',
-      'product (line item)': 'RBD Palm Kernel Olein', 'quantity (line item)': '1,000 MT', 'Quantity (Total)': '1,000 MT',
-      'Insured': 'Genting Plantations Berhad', 'Sum Insured': 'USD 250,000.00', 'Commodity': 'RBD Palm Kernel Olein',
-      'Port of Loading': 'Dumai, Indonesia', 'Port of Discharge': 'Osaka, Japan',
-      'Shipper': 'Genting Plantations Berhad', 'Consignee': 'Fuji Oil Co Ltd',
-      'Vessel Name': 'MV Genting Star', 'Gross Weight': '1,000,000 KG',
-      'GI Date': '16 Nov 2025', 'ETD Date': '16 Nov 2025', 'Manual Billing Date': '16 Nov 2025',
+      'PROFORMA INVOICE NO.': 'PFI-2026-008', 'Invoice no.': 'CI-2026-008', "Buyer's order No.": 'BO-30008',
+      'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Rotterdam, Netherlands',
+      'product (line item)': 'Ethylene', 'quantity (line item)': '900 MT', 'Quantity (Total)': '900 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 630,000.00', 'Commodity': 'Ethylene',
+      'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Rotterdam, Netherlands',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Ineos Group Holdings', 'Vessel Name': 'MV Euro Runner', 'Gross Weight': '900,000 KG',
+      'GI Date': '08 Mar 2026', 'ETD Date': '08 Mar 2026', 'Manual Billing Date': '08 Mar 2026',
     },
     documents: [
-      {
-        id: 'doc-T015-1', type: 'Shipping Advice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'PROFORMA INVOICE NO.', 'Invoice no.': 'Invoice no.',
-          "Buyer's order No.": "Buyer's order No.", 'etd <port>': 'etd <port>', 'eta <port>': 'eta <port>',
-          'product (line item)': 'product (line item)', 'quantity (line item)': 'quantity (line item)', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'PROFORMA INVOICE NO.': 'PFI-2025-015', 'Invoice no.': 'CI-2025-015', "Buyer's order No.": 'BO-55015',
-          'etd <port>': 'Dumai, Indonesia', 'eta <port>': 'Osaka, Japan',
-          'product (line item)': 'RBD Palm Kernel Olein', 'quantity (line item)': '1,000 MT', 'Quantity (Total)': '1,000 MT',
-        },
-      },
-      {
-        id: 'doc-T015-2', type: 'Custom Invoice',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-015', 'No.': 'CI-2025-015', "Buyer's order No.": 'BO-55015',
-          'from': 'Dumai, Indonesia', 'to': 'Osaka, Japan',
-          'description of goods': 'RBD Palm Kernel Olein', 'quantity': '1,000 MT', 'Quantity (Total)': '1,000 MT',
-        },
-      },
-      {
-        id: 'doc-T015-3', type: 'Packing List',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'REFERENCE NO.', 'Invoice no.': 'No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'from', 'eta <port>': 'to',
-          'product (line item)': 'description of goods', 'quantity (line item)': 'quantity', 'Quantity (Total)': 'Quantity (Total)',
-        },
-        values: {
-          'REFERENCE NO.': 'PFI-2025-015', 'No.': 'CI-2025-015', "Buyer's order No.": 'BO-55015',
-          'from': 'Dumai, Indonesia', 'to': 'Osaka, Japan',
-          'description of goods': 'RBD Palm Kernel Olein', 'quantity': '1,000 MT', 'Quantity (Total)': '1,000 MT',
-        },
-      },
-      {
-        id: 'doc-T015-4', type: 'Shipping Instruction',
-        fieldMapping: {
-          'PROFORMA INVOICE NO.': 'Contract No.', 'Invoice no.': 'Invoice No.', "Buyer's order No.": "Buyer's order No.",
-          'etd <port>': 'Port of Loading', 'eta <port>': 'Port of Discharge',
-          'product (line item)': 'Description of Goods', 'quantity (line item)': 'Quantity', 'Quantity (Total)': 'Total Quantity',
-        },
-        values: {
-          'Contract No.': 'PFI-2025-015', 'Invoice No.': 'CI-2025-015', "Buyer's order No.": 'BO-55015',
-          'Port of Loading': 'Dumai, Indonesia', 'Port of Discharge': 'Osaka, Japan',
-          'Description of Goods': 'RBD Palm Kernel Olein', 'Quantity': '1,000 MT', 'Total Quantity': '1,000 MT',
-        },
-      },
-      {
-        id: 'doc-T015-ins1', type: 'Draft Insurance',
-        fieldMapping: { 'Insured': 'insured_name', 'Sum Insured': 'sum_insured', 'Commodity': 'commodity', 'Port of Loading': 'pol', 'Port of Discharge': 'pod' },
-        values: { insured_name: 'Genting Plantations Berhad', sum_insured: 'USD 250,000.00', commodity: 'RBD Palm Kernel Olein', pol: 'Dumai, Indonesia', pod: 'Osaka, Japan' },
-      },
-      {
-        id: 'doc-T015-ins2', type: 'Detail for Insurance Purpose',
-        fieldMapping: { 'Insured': 'insured', 'Sum Insured': 'declared_value', 'Commodity': 'goods_description', 'Port of Loading': 'loading_port', 'Port of Discharge': 'discharge_port' },
-        values: { insured: 'Genting Plantations Berhad', declared_value: 'USD 250,000.00', goods_description: 'RBD Palm Kernel Olein', loading_port: 'Dumai, Indonesia', discharge_port: 'Osaka, Japan' },
-      },
-      {
-        id: 'doc-T015-bl1', type: 'Draft B/L',
-        fieldMapping: { 'Shipper': 'shipper', 'Consignee': 'consignee', 'Vessel Name': 'vessel_name', 'Gross Weight': 'gross_weight' },
-        values: { shipper: 'Genting Plantations Berhad', consignee: 'Fuji Oil Co Ltd', vessel_name: 'MV Genting Star', gross_weight: '1,000,000 KG' },
-      },
-      {
-        id: 'doc-T015-bl2', type: 'Shipping Particular',
-        fieldMapping: { 'Shipper': 'exporter', 'Consignee': 'importer', 'Vessel Name': 'vessel', 'Gross Weight': 'gross_wt_kg' },
-        values: { exporter: 'Genting Plantations Berhad', importer: 'Fuji Oil Co Ltd', vessel: 'MV Genting Star', gross_wt_kg: '1,000,000 KG' },
-      },
-      {
-        id: 'doc-T015-obl', type: 'Original B/L',
-        fieldMapping: { 'B/L Date': 'bl_date' },
-        values: { bl_date: '16 Nov 2025' },
-      },
+      ...cfDocs('doc-T08', { 'PROFORMA INVOICE NO.': 'PFI-2026-008', 'Invoice no.': 'CI-2026-008', "Buyer's order No.": 'BO-30008', 'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Rotterdam, Netherlands', 'product (line item)': 'Ethylene', 'quantity (line item)': '900 MT', 'Quantity (Total)': '900 MT' }),
+      ...insDocs('doc-T08', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 630,000.00', 'Commodity': 'Ethylene', 'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Rotterdam, Netherlands' }),
+      ...dblDocs('doc-T08', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Ineos Group Holdings', 'Vessel Name': 'MV Euro Runner', 'Gross Weight': '900,000 KG' }),
+      oblDoc('doc-T08', '08 Mar 2026'),
     ],
   },
+
+  // ─── T09 ─ CF: All Matches | Ins: Pending | BL: All Matches | BL Date: Pending (no OBL)
+  // Overall: Pending Document
+  {
+    id: '2026030009',
+    shipmentRef: 'SHP-2026-009',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Chevron Phillips Chemical',
+    submittedDate: '2026-03-09',
+    assignedTo: 'jane.doe@pttgcgroup.com',
+    status: 'Pending',
+    verifications: { customFormality: 'All Matches', insurance: 'Pending Verification', draftBL: 'All Matches', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-009', 'Invoice no.': 'CI-2026-009', "Buyer's order No.": 'BO-30009',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Houston, USA',
+      'product (line item)': 'Normal Butanol', 'quantity (line item)': '550 MT', 'Quantity (Total)': '550 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 385,000.00', 'Commodity': 'Normal Butanol',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Houston, USA',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Chevron Phillips Chemical', 'Vessel Name': 'MV Gulf Wind', 'Gross Weight': '550,000 KG',
+      'GI Date': '09 Mar 2026', 'ETD Date': '09 Mar 2026', 'Manual Billing Date': '09 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T09', { 'PROFORMA INVOICE NO.': 'PFI-2026-009', 'Invoice no.': 'CI-2026-009', "Buyer's order No.": 'BO-30009', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Houston, USA', 'product (line item)': 'Normal Butanol', 'quantity (line item)': '550 MT', 'Quantity (Total)': '550 MT' }),
+      ...dblDocs('doc-T09', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Chevron Phillips Chemical', 'Vessel Name': 'MV Gulf Wind', 'Gross Weight': '550,000 KG' }),
+      // No Draft Insurance or Original B/L
+    ],
+  },
+
+  // ─── T10 ─ CF: All Matches | Ins: All Matches | BL: All Matches | BL Date: All Matches
+  // Overall: All Match
+  {
+    id: '2026030010',
+    shipmentRef: 'SHP-2026-010',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Hanwha Solutions Corp',
+    submittedDate: '2026-03-10',
+    assignedTo: 'john.smith@pttgcgroup.com',
+    status: 'All Match',
+    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-010', 'Invoice no.': 'CI-2026-010', "Buyer's order No.": 'BO-30010',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Incheon, South Korea',
+      'product (line item)': 'Vinyl Acetate Monomer', 'quantity (line item)': '350 MT', 'Quantity (Total)': '350 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 245,000.00', 'Commodity': 'Vinyl Acetate Monomer',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Incheon, South Korea',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Hanwha Solutions Corp', 'Vessel Name': 'MV Hanwha Pioneer', 'Gross Weight': '350,000 KG',
+      'GI Date': '10 Mar 2026', 'ETD Date': '10 Mar 2026', 'Manual Billing Date': '10 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T10', { 'PROFORMA INVOICE NO.': 'PFI-2026-010', 'Invoice no.': 'CI-2026-010', "Buyer's order No.": 'BO-30010', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Incheon, South Korea', 'product (line item)': 'Vinyl Acetate Monomer', 'quantity (line item)': '350 MT', 'Quantity (Total)': '350 MT' }),
+      ...insDocs('doc-T10', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 245,000.00', 'Commodity': 'Vinyl Acetate Monomer', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Incheon, South Korea' }),
+      ...dblDocs('doc-T10', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Hanwha Solutions Corp', 'Vessel Name': 'MV Hanwha Pioneer', 'Gross Weight': '350,000 KG' }),
+      oblDoc('doc-T10', '10 Mar 2026'),
+    ],
+  },
+
+  // ─── T11 ─ CF: Needs Attention | Ins: All Matches | BL: Needs Attention | BL Date: All Matches
+  // Overall: Needs Attention
+  {
+    id: '2026030011',
+    shipmentRef: 'SHP-2026-011',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Mitsubishi Chemical Corp',
+    submittedDate: '2026-03-11',
+    assignedTo: 'jane.doe@pttgcgroup.com',
+    status: 'Needs Attention',
+    verifications: { customFormality: 'Needs Attention', insurance: 'All Matches', draftBL: 'Needs Attention', blDate: 'All Matches' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-011', 'Invoice no.': 'CI-2026-011', "Buyer's order No.": 'BO-30011',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Yokohama, Japan',
+      'product (line item)': 'Acetic Acid', 'quantity (line item)': '520 MT', 'Quantity (Total)': '520 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 364,000.00', 'Commodity': 'Acetic Acid',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Yokohama, Japan',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Mitsubishi Chemical Corp', 'Vessel Name': 'MV Mitsubishi Voyager', 'Gross Weight': '520,000 KG',
+      'GI Date': '11 Mar 2026', 'ETD Date': '11 Mar 2026', 'Manual Billing Date': '11 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T11',
+        { 'PROFORMA INVOICE NO.': 'PFI-2026-011', 'Invoice no.': 'CI-2026-011', "Buyer's order No.": 'BO-30011', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Yokohama, Japan', 'product (line item)': 'Acetic Acid', 'quantity (line item)': '520 MT', 'Quantity (Total)': '520 MT' },
+        { 'Invoice no.': 'CI-2026-011-X' }  // ← mismatch
+      ),
+      ...insDocs('doc-T11', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 364,000.00', 'Commodity': 'Acetic Acid', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Yokohama, Japan' }),
+      ...dblDocs('doc-T11',
+        { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Mitsubishi Chemical Corp', 'Vessel Name': 'MV Mitsubishi Voyager', 'Gross Weight': '520,000 KG' },
+        { 'Consignee': 'Mitsubishi Chemical Corporation' }  // ← mismatch
+      ),
+      oblDoc('doc-T11', '11 Mar 2026'),
+    ],
+  },
+
+  // ─── T12 ─ CF: All Matches | Ins: Pending | BL: Pending | BL Date: All Matches
+  // Overall: Pending Document
+  {
+    id: '2026030012',
+    shipmentRef: 'SHP-2026-012',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Huntsman Corporation',
+    submittedDate: '2026-03-12',
+    assignedTo: 'aisha.patel@pttgcgroup.com',
+    status: 'Pending',
+    verifications: { customFormality: 'All Matches', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'All Matches' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-012', 'Invoice no.': 'CI-2026-012', "Buyer's order No.": 'BO-30012',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Port Arthur, USA',
+      'product (line item)': 'Propylene Oxide', 'quantity (line item)': '320 MT', 'Quantity (Total)': '320 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 224,000.00', 'Commodity': 'Propylene Oxide',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Port Arthur, USA',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Huntsman Corporation', 'Vessel Name': 'MV Gulf Breeze', 'Gross Weight': '320,000 KG',
+      'GI Date': '12 Mar 2026', 'ETD Date': '12 Mar 2026', 'Manual Billing Date': '12 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T12', { 'PROFORMA INVOICE NO.': 'PFI-2026-012', 'Invoice no.': 'CI-2026-012', "Buyer's order No.": 'BO-30012', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Port Arthur, USA', 'product (line item)': 'Propylene Oxide', 'quantity (line item)': '320 MT', 'Quantity (Total)': '320 MT' }),
+      oblDoc('doc-T12', '12 Mar 2026'),
+      // No Draft Insurance or Draft B/L
+    ],
+  },
+
+  // ─── T13 ─ CF: All Matches | Ins: Needs Attention | BL: Needs Attention | BL Date: Pending (no OBL)
+  // Overall: Needs Attention
+  {
+    id: '2026030013',
+    shipmentRef: 'SHP-2026-013',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Wanhua Chemical Group',
+    submittedDate: '2026-03-13',
+    assignedTo: 'james.tan@pttgcgroup.com',
+    status: 'Needs Attention',
+    verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'Needs Attention', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-013', 'Invoice no.': 'CI-2026-013', "Buyer's order No.": 'BO-30013',
+      'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Yantai, China',
+      'product (line item)': 'MDI', 'quantity (line item)': '480 MT', 'Quantity (Total)': '480 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 336,000.00', 'Commodity': 'MDI',
+      'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Yantai, China',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Wanhua Chemical Group', 'Vessel Name': 'MV Yellow Sea', 'Gross Weight': '480,000 KG',
+      'GI Date': '13 Mar 2026', 'ETD Date': '13 Mar 2026', 'Manual Billing Date': '13 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T13', { 'PROFORMA INVOICE NO.': 'PFI-2026-013', 'Invoice no.': 'CI-2026-013', "Buyer's order No.": 'BO-30013', 'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Yantai, China', 'product (line item)': 'MDI', 'quantity (line item)': '480 MT', 'Quantity (Total)': '480 MT' }),
+      ...insDocs('doc-T13',
+        { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 336,000.00', 'Commodity': 'MDI', 'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Yantai, China' },
+        { 'Sum Insured': 'USD 300,000.00' }  // ← mismatch
+      ),
+      ...dblDocs('doc-T13',
+        { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Wanhua Chemical Group', 'Vessel Name': 'MV Yellow Sea', 'Gross Weight': '480,000 KG' },
+        { 'Consignee': 'Wanhua Chemical Group Co Ltd' }  // ← mismatch
+      ),
+      // No Original B/L
+    ],
+  },
+
+  // ─── T14 ─ CF: All Matches | Ins: All Matches | BL: All Matches | BL Date: All Matches
+  // Overall: All Match
+  {
+    id: '2026030014',
+    shipmentRef: 'SHP-2026-014',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Celanese Corporation',
+    submittedDate: '2026-03-14',
+    assignedTo: 'sarah.lim@pttgcgroup.com',
+    status: 'All Match',
+    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-014', 'Invoice no.': 'CI-2026-014', "Buyer's order No.": 'BO-30014',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Frankfurt, Germany',
+      'product (line item)': 'Methanol', 'quantity (line item)': '1,200 MT', 'Quantity (Total)': '1,200 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 840,000.00', 'Commodity': 'Methanol',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Frankfurt, Germany',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Celanese Corporation', 'Vessel Name': 'MV Rhine Express', 'Gross Weight': '1,200,000 KG',
+      'GI Date': '14 Mar 2026', 'ETD Date': '14 Mar 2026', 'Manual Billing Date': '14 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T14', { 'PROFORMA INVOICE NO.': 'PFI-2026-014', 'Invoice no.': 'CI-2026-014', "Buyer's order No.": 'BO-30014', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Frankfurt, Germany', 'product (line item)': 'Methanol', 'quantity (line item)': '1,200 MT', 'Quantity (Total)': '1,200 MT' }),
+      ...insDocs('doc-T14', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 840,000.00', 'Commodity': 'Methanol', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Frankfurt, Germany' }),
+      ...dblDocs('doc-T14', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Celanese Corporation', 'Vessel Name': 'MV Rhine Express', 'Gross Weight': '1,200,000 KG' }),
+      oblDoc('doc-T14', '14 Mar 2026'),
+    ],
+  },
+
+  // ─── T15 ─ CF: Needs Attention | Ins: All Matches | BL: All Matches | BL Date: Pending (no OBL)
+  // Overall: Needs Attention
+  {
+    id: '2026030015',
+    shipmentRef: 'SHP-2026-015',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Formosa Plastics Corp',
+    submittedDate: '2026-03-15',
+    assignedTo: 'alice.tan@pttgcgroup.com',
+    status: 'Needs Attention',
+    verifications: { customFormality: 'Needs Attention', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-015', 'Invoice no.': 'CI-2026-015', "Buyer's order No.": 'BO-30015',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Kaohsiung, Taiwan',
+      'product (line item)': 'High Density Polyethylene', 'quantity (line item)': '650 MT', 'Quantity (Total)': '650 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 455,000.00', 'Commodity': 'High Density Polyethylene',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Kaohsiung, Taiwan',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Formosa Plastics Corp', 'Vessel Name': 'MV Taiwan Spirit', 'Gross Weight': '650,000 KG',
+      'GI Date': '15 Mar 2026', 'ETD Date': '15 Mar 2026', 'Manual Billing Date': '15 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T15',
+        { 'PROFORMA INVOICE NO.': 'PFI-2026-015', 'Invoice no.': 'CI-2026-015', "Buyer's order No.": 'BO-30015', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Kaohsiung, Taiwan', 'product (line item)': 'High Density Polyethylene', 'quantity (line item)': '650 MT', 'Quantity (Total)': '650 MT' },
+        { 'etd <port>': 'Bangkok, Thailand' }  // ← mismatch
+      ),
+      ...insDocs('doc-T15', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 455,000.00', 'Commodity': 'High Density Polyethylene', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Kaohsiung, Taiwan' }),
+      ...dblDocs('doc-T15', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Formosa Plastics Corp', 'Vessel Name': 'MV Taiwan Spirit', 'Gross Weight': '650,000 KG' }),
+      // No Original B/L
+    ],
+  },
+
+  // ─── T16 ─ CF: All Matches | Ins: All Matches | BL: Pending | BL Date: Pending (no OBL)
+  // Overall: Pending Document
+  {
+    id: '2026030016',
+    shipmentRef: 'SHP-2026-016',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Sabic Europe BV',
+    submittedDate: '2026-03-16',
+    assignedTo: 'john.smith@pttgcgroup.com',
+    status: 'Pending',
+    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-016', 'Invoice no.': 'CI-2026-016', "Buyer's order No.": 'BO-30016',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Amsterdam, Netherlands',
+      'product (line item)': 'Propylene', 'quantity (line item)': '750 MT', 'Quantity (Total)': '750 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 525,000.00', 'Commodity': 'Propylene',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Amsterdam, Netherlands',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sabic Europe BV', 'Vessel Name': 'MV North Sea', 'Gross Weight': '750,000 KG',
+      'GI Date': '16 Mar 2026', 'ETD Date': '16 Mar 2026', 'Manual Billing Date': '16 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T16', { 'PROFORMA INVOICE NO.': 'PFI-2026-016', 'Invoice no.': 'CI-2026-016', "Buyer's order No.": 'BO-30016', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Amsterdam, Netherlands', 'product (line item)': 'Propylene', 'quantity (line item)': '750 MT', 'Quantity (Total)': '750 MT' }),
+      ...insDocs('doc-T16', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 525,000.00', 'Commodity': 'Propylene', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Amsterdam, Netherlands' }),
+      // No Draft B/L or Original B/L
+    ],
+  },
+
+  // ─── T17 ─ CF: All Matches | Ins: All Matches | BL: All Matches | BL Date: All Matches
+  // Overall: All Match
+  {
+    id: '2026030017',
+    shipmentRef: 'SHP-2026-017',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Kumho Petrochemical',
+    submittedDate: '2026-03-17',
+    assignedTo: 'aisha.patel@pttgcgroup.com',
+    status: 'All Match',
+    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-017', 'Invoice no.': 'CI-2026-017', "Buyer's order No.": 'BO-30017',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Busan, South Korea',
+      'product (line item)': 'Butadiene', 'quantity (line item)': '280 MT', 'Quantity (Total)': '280 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 196,000.00', 'Commodity': 'Butadiene',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Busan, South Korea',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Kumho Petrochemical', 'Vessel Name': 'MV Kumho Star', 'Gross Weight': '280,000 KG',
+      'GI Date': '17 Mar 2026', 'ETD Date': '17 Mar 2026', 'Manual Billing Date': '17 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T17', { 'PROFORMA INVOICE NO.': 'PFI-2026-017', 'Invoice no.': 'CI-2026-017', "Buyer's order No.": 'BO-30017', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Busan, South Korea', 'product (line item)': 'Butadiene', 'quantity (line item)': '280 MT', 'Quantity (Total)': '280 MT' }),
+      ...insDocs('doc-T17', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 196,000.00', 'Commodity': 'Butadiene', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Busan, South Korea' }),
+      ...dblDocs('doc-T17', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Kumho Petrochemical', 'Vessel Name': 'MV Kumho Star', 'Gross Weight': '280,000 KG' }),
+      oblDoc('doc-T17', '17 Mar 2026'),
+    ],
+  },
+
+  // ─── T18 ─ CF: All Matches | Ins: Needs Attention | BL: All Matches | BL Date: All Matches
+  // Overall: Needs Attention
+  {
+    id: '2026030018',
+    shipmentRef: 'SHP-2026-018',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Eastman Chemical Company',
+    submittedDate: '2026-03-18',
+    assignedTo: 'alice.tan@pttgcgroup.com',
+    status: 'Needs Attention',
+    verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'All Matches', blDate: 'All Matches' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-018', 'Invoice no.': 'CI-2026-018', "Buyer's order No.": 'BO-30018',
+      'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Kingsport, USA',
+      'product (line item)': 'Acetate Tow', 'quantity (line item)': '420 MT', 'Quantity (Total)': '420 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 294,000.00', 'Commodity': 'Acetate Tow',
+      'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Kingsport, USA',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Eastman Chemical Company', 'Vessel Name': 'MV Atlantic Voyager', 'Gross Weight': '420,000 KG',
+      'GI Date': '18 Mar 2026', 'ETD Date': '18 Mar 2026', 'Manual Billing Date': '18 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T18', { 'PROFORMA INVOICE NO.': 'PFI-2026-018', 'Invoice no.': 'CI-2026-018', "Buyer's order No.": 'BO-30018', 'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Kingsport, USA', 'product (line item)': 'Acetate Tow', 'quantity (line item)': '420 MT', 'Quantity (Total)': '420 MT' }),
+      ...insDocs('doc-T18',
+        { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 294,000.00', 'Commodity': 'Acetate Tow', 'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Kingsport, USA' },
+        { 'Port of Discharge': 'New York, USA' }  // ← mismatch
+      ),
+      ...dblDocs('doc-T18', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Eastman Chemical Company', 'Vessel Name': 'MV Atlantic Voyager', 'Gross Weight': '420,000 KG' }),
+      oblDoc('doc-T18', '18 Mar 2026'),
+    ],
+  },
+
+  // ─── T19 ─ CF: All Matches | Ins: All Matches | BL: Needs Attention | BL Date: Pending (no OBL)
+  // Overall: Needs Attention
+  {
+    id: '2026030019',
+    shipmentRef: 'SHP-2026-019',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'ExxonMobil Chemical Asia',
+    submittedDate: '2026-03-19',
+    assignedTo: 'sarah.lim@pttgcgroup.com',
+    status: 'Needs Attention',
+    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'Needs Attention', blDate: 'Pending Verification' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-019', 'Invoice no.': 'CI-2026-019', "Buyer's order No.": 'BO-30019',
+      'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Jurong Island, Singapore',
+      'product (line item)': 'Benzene', 'quantity (line item)': '400 MT', 'Quantity (Total)': '400 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 280,000.00', 'Commodity': 'Benzene',
+      'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Jurong Island, Singapore',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'ExxonMobil Chemical Asia', 'Vessel Name': 'MV Strait Star', 'Gross Weight': '400,000 KG',
+      'GI Date': '19 Mar 2026', 'ETD Date': '19 Mar 2026', 'Manual Billing Date': '19 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T19', { 'PROFORMA INVOICE NO.': 'PFI-2026-019', 'Invoice no.': 'CI-2026-019', "Buyer's order No.": 'BO-30019', 'etd <port>': 'Laem Chabang, Thailand', 'eta <port>': 'Jurong Island, Singapore', 'product (line item)': 'Benzene', 'quantity (line item)': '400 MT', 'Quantity (Total)': '400 MT' }),
+      ...insDocs('doc-T19', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 280,000.00', 'Commodity': 'Benzene', 'Port of Loading': 'Laem Chabang, Thailand', 'Port of Discharge': 'Jurong Island, Singapore' }),
+      ...dblDocs('doc-T19',
+        { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'ExxonMobil Chemical Asia', 'Vessel Name': 'MV Strait Star', 'Gross Weight': '400,000 KG' },
+        { 'Vessel Name': 'MV Strait Star II' }  // ← mismatch
+      ),
+      // No Original B/L
+    ],
+  },
+
+  // ─── T20 ─ CF: Needs Attention | Ins: Needs Attention | BL: All Matches | BL Date: All Matches
+  // Overall: Needs Attention
+  {
+    id: '2026030020',
+    shipmentRef: 'SHP-2026-020',
+    shipper: 'PTT Global Chemical PCL',
+    consignee: 'Reliance Industries Ltd',
+    submittedDate: '2026-03-20',
+    assignedTo: 'james.tan@pttgcgroup.com',
+    status: 'Needs Attention',
+    verifications: { customFormality: 'Needs Attention', insurance: 'Needs Attention', draftBL: 'All Matches', blDate: 'All Matches' },
+    canonicalFields: ['PROFORMA INVOICE NO.', 'Invoice no.', "Buyer's order No.", 'etd <port>', 'eta <port>', 'product (line item)', 'quantity (line item)', 'Quantity (Total)', 'Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge', 'Shipper', 'Consignee', 'Vessel Name', 'Gross Weight', 'GI Date', 'ETD Date', 'Manual Billing Date'],
+    correctValues: {
+      'PROFORMA INVOICE NO.': 'PFI-2026-020', 'Invoice no.': 'CI-2026-020', "Buyer's order No.": 'BO-30020',
+      'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Mumbai, India',
+      'product (line item)': 'Purified Terephthalic Acid', 'quantity (line item)': '1,000 MT', 'Quantity (Total)': '1,000 MT',
+      'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 750,000.00', 'Commodity': 'Purified Terephthalic Acid',
+      'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Mumbai, India',
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Reliance Industries Ltd', 'Vessel Name': 'MV India Express', 'Gross Weight': '1,000,000 KG',
+      'GI Date': '20 Mar 2026', 'ETD Date': '20 Mar 2026', 'Manual Billing Date': '20 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T20',
+        { 'PROFORMA INVOICE NO.': 'PFI-2026-020', 'Invoice no.': 'CI-2026-020', "Buyer's order No.": 'BO-30020', 'etd <port>': 'Map Ta Phut, Thailand', 'eta <port>': 'Mumbai, India', 'product (line item)': 'Purified Terephthalic Acid', 'quantity (line item)': '1,000 MT', 'Quantity (Total)': '1,000 MT' },
+        { 'product (line item)': 'PTA' }  // ← mismatch (abbreviation)
+      ),
+      ...insDocs('doc-T20',
+        { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 750,000.00', 'Commodity': 'Purified Terephthalic Acid', 'Port of Loading': 'Map Ta Phut, Thailand', 'Port of Discharge': 'Mumbai, India' },
+        { 'Commodity': 'PTA' }  // ← mismatch
+      ),
+      ...dblDocs('doc-T20', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Reliance Industries Ltd', 'Vessel Name': 'MV India Express', 'Gross Weight': '1,000,000 KG' }),
+      oblDoc('doc-T20', '20 Mar 2026'),
+    ],
+  },
+
 ];

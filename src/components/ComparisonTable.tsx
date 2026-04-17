@@ -95,9 +95,9 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
   const hasActiveFilter = fieldFilter !== '' || statusFilter !== '';
 
   return (
-    <div>
-      {/* Filter bar */}
-      <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 flex-wrap bg-white">
+    <div className="flex flex-col h-full min-h-0">
+      {/* Filter bar — fixed, never scrolls */}
+      <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 flex-wrap bg-white shrink-0">
         <div className="flex flex-col gap-0.5">
           <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Field</label>
           <div className="relative">
@@ -143,24 +143,26 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
         )}
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-[#d9ecf3] border-b border-gray-200">
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36">Field</th>
-              {docs.map((doc) => (
-                <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700">
-                  {doc.type}
-                </th>
-              ))}
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, idx) => (
-              <tr key={row.canonicalField} className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}>
-                <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4">
+      {/* Scrollable table container — only this area scrolls */}
+      <div className="overflow-auto flex-1">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-[#d9ecf3] border-b border-gray-200">
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 sticky top-0 left-0 z-30 bg-[#d9ecf3]">Field</th>
+            {docs.map((doc) => (
+              <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700 sticky top-0 z-10 bg-[#d9ecf3]">
+                {doc.type}
+              </th>
+            ))}
+            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 sticky top-0 z-10 bg-[#d9ecf3]">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row, idx) => {
+            const rowBg = idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white';
+            return (
+              <tr key={row.canonicalField} className={`border-b border-gray-200 ${rowBg}`}>
+                <td className={`px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 ${rowBg}`}>
                   {row.canonicalField}
                 </td>
                 {row.cells.map((cell, ci) => (
@@ -177,16 +179,17 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
                   )}
                 </td>
               </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">
-                  No rows match the current filter.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">
+                No rows match the current filter.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
       </div>
     </div>
   );
