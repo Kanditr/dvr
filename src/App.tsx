@@ -81,7 +81,7 @@ function applyAutoApprove(
   });
 }
 
-const DATA_VERSION = 'v2026-04d';
+const DATA_VERSION = 'v2026-04e';
 
 function clearStaleStorage() {
   const stored = localStorage.getItem('dvr:dataVersion');

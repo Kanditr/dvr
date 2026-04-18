@@ -103,7 +103,25 @@ const PL_FIELDS: Record<string, string> = {
 };
 
 const SI_FIELDS: Record<string, string> = {
-  'MARKS & NOS': 'MARKS & NOS',
+  'INCOTERMS':                            'INCOTERMS',
+  'MARKS & NOS':                          'MARKS & NOS',
+  'ORIGINAL SHIPPING DOCUMENTS AND COPY': 'ORIGINAL SHIPPING DOCUMENTS AND COPY',
+};
+
+const LC_FIELDS: Record<string, string> = { 'L/C NO.': 'L/C NO.' };
+const CI_FIELDS_LC: Record<string, string> = { ...CI_FIELDS, 'L/C NO.': 'L/C NO.' };
+const PL_FIELDS_LC: Record<string, string> = { ...PL_FIELDS, 'L/C NO.': 'L/C NO.' };
+
+// SI consignee addresses for ORIGINAL SHIPPING DOCUMENTS AND COPY
+const SI_ADDR = {
+  SHANGHAI_GCM:  'GC MARKETING SOLUTIONS (SHANGHAI) COMPANY LIMITED\nROOM 13-042, 13TH FLOOR, 1000 LUJIAZUI RING RD., PUDONG, SHANGHAI, 200120, CHINA\nCONTACT PERSON: MR. ZHU WEI TEL: +86 13916595836 EMAIL: GCM-CHINA-SC@PTTGCGROUP.COM',
+  TIANJIN_SPC:   'SINOPEC TIANJIN CHEMICALS CO., LTD.\n300 HUANGHAI ROAD, BINHAI NEW AREA, TIANJIN, 300451, CHINA\nCONTACT PERSON: MS. ZHANG LING TEL: +86 22 65979800 EMAIL: IMPORT@SINOPEC-TJ.COM',
+  QINGDAO_JIFA:  'QINGDAO JIFA GROUP CO., LTD.\n88 MINJIANG ROAD, QINGDAO, SHANDONG, 266071, CHINA\nCONTACT PERSON: MR. WANG HAO TEL: +86 532 86662888 EMAIL: IMPORT@QDJIFA.COM',
+  SHANGHAI_BASF: 'BASF TRADING (SHANGHAI) CO., LTD.\n333 JIUJIANG ROAD, HUANGPU DISTRICT, SHANGHAI, 200001, CHINA\nCONTACT PERSON: MR. PETER ZHANG TEL: +86 21 28050000 EMAIL: IMPORT.BASF@BASF.COM',
+  SINGAPORE_DOW: 'DOW CHEMICAL SINGAPORE PTE. LTD.\n1 HARBOUR FRONT PLACE, HARBOURFRONT TOWER ONE, SINGAPORE, 098633\nCONTACT PERSON: MS. TAN MEI LING TEL: +65 6709 5000 EMAIL: IMPORT@DOW.COM',
+  BUSAN_LG:      'LG CHEM LTD.\n30 BULMUSAN-RO, YEOSU, JEONNAM, SOUTH KOREA\nCONTACT PERSON: MR. KIM JOON HO TEL: +82 61 680 1114 EMAIL: IMPORT@LGCHEM.COM',
+  JAKARTA_CAP:   'PT. CHANDRA ASRI PETROCHEMICAL TBK\nGEDUNG WISMA BARITO PACIFIC II, 7TH FLOOR, JL. S. PARMAN KAV.62-63, JAKARTA, 11410, INDONESIA\nCONTACT PERSON: MR. AGUS SANTOSO TEL: +62 21 5308509 EMAIL: IMPORT@CHANDRA-ASRI.COM',
+  KLANG_PCS:     'PETRONAS CHEMICALS GROUP BHD\nLEVEL 9, PETRONAS TWIN TOWERS, KUALA LUMPUR CITY CENTRE, KUALA LUMPUR, 50088, MALAYSIA\nCONTACT PERSON: MS. NOOR AISHAH TEL: +60 3 2051 5000 EMAIL: PCSIMPORT@PETRONAS.COM.MY',
 };
 
 const CF_CANONICAL = [
@@ -111,6 +129,7 @@ const CF_CANONICAL = [
   'PAYMENT TERM', 'PRODUCT LINE ITEM#1', 'QUANTITY LINE ITEM#1', 'TOTAL QUANTITY',
   'AMOUNT LINE ITEM#1', 'TOTAL AMOUNT', 'FREIGHT', 'INCOTERMS',
   'TOTAL NET WEIGHT', 'TOTAL GROSS WEIGHT', 'MARKS & NOS',
+  'L/C NO.', 'ORIGINAL SHIPPING DOCUMENTS AND COPY',
 ];
 
 const INS_CANONICAL = ['Insured', 'Sum Insured', 'Commodity', 'Port of Loading', 'Port of Discharge'];
@@ -120,7 +139,7 @@ const ALL_CANONICAL = [...CF_CANONICAL, ...INS_CANONICAL, ...DBL_CANONICAL, ...B
 
 // ─── Helper: build CF document set ────────────────────────────────────────────
 
-function cfDocs(id: string, vals: Record<string, string>, ciMismatches?: Record<string, string>): ShipDoc[] {
+function cfDocs(id: string, vals: Record<string, string>, ciMismatches?: Record<string, string>, hasLC?: boolean): ShipDoc[] {
   function build(fieldMap: Record<string, string>, overrides?: Record<string, string>): Record<string, string> {
     const out: Record<string, string> = {};
     for (const [canonical, label] of Object.entries(fieldMap)) {
@@ -128,6 +147,14 @@ function cfDocs(id: string, vals: Record<string, string>, ciMismatches?: Record<
       if (v) out[label] = v;
     }
     return out;
+  }
+  if (hasLC) {
+    return [
+      { id: `${id}-sa`, type: 'Shipping Advice',   fieldMapping: { ...SA_FIELDS },    values: build(SA_FIELDS) },
+      { id: `${id}-ci`, type: 'Custom Invoice',     fieldMapping: { ...CI_FIELDS_LC }, values: build(CI_FIELDS_LC, ciMismatches) },
+      { id: `${id}-pl`, type: 'Packing List',       fieldMapping: { ...PL_FIELDS_LC }, values: build(PL_FIELDS_LC) },
+      { id: `${id}-lc`, type: 'Letter of Credit',   fieldMapping: { ...LC_FIELDS },    values: build(LC_FIELDS) },
+    ];
   }
   return [
     { id: `${id}-sa`, type: 'Shipping Advice',      fieldMapping: { ...SA_FIELDS }, values: build(SA_FIELDS) },
@@ -190,6 +217,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '720', 'AMOUNT LINE ITEM#1': '669,600.00', 'TOTAL AMOUNT': '669,600.00',
       'FREIGHT': '28,800.00', 'INCOTERMS': 'CIF HUANGPU, CHINA',
       'TOTAL NET WEIGHT': '720,000', 'TOTAL GROSS WEIGHT': '727,200', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_GCM,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 736,560.00', 'Commodity': 'HDPE InnoPlus HD2200JP',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'HUANGPU, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.',
@@ -205,6 +233,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '720', 'AMOUNT LINE ITEM#1': '669,600.00', 'TOTAL AMOUNT': '669,600.00',
         'FREIGHT': '28,800.00', 'INCOTERMS': 'CIF HUANGPU, CHINA',
         'TOTAL NET WEIGHT': '720,000', 'TOTAL GROSS WEIGHT': '727,200', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_GCM,
       }),
       ...insDocs('doc-T01', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 736,560.00', 'Commodity': 'HDPE InnoPlus HD2200JP', 'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'HUANGPU, CHINA' }),
       ...dblDocs('doc-T01', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.', 'Vessel Name': 'MV PACIFIC EXPRESS', 'Gross Weight': '727,200 KG' }),
@@ -223,11 +252,12 @@ export const mockTasks: Task[] = [
     correctValues: {
       'INVOICE NO.': '1015050002', 'REF NO.': '3252010002', "BUYER'S ORDER NO.": '3252010002',
       'ETD PORT': 'MAP TA PHUT PORT, THAILAND', 'ETA PORT': 'TIANJIN, CHINA',
-      'PAYMENT TERM': 'L/C AT SIGHT',
+      'PAYMENT TERM': 'IRREVOCABLE L/C AT SIGHT',
       'PRODUCT LINE ITEM#1': 'LLDPE InnoPlus LL6100F', 'QUANTITY LINE ITEM#1': '500',
       'TOTAL QUANTITY': '500', 'AMOUNT LINE ITEM#1': '435,000.00', 'TOTAL AMOUNT': '435,000.00',
       'FREIGHT': '20,000.00', 'INCOTERMS': 'CIF TIANJIN, CHINA',
       'TOTAL NET WEIGHT': '500,000', 'TOTAL GROSS WEIGHT': '505,000', 'MARKS & NOS': 'INNOPLUS',
+      'L/C NO.': 'LLQ1225ILS359656',
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 478,500.00', 'Commodity': 'LLDPE InnoPlus LL6100F',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'TIANJIN, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.',
@@ -238,12 +268,13 @@ export const mockTasks: Task[] = [
       ...cfDocs('doc-T02', {
         'INVOICE NO.': '1015050002', 'REF NO.': '3252010002', "BUYER'S ORDER NO.": '3252010002',
         'ETD PORT': 'MAP TA PHUT PORT, THAILAND', 'ETA PORT': 'TIANJIN, CHINA',
-        'PAYMENT TERM': 'L/C AT SIGHT',
+        'PAYMENT TERM': 'IRREVOCABLE L/C AT SIGHT',
         'PRODUCT LINE ITEM#1': 'LLDPE InnoPlus LL6100F', 'QUANTITY LINE ITEM#1': '500',
         'TOTAL QUANTITY': '500', 'AMOUNT LINE ITEM#1': '435,000.00', 'TOTAL AMOUNT': '435,000.00',
         'FREIGHT': '20,000.00', 'INCOTERMS': 'CIF TIANJIN, CHINA',
         'TOTAL NET WEIGHT': '500,000', 'TOTAL GROSS WEIGHT': '505,000', 'MARKS & NOS': 'INNOPLUS',
-      }, { "BUYER'S ORDER NO.": '3252019999' }),  // ← CI mismatch
+        'L/C NO.': 'LLQ1225ILS359656',
+      }, { "BUYER'S ORDER NO.": '3252019999' }, true),  // ← CI mismatch, L/C docs
       ...insDocs('doc-T02', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 478,500.00', 'Commodity': 'LLDPE InnoPlus LL6100F', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'TIANJIN, CHINA' }),
       ...dblDocs('doc-T02', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.', 'Vessel Name': 'MV ASIAN STAR', 'Gross Weight': '505,000 KG' }),
       oblDoc('doc-T02', '02 Mar 2026'),
@@ -266,6 +297,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '300', 'AMOUNT LINE ITEM#1': '285,000.00', 'TOTAL AMOUNT': '285,000.00',
       'FREIGHT': '12,000.00', 'INCOTERMS': 'CFR QINGDAO, CHINA',
       'TOTAL NET WEIGHT': '300,000', 'TOTAL GROSS WEIGHT': '303,000', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.QINGDAO_JIFA,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 313,500.00', 'Commodity': 'PP InnoPlus HS150',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'QINGDAO, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.',
@@ -281,6 +313,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '300', 'AMOUNT LINE ITEM#1': '285,000.00', 'TOTAL AMOUNT': '285,000.00',
         'FREIGHT': '12,000.00', 'INCOTERMS': 'CFR QINGDAO, CHINA',
         'TOTAL NET WEIGHT': '300,000', 'TOTAL GROSS WEIGHT': '303,000', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.QINGDAO_JIFA,
       }),
     ],
   },
@@ -301,6 +334,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '400', 'AMOUNT LINE ITEM#1': '376,000.00', 'TOTAL AMOUNT': '376,000.00',
       'FREIGHT': '16,000.00', 'INCOTERMS': 'CIF SHANGHAI, CHINA',
       'TOTAL NET WEIGHT': '400,000', 'TOTAL GROSS WEIGHT': '404,000', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_BASF,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 413,600.00', 'Commodity': 'HDPE InnoPlus HB5400P',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'SHANGHAI, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'BASF Trading (Shanghai) Co., Ltd.',
@@ -316,6 +350,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '400', 'AMOUNT LINE ITEM#1': '376,000.00', 'TOTAL AMOUNT': '376,000.00',
         'FREIGHT': '16,000.00', 'INCOTERMS': 'CIF SHANGHAI, CHINA',
         'TOTAL NET WEIGHT': '400,000', 'TOTAL GROSS WEIGHT': '404,000', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_BASF,
       }),
       ...insDocs('doc-T04', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 413,600.00', 'Commodity': 'HDPE InnoPlus HB5400P', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'SHANGHAI, CHINA' },
         { 'Sum Insured': 'USD 400,000.00' }),  // ← insurance mismatch
@@ -339,6 +374,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '600', 'AMOUNT LINE ITEM#1': '576,000.00', 'TOTAL AMOUNT': '576,000.00',
       'FREIGHT': '', 'INCOTERMS': 'FOB LAEM CHABANG PORT, THAILAND',
       'TOTAL NET WEIGHT': '600,000', 'TOTAL GROSS WEIGHT': '606,000', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SINGAPORE_DOW,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 633,600.00', 'Commodity': 'PP InnoPlus MA2100',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'SINGAPORE',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Dow Chemical Singapore Pte. Ltd.',
@@ -354,6 +390,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '600', 'AMOUNT LINE ITEM#1': '576,000.00', 'TOTAL AMOUNT': '576,000.00',
         'FREIGHT': '', 'INCOTERMS': 'FOB LAEM CHABANG PORT, THAILAND',
         'TOTAL NET WEIGHT': '600,000', 'TOTAL GROSS WEIGHT': '606,000', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SINGAPORE_DOW,
       }),
       ...insDocs('doc-T05', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 633,600.00', 'Commodity': 'PP InnoPlus MA2100', 'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'SINGAPORE' }),
       ...dblDocs('doc-T05', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Dow Chemical Singapore Pte. Ltd.', 'Vessel Name': 'MV EMERALD SEA', 'Gross Weight': '606,000 KG' }),
@@ -376,6 +413,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '480', 'AMOUNT LINE ITEM#1': '420,000.00', 'TOTAL AMOUNT': '420,000.00',
       'FREIGHT': '19,200.00', 'INCOTERMS': 'CIF BUSAN, SOUTH KOREA',
       'TOTAL NET WEIGHT': '480,000', 'TOTAL GROSS WEIGHT': '484,800', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 462,000.00', 'Commodity': 'LLDPE InnoPlus LL6101G',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'BUSAN, SOUTH KOREA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd.',
@@ -391,6 +429,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '480', 'AMOUNT LINE ITEM#1': '420,000.00', 'TOTAL AMOUNT': '420,000.00',
         'FREIGHT': '19,200.00', 'INCOTERMS': 'CIF BUSAN, SOUTH KOREA',
         'TOTAL NET WEIGHT': '480,000', 'TOTAL GROSS WEIGHT': '484,800', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
       }),
       ...insDocs('doc-T06', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 462,000.00', 'Commodity': 'LLDPE InnoPlus LL6101G', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'BUSAN, SOUTH KOREA' }),
       ...dblDocs('doc-T06', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd.', 'Vessel Name': 'MV KOREA TRADER', 'Gross Weight': '484,800 KG' },
@@ -415,6 +454,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '350', 'AMOUNT LINE ITEM#1': '325,500.00', 'TOTAL AMOUNT': '325,500.00',
       'FREIGHT': '14,000.00', 'INCOTERMS': 'CIF JAKARTA, INDONESIA',
       'TOTAL NET WEIGHT': '350,000', 'TOTAL GROSS WEIGHT': '353,500', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.JAKARTA_CAP,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 358,050.00', 'Commodity': 'HDPE InnoPlus HD2200JP',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'JAKARTA, INDONESIA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'PT. Chandra Asri Petrochemical Tbk',
@@ -430,6 +470,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '350', 'AMOUNT LINE ITEM#1': '325,500.00', 'TOTAL AMOUNT': '325,500.00',
         'FREIGHT': '14,000.00', 'INCOTERMS': 'CIF JAKARTA, INDONESIA',
         'TOTAL NET WEIGHT': '350,000', 'TOTAL GROSS WEIGHT': '353,500', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.JAKARTA_CAP,
       }, { 'PAYMENT TERM': 'L/C AT SIGHT' }),  // ← CI mismatch
     ],
   },
@@ -445,11 +486,12 @@ export const mockTasks: Task[] = [
     correctValues: {
       'INVOICE NO.': '1015050008', 'REF NO.': '3252010008', "BUYER'S ORDER NO.": '3252010008',
       'ETD PORT': 'MAP TA PHUT PORT, THAILAND', 'ETA PORT': 'TIANJIN, CHINA',
-      'PAYMENT TERM': 'L/C AT SIGHT',
+      'PAYMENT TERM': 'IRREVOCABLE L/C AT SIGHT',
       'PRODUCT LINE ITEM#1': 'PP InnoPlus HS150', 'QUANTITY LINE ITEM#1': '550',
       'TOTAL QUANTITY': '550', 'AMOUNT LINE ITEM#1': '522,500.00', 'TOTAL AMOUNT': '522,500.00',
       'FREIGHT': '22,000.00', 'INCOTERMS': 'CIF TIANJIN, CHINA',
       'TOTAL NET WEIGHT': '550,000', 'TOTAL GROSS WEIGHT': '555,500', 'MARKS & NOS': 'INNOPLUS',
+      'L/C NO.': 'LLQ1226ILS441283',
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 574,750.00', 'Commodity': 'PP InnoPlus HS150',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'TIANJIN, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.',
@@ -460,12 +502,13 @@ export const mockTasks: Task[] = [
       ...cfDocs('doc-T08', {
         'INVOICE NO.': '1015050008', 'REF NO.': '3252010008', "BUYER'S ORDER NO.": '3252010008',
         'ETD PORT': 'MAP TA PHUT PORT, THAILAND', 'ETA PORT': 'TIANJIN, CHINA',
-        'PAYMENT TERM': 'L/C AT SIGHT',
+        'PAYMENT TERM': 'IRREVOCABLE L/C AT SIGHT',
         'PRODUCT LINE ITEM#1': 'PP InnoPlus HS150', 'QUANTITY LINE ITEM#1': '550',
         'TOTAL QUANTITY': '550', 'AMOUNT LINE ITEM#1': '522,500.00', 'TOTAL AMOUNT': '522,500.00',
         'FREIGHT': '22,000.00', 'INCOTERMS': 'CIF TIANJIN, CHINA',
         'TOTAL NET WEIGHT': '550,000', 'TOTAL GROSS WEIGHT': '555,500', 'MARKS & NOS': 'INNOPLUS',
-      }),
+        'L/C NO.': 'LLQ1226ILS441283',
+      }, undefined, true),
       ...insDocs('doc-T08', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 574,750.00', 'Commodity': 'PP InnoPlus HS150', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'TIANJIN, CHINA' }),
       ...dblDocs('doc-T08', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.', 'Vessel Name': 'MV NORTHERN LIGHT', 'Gross Weight': '555,500 KG' }),
       oblDoc('doc-T08', '08 Mar 2026'),
@@ -488,6 +531,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '420', 'AMOUNT LINE ITEM#1': '382,200.00', 'TOTAL AMOUNT': '382,200.00',
       'FREIGHT': '16,800.00', 'INCOTERMS': 'CFR HUANGPU, CHINA',
       'TOTAL NET WEIGHT': '420,000', 'TOTAL GROSS WEIGHT': '424,200', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_GCM,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 420,420.00', 'Commodity': 'LDPE InnoPlus LD2420H',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'HUANGPU, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.',
@@ -503,6 +547,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '420', 'AMOUNT LINE ITEM#1': '382,200.00', 'TOTAL AMOUNT': '382,200.00',
         'FREIGHT': '16,800.00', 'INCOTERMS': 'CFR HUANGPU, CHINA',
         'TOTAL NET WEIGHT': '420,000', 'TOTAL GROSS WEIGHT': '424,200', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_GCM,
       }),
       ...dblDocs('doc-T09', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.', 'Vessel Name': 'MV CHINA FORTUNE', 'Gross Weight': '424,200 KG' }),
     ],
@@ -524,6 +569,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '280', 'AMOUNT LINE ITEM#1': '268,800.00', 'TOTAL AMOUNT': '268,800.00',
       'FREIGHT': '11,200.00', 'INCOTERMS': 'CIF QINGDAO, CHINA',
       'TOTAL NET WEIGHT': '280,000', 'TOTAL GROSS WEIGHT': '282,800', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.QINGDAO_JIFA,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 295,680.00', 'Commodity': 'PP InnoPlus MA2100',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'QINGDAO, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.',
@@ -539,6 +585,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '280', 'AMOUNT LINE ITEM#1': '268,800.00', 'TOTAL AMOUNT': '268,800.00',
         'FREIGHT': '11,200.00', 'INCOTERMS': 'CIF QINGDAO, CHINA',
         'TOTAL NET WEIGHT': '280,000', 'TOTAL GROSS WEIGHT': '282,800', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.QINGDAO_JIFA,
       }),
       ...insDocs('doc-T10', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 295,680.00', 'Commodity': 'PP InnoPlus MA2100', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'QINGDAO, CHINA' }),
       ...dblDocs('doc-T10', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.', 'Vessel Name': 'MV DRAGON GATE', 'Gross Weight': '282,800 KG' }),
@@ -557,11 +604,12 @@ export const mockTasks: Task[] = [
     correctValues: {
       'INVOICE NO.': '1015050011', 'REF NO.': '3252010011', "BUYER'S ORDER NO.": '3252010011',
       'ETD PORT': 'LAEM CHABANG PORT, THAILAND', 'ETA PORT': 'PORT KLANG, MALAYSIA',
-      'PAYMENT TERM': 'L/C AT SIGHT',
+      'PAYMENT TERM': 'IRREVOCABLE L/C AT SIGHT',
       'PRODUCT LINE ITEM#1': 'HDPE InnoPlus HB5400P', 'QUANTITY LINE ITEM#1': '630',
       'TOTAL QUANTITY': '630', 'AMOUNT LINE ITEM#1': '592,200.00', 'TOTAL AMOUNT': '592,200.00',
       'FREIGHT': '25,200.00', 'INCOTERMS': 'CIF PORT KLANG, MALAYSIA',
       'TOTAL NET WEIGHT': '630,000', 'TOTAL GROSS WEIGHT': '636,300', 'MARKS & NOS': 'INNOPLUS',
+      'L/C NO.': 'LLQ1227ILS502947',
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 651,420.00', 'Commodity': 'HDPE InnoPlus HB5400P',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'PORT KLANG, MALAYSIA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Petronas Chemicals Group Bhd',
@@ -572,12 +620,13 @@ export const mockTasks: Task[] = [
       ...cfDocs('doc-T11', {
         'INVOICE NO.': '1015050011', 'REF NO.': '3252010011', "BUYER'S ORDER NO.": '3252010011',
         'ETD PORT': 'LAEM CHABANG PORT, THAILAND', 'ETA PORT': 'PORT KLANG, MALAYSIA',
-        'PAYMENT TERM': 'L/C AT SIGHT',
+        'PAYMENT TERM': 'IRREVOCABLE L/C AT SIGHT',
         'PRODUCT LINE ITEM#1': 'HDPE InnoPlus HB5400P', 'QUANTITY LINE ITEM#1': '630',
         'TOTAL QUANTITY': '630', 'AMOUNT LINE ITEM#1': '592,200.00', 'TOTAL AMOUNT': '592,200.00',
         'FREIGHT': '25,200.00', 'INCOTERMS': 'CIF PORT KLANG, MALAYSIA',
         'TOTAL NET WEIGHT': '630,000', 'TOTAL GROSS WEIGHT': '636,300', 'MARKS & NOS': 'INNOPLUS',
-      }, { 'AMOUNT LINE ITEM#1': '580,000.00', 'TOTAL AMOUNT': '580,000.00' }),  // ← CI mismatch
+        'L/C NO.': 'LLQ1227ILS502947',
+      }, { 'AMOUNT LINE ITEM#1': '580,000.00', 'TOTAL AMOUNT': '580,000.00' }, true),  // ← CI mismatch, L/C docs
       ...insDocs('doc-T11', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 651,420.00', 'Commodity': 'HDPE InnoPlus HB5400P', 'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'PORT KLANG, MALAYSIA' }),
       ...dblDocs('doc-T11', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Petronas Chemicals Group Bhd', 'Vessel Name': 'MV MALAY EXPRESS', 'Gross Weight': '636,300 KG' },
         { 'Gross Weight': '630,000 KG' }),  // ← draftBL mismatch
@@ -601,6 +650,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '310', 'AMOUNT LINE ITEM#1': '269,700.00', 'TOTAL AMOUNT': '269,700.00',
       'FREIGHT': '12,400.00', 'INCOTERMS': 'CFR BUSAN, SOUTH KOREA',
       'TOTAL NET WEIGHT': '310,000', 'TOTAL GROSS WEIGHT': '313,100', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 296,670.00', 'Commodity': 'LLDPE InnoPlus LL6100F',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'BUSAN, SOUTH KOREA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd.',
@@ -616,6 +666,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '310', 'AMOUNT LINE ITEM#1': '269,700.00', 'TOTAL AMOUNT': '269,700.00',
         'FREIGHT': '12,400.00', 'INCOTERMS': 'CFR BUSAN, SOUTH KOREA',
         'TOTAL NET WEIGHT': '310,000', 'TOTAL GROSS WEIGHT': '313,100', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
       }),
       oblDoc('doc-T12', '12 Mar 2026'),
     ],
@@ -637,6 +688,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '460', 'AMOUNT LINE ITEM#1': '437,000.00', 'TOTAL AMOUNT': '437,000.00',
       'FREIGHT': '18,400.00', 'INCOTERMS': 'CIF SHANGHAI, CHINA',
       'TOTAL NET WEIGHT': '460,000', 'TOTAL GROSS WEIGHT': '464,600', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_BASF,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 480,700.00', 'Commodity': 'PP InnoPlus HS150',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'SHANGHAI, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'BASF Trading (Shanghai) Co., Ltd.',
@@ -652,6 +704,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '460', 'AMOUNT LINE ITEM#1': '437,000.00', 'TOTAL AMOUNT': '437,000.00',
         'FREIGHT': '18,400.00', 'INCOTERMS': 'CIF SHANGHAI, CHINA',
         'TOTAL NET WEIGHT': '460,000', 'TOTAL GROSS WEIGHT': '464,600', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_BASF,
       }),
       ...insDocs('doc-T13', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 480,700.00', 'Commodity': 'PP InnoPlus HS150', 'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'SHANGHAI, CHINA' },
         { 'Commodity': 'PP InnoPlus HS200' }),  // ← insurance mismatch
@@ -676,6 +729,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '390', 'AMOUNT LINE ITEM#1': '354,900.00', 'TOTAL AMOUNT': '354,900.00',
       'FREIGHT': '15,600.00', 'INCOTERMS': 'CFR JAKARTA, INDONESIA',
       'TOTAL NET WEIGHT': '390,000', 'TOTAL GROSS WEIGHT': '393,900', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.JAKARTA_CAP,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 390,390.00', 'Commodity': 'LDPE InnoPlus LD2420H',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'JAKARTA, INDONESIA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'PT. Chandra Asri Petrochemical Tbk',
@@ -691,6 +745,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '390', 'AMOUNT LINE ITEM#1': '354,900.00', 'TOTAL AMOUNT': '354,900.00',
         'FREIGHT': '15,600.00', 'INCOTERMS': 'CFR JAKARTA, INDONESIA',
         'TOTAL NET WEIGHT': '390,000', 'TOTAL GROSS WEIGHT': '393,900', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.JAKARTA_CAP,
       }),
       ...insDocs('doc-T14', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 390,390.00', 'Commodity': 'LDPE InnoPlus LD2420H', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'JAKARTA, INDONESIA' }),
       ...dblDocs('doc-T14', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'PT. Chandra Asri Petrochemical Tbk', 'Vessel Name': 'MV JAVA EXPRESS', 'Gross Weight': '393,900 KG' }),
@@ -714,6 +769,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '520', 'AMOUNT LINE ITEM#1': '483,600.00', 'TOTAL AMOUNT': '483,600.00',
       'FREIGHT': '20,800.00', 'INCOTERMS': 'CIF HUANGPU, CHINA',
       'TOTAL NET WEIGHT': '520,000', 'TOTAL GROSS WEIGHT': '525,200', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_GCM,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 531,960.00', 'Commodity': 'HDPE InnoPlus HD2200JP',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'HUANGPU, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.',
@@ -729,6 +785,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '520', 'AMOUNT LINE ITEM#1': '483,600.00', 'TOTAL AMOUNT': '483,600.00',
         'FREIGHT': '20,800.00', 'INCOTERMS': 'CIF HUANGPU, CHINA',
         'TOTAL NET WEIGHT': '520,000', 'TOTAL GROSS WEIGHT': '525,200', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_GCM,
       }, { 'REF NO.': '3252011111' }),  // ← CI mismatch
       ...insDocs('doc-T15', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 531,960.00', 'Commodity': 'HDPE InnoPlus HD2200JP', 'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'HUANGPU, CHINA' }),
       ...dblDocs('doc-T15', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.', 'Vessel Name': 'MV SOUTH CHINA SEA', 'Gross Weight': '525,200 KG' }),
@@ -751,6 +808,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '750', 'AMOUNT LINE ITEM#1': '720,000.00', 'TOTAL AMOUNT': '720,000.00',
       'FREIGHT': '30,000.00', 'INCOTERMS': 'CIF TIANJIN, CHINA',
       'TOTAL NET WEIGHT': '750,000', 'TOTAL GROSS WEIGHT': '757,500', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.TIANJIN_SPC,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 792,000.00', 'Commodity': 'PP InnoPlus MA2100',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'TIANJIN, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.',
@@ -766,6 +824,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '750', 'AMOUNT LINE ITEM#1': '720,000.00', 'TOTAL AMOUNT': '720,000.00',
         'FREIGHT': '30,000.00', 'INCOTERMS': 'CIF TIANJIN, CHINA',
         'TOTAL NET WEIGHT': '750,000', 'TOTAL GROSS WEIGHT': '757,500', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.TIANJIN_SPC,
       }),
       ...insDocs('doc-T16', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 792,000.00', 'Commodity': 'PP InnoPlus MA2100', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'TIANJIN, CHINA' }),
     ],
@@ -782,11 +841,12 @@ export const mockTasks: Task[] = [
     correctValues: {
       'INVOICE NO.': '1015050017', 'REF NO.': '3252010017', "BUYER'S ORDER NO.": '3252010017',
       'ETD PORT': 'LAEM CHABANG PORT, THAILAND', 'ETA PORT': 'PORT KLANG, MALAYSIA',
-      'PAYMENT TERM': 'L/C AT SIGHT',
+      'PAYMENT TERM': 'IRREVOCABLE L/C AT SIGHT',
       'PRODUCT LINE ITEM#1': 'LLDPE InnoPlus LL6101G', 'QUANTITY LINE ITEM#1': '440',
       'TOTAL QUANTITY': '440', 'AMOUNT LINE ITEM#1': '385,000.00', 'TOTAL AMOUNT': '385,000.00',
       'FREIGHT': '17,600.00', 'INCOTERMS': 'CIF PORT KLANG, MALAYSIA',
       'TOTAL NET WEIGHT': '440,000', 'TOTAL GROSS WEIGHT': '444,400', 'MARKS & NOS': 'INNOPLUS',
+      'L/C NO.': 'LLQ1228ILS618364',
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 423,500.00', 'Commodity': 'LLDPE InnoPlus LL6101G',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'PORT KLANG, MALAYSIA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Petronas Chemicals Group Bhd',
@@ -797,12 +857,13 @@ export const mockTasks: Task[] = [
       ...cfDocs('doc-T17', {
         'INVOICE NO.': '1015050017', 'REF NO.': '3252010017', "BUYER'S ORDER NO.": '3252010017',
         'ETD PORT': 'LAEM CHABANG PORT, THAILAND', 'ETA PORT': 'PORT KLANG, MALAYSIA',
-        'PAYMENT TERM': 'L/C AT SIGHT',
+        'PAYMENT TERM': 'IRREVOCABLE L/C AT SIGHT',
         'PRODUCT LINE ITEM#1': 'LLDPE InnoPlus LL6101G', 'QUANTITY LINE ITEM#1': '440',
         'TOTAL QUANTITY': '440', 'AMOUNT LINE ITEM#1': '385,000.00', 'TOTAL AMOUNT': '385,000.00',
         'FREIGHT': '17,600.00', 'INCOTERMS': 'CIF PORT KLANG, MALAYSIA',
         'TOTAL NET WEIGHT': '440,000', 'TOTAL GROSS WEIGHT': '444,400', 'MARKS & NOS': 'INNOPLUS',
-      }),
+        'L/C NO.': 'LLQ1228ILS618364',
+      }, undefined, true),
       ...insDocs('doc-T17', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 423,500.00', 'Commodity': 'LLDPE InnoPlus LL6101G', 'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'PORT KLANG, MALAYSIA' }),
       ...dblDocs('doc-T17', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Petronas Chemicals Group Bhd', 'Vessel Name': 'MV STRAITS FORTUNE', 'Gross Weight': '444,400 KG' }),
       oblDoc('doc-T17', '17 Mar 2026'),
@@ -825,6 +886,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '290', 'AMOUNT LINE ITEM#1': '275,500.00', 'TOTAL AMOUNT': '275,500.00',
       'FREIGHT': '11,600.00', 'INCOTERMS': 'CFR QINGDAO, CHINA',
       'TOTAL NET WEIGHT': '290,000', 'TOTAL GROSS WEIGHT': '292,900', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.QINGDAO_JIFA,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 303,050.00', 'Commodity': 'PP InnoPlus HS150',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'QINGDAO, CHINA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.',
@@ -840,6 +902,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '290', 'AMOUNT LINE ITEM#1': '275,500.00', 'TOTAL AMOUNT': '275,500.00',
         'FREIGHT': '11,600.00', 'INCOTERMS': 'CFR QINGDAO, CHINA',
         'TOTAL NET WEIGHT': '290,000', 'TOTAL GROSS WEIGHT': '292,900', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.QINGDAO_JIFA,
       }),
       ...insDocs('doc-T18', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 303,050.00', 'Commodity': 'PP InnoPlus HS150', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'QINGDAO, CHINA' },
         { 'Port of Discharge': 'TIANJIN, CHINA' }),  // ← insurance mismatch
@@ -864,6 +927,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '615', 'AMOUNT LINE ITEM#1': '578,100.00', 'TOTAL AMOUNT': '578,100.00',
       'FREIGHT': '24,600.00', 'INCOTERMS': 'CIF BUSAN, SOUTH KOREA',
       'TOTAL NET WEIGHT': '615,000', 'TOTAL GROSS WEIGHT': '621,150', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 635,910.00', 'Commodity': 'HDPE InnoPlus HB5400P',
       'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'BUSAN, SOUTH KOREA',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd.',
@@ -879,6 +943,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '615', 'AMOUNT LINE ITEM#1': '578,100.00', 'TOTAL AMOUNT': '578,100.00',
         'FREIGHT': '24,600.00', 'INCOTERMS': 'CIF BUSAN, SOUTH KOREA',
         'TOTAL NET WEIGHT': '615,000', 'TOTAL GROSS WEIGHT': '621,150', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
       }),
       ...insDocs('doc-T19', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 635,910.00', 'Commodity': 'HDPE InnoPlus HB5400P', 'Port of Loading': 'LAEM CHABANG PORT, THAILAND', 'Port of Discharge': 'BUSAN, SOUTH KOREA' }),
       ...dblDocs('doc-T19', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd.', 'Vessel Name': 'MV BUSAN PEARL', 'Gross Weight': '621,150 KG' },
@@ -902,6 +967,7 @@ export const mockTasks: Task[] = [
       'TOTAL QUANTITY': '370', 'AMOUNT LINE ITEM#1': '321,900.00', 'TOTAL AMOUNT': '321,900.00',
       'FREIGHT': '', 'INCOTERMS': 'FOB MAP TA PHUT PORT, THAILAND',
       'TOTAL NET WEIGHT': '370,000', 'TOTAL GROSS WEIGHT': '373,700', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SINGAPORE_DOW,
       'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 354,090.00', 'Commodity': 'LLDPE InnoPlus LL6100F',
       'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'SINGAPORE',
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Dow Chemical Singapore Pte. Ltd.',
@@ -917,6 +983,7 @@ export const mockTasks: Task[] = [
         'TOTAL QUANTITY': '370', 'AMOUNT LINE ITEM#1': '321,900.00', 'TOTAL AMOUNT': '321,900.00',
         'FREIGHT': '', 'INCOTERMS': 'FOB MAP TA PHUT PORT, THAILAND',
         'TOTAL NET WEIGHT': '370,000', 'TOTAL GROSS WEIGHT': '373,700', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SINGAPORE_DOW,
       }, { 'PRODUCT LINE ITEM#1': 'LLDPE InnoPlus LL6201F' }),  // ← CI mismatch
       ...insDocs('doc-T20', { 'Insured': 'PTT Global Chemical PCL', 'Sum Insured': 'USD 354,090.00', 'Commodity': 'LLDPE InnoPlus LL6100F', 'Port of Loading': 'MAP TA PHUT PORT, THAILAND', 'Port of Discharge': 'SINGAPORE' },
         { 'Sum Insured': 'USD 340,000.00' }),  // ← insurance mismatch
