@@ -102,9 +102,9 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
     )
     .sort((a, b) => {
       const av = sortKey === 'status' ? deriveOverallStatus(a.verifications)
-        : sortKey === 'assignedTo' ? a.assignedTo : a.id;
+        : sortKey === 'assignedTo' ? a.assignedTo : (a.correctValues['INVOICE NO.'] ?? a.id);
       const bv = sortKey === 'status' ? deriveOverallStatus(b.verifications)
-        : sortKey === 'assignedTo' ? b.assignedTo : b.id;
+        : sortKey === 'assignedTo' ? b.assignedTo : (b.correctValues['INVOICE NO.'] ?? b.id);
       return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
     });
 
@@ -128,7 +128,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
         <thead>
           <tr className="bg-[#d9ecf3] border-b border-gray-200">
             <th className={`${thBase} px-6 cursor-pointer select-none whitespace-nowrap`} onClick={() => handleSort('id')}>
-              <span className="flex items-center">CI No. <SortIcon col="id" sortKey={sortKey} sortDir={sortDir} /></span>
+              <span className="flex items-center">Invoice No. <SortIcon col="id" sortKey={sortKey} sortDir={sortDir} /></span>
             </th>
             <th className={`${thBase} px-6 cursor-pointer select-none whitespace-nowrap`} onClick={() => handleSort('assignedTo')}>
               <span className="flex items-center">Task Assignment <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>
@@ -148,7 +148,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}
             >
               <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap">
-                {task.id}
+                {task.correctValues['INVOICE NO.'] ?? task.id}
               </td>
               <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
                 {task.assignedTo}

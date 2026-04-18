@@ -31,6 +31,12 @@ const CF_DOCXPORT_FIELD_NAMES: Record<string, string> = {
   'PRODUCT LINE ITEM#1':  'DESCRIPTION OF GOODS',
   'QUANTITY LINE ITEM#1': 'QUANTITY',
   'AMOUNT LINE ITEM#1':   'AMOUNT',
+  'PRODUCT LINE ITEM#2':  'DESCRIPTION OF GOODS 2',
+  'QUANTITY LINE ITEM#2': 'QUANTITY 2',
+  'AMOUNT LINE ITEM#2':   'AMOUNT 2',
+  'PRODUCT LINE ITEM#3':  'DESCRIPTION OF GOODS 3',
+  'QUANTITY LINE ITEM#3': 'QUANTITY 3',
+  'AMOUNT LINE ITEM#3':   'AMOUNT 3',
 };
 
 function buildDocXPortDoc(task: Task, fields: string[], fieldNameMap: Record<string, string> = {}): ShipDoc {
@@ -50,10 +56,15 @@ function getDocsForVerification(task: Task, verificationType: VerificationType):
   if (verificationType === 'customFormality') {
     const cfFields = [
       'INVOICE NO.', 'REF NO.', "BUYER'S ORDER NO.", 'ETD PORT', 'ETA PORT',
-      'PAYMENT TERM', 'PRODUCT LINE ITEM#1', 'QUANTITY LINE ITEM#1', 'TOTAL QUANTITY',
-      'AMOUNT LINE ITEM#1', 'TOTAL AMOUNT', 'FREIGHT', 'INCOTERMS',
-      'TOTAL NET WEIGHT', 'TOTAL GROSS WEIGHT', 'MARKS & NOS',
+      'PAYMENT TERM', 'PRODUCT LINE ITEM#1', 'QUANTITY LINE ITEM#1', 'AMOUNT LINE ITEM#1',
     ];
+    for (let n = 2; task.correctValues[`PRODUCT LINE ITEM#${n}`]; n++) {
+      cfFields.push(`PRODUCT LINE ITEM#${n}`, `QUANTITY LINE ITEM#${n}`, `AMOUNT LINE ITEM#${n}`);
+    }
+    cfFields.push(
+      'TOTAL QUANTITY', 'TOTAL AMOUNT', 'FREIGHT', 'INCOTERMS',
+      'TOTAL NET WEIGHT', 'TOTAL GROSS WEIGHT', 'MARKS & NOS',
+    );
     const cfDocs = task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
     return [...cfDocs, buildDocXPortDoc(task, cfFields, CF_DOCXPORT_FIELD_NAMES)];
   }
@@ -165,7 +176,7 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
             const rowBg = idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white';
             return (
               <tr key={row.canonicalField} className={`border-b border-gray-200 ${rowBg}`}>
-                <td className={`px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 ${rowBg}`}>
+                <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 bg-white">
                   {row.canonicalField}
                 </td>
                 {row.cells.map((cell, ci) => (

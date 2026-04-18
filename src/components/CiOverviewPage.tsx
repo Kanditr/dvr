@@ -179,7 +179,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             </svg>
             Back to Tasks
           </button>
-          <h1 className="text-base font-bold text-gray-800">CI {task.id}</h1>
+          <h1 className="text-base font-bold text-gray-800">CI {task.correctValues['INVOICE NO.'] ?? task.id}</h1>
         </div>
 
       </div>
@@ -188,8 +188,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 shrink-0">
         <div className="flex items-center gap-6 flex-wrap">
           <div>
-            <p className="text-xs text-gray-500 mb-0.5">CI No.</p>
-            <p className="text-sm font-medium text-gray-800">{task.id}</p>
+            <p className="text-xs text-gray-500 mb-0.5">Invoice No.</p>
+            <p className="text-sm font-medium text-gray-800">{task.correctValues['INVOICE NO.'] ?? task.id}</p>
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-0.5">Assigned To</p>

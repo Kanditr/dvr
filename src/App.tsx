@@ -81,7 +81,7 @@ function applyAutoApprove(
   });
 }
 
-const DATA_VERSION = 'v2026-04e';
+const DATA_VERSION = 'v2026-04f';
 
 function clearStaleStorage() {
   const stored = localStorage.getItem('dvr:dataVersion');
@@ -226,9 +226,10 @@ export default function App() {
       : null;
 
   const filteredTasks = tasks.filter(t => {
+    const invoiceNo = t.correctValues['INVOICE NO.'] ?? t.id;
     const matchesSearch =
       search === '' ||
-      t.id.toLowerCase().includes(search.toLowerCase()) ||
+      invoiceNo.toLowerCase().includes(search.toLowerCase()) ||
       t.assignedTo.toLowerCase().includes(search.toLowerCase());
     const overallStatus = deriveOverallStatus(getEffectiveVerifications(t, uploadStates[t.id] ?? {}));
     const matchesStatus = statusFilter === 'All' || overallStatus === statusFilter;
