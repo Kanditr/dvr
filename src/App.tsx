@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import Navbar from './components/Navbar';
 import TaskTable from './components/TaskTable';
@@ -81,16 +81,78 @@ function applyAutoApprove(
   });
 }
 
-const DATA_VERSION = 'v2026-04f';
+const DATA_VERSION = 'v2026-04h';
 
 function clearStaleStorage() {
   const stored = localStorage.getItem('dvr:dataVersion');
   if (stored !== DATA_VERSION) {
-    ['dvr:taskOverrides', 'dvr:uploadStates', 'dvr:actionLogs'].forEach(k => localStorage.removeItem(k));
+    ['dvr:taskOverrides', 'dvr:uploadStates', 'dvr:actionLogs', 'dvr:uploadedTasks', 'dvr:revisionStates', 'dvr:touchedUploads'].forEach(k => localStorage.removeItem(k));
     localStorage.setItem('dvr:dataVersion', DATA_VERSION);
   }
 }
 clearStaleStorage();
+
+// ─── Generate a fully-populated task from an uploaded CF document ─────────────
+const CF_CLONE_TYPES = new Set(['Shipping Advice', 'Custom Invoice', 'Packing List', 'Letter of Credit', 'Shipping Instruction']);
+
+function generateUploadedTask(allCurrentTasks: Task[]): Task {
+  // Find the next invoice number following the 1015050XXX pattern
+  const maxNum = allCurrentTasks
+    .map(t => parseInt(t.correctValues['INVOICE NO.'] ?? '0', 10))
+    .filter(n => n > 1000000000)
+    .reduce((max, n) => Math.max(max, n), 1015050020);
+  const newNum = maxNum + 1;
+  const newInvoiceNo = String(newNum);
+  const newRefNo = `325201${String(newNum).slice(-4)}`;
+
+  // Pick a random CF-all-matches task as the data template
+  const cfTasks = mockTasks.filter(t => t.verifications.customFormality === 'All Matches');
+  const template = cfTasks[Math.floor(Math.random() * cfTasks.length)];
+
+  const oldInvoice = template.correctValues['INVOICE NO.'];
+  const oldRef    = template.correctValues['REF NO.'];
+  const newId = `upload-${Date.now()}`;
+
+  // Clone correctValues, replacing invoice / ref numbers
+  const correctValues: Record<string, string> = {
+    ...template.correctValues,
+    'INVOICE NO.': newInvoiceNo,
+    'REF NO.': newRefNo,
+    "BUYER'S ORDER NO.": newRefNo,
+  };
+
+  // Clone only CF documents, replacing invoice / ref wherever they appear
+  const documents = template.documents
+    .filter(d => CF_CLONE_TYPES.has(d.type))
+    .map(doc => {
+      const values = { ...doc.values };
+      const fm = doc.fieldMapping;
+      if (fm['INVOICE NO.']       && values[fm['INVOICE NO.']]       === oldInvoice) values[fm['INVOICE NO.']]       = newInvoiceNo;
+      if (fm['REF NO.']           && values[fm['REF NO.']]           === oldRef)     values[fm['REF NO.']]           = newRefNo;
+      if (fm["BUYER'S ORDER NO."] && values[fm["BUYER'S ORDER NO."]] === oldRef)     values[fm["BUYER'S ORDER NO."]] = newRefNo;
+      return {
+        ...doc,
+        id: `${newId}-${doc.type.toLowerCase().replace(/[\s/]+/g, '-')}`,
+        values,
+      };
+    });
+
+  return {
+    ...template,
+    id: newId,
+    assignedTo: '',
+    submittedDate: new Date().toISOString().split('T')[0],
+    status: 'Pending',
+    verifications: {
+      customFormality: 'All Matches',
+      insurance: 'Pending Verification',
+      draftBL: 'Pending Verification',
+      blDate: 'Pending Verification',
+    },
+    correctValues,
+    documents,
+  };
+}
 
 export default function App() {
   const [currentUser, setCurrentUser] = useLocalStorage<string | null>('dvr:currentUser', null);
@@ -110,21 +172,93 @@ export default function App() {
     'dvr:uploadStates', {}
   );
 
-  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications }[]>('dvr:taskOverrides', []);
+  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string }[]>('dvr:taskOverrides', []);
 
   const [actionLogs, setActionLogs] = useLocalStorage<Record<string, Record<string, ActionLog>>>('dvr:actionLogs', {});
 
+  const [revisionStates, setRevisionStates] = useLocalStorage<Record<string, Record<string, { count: number; date: string }>>>('dvr:revisionStates', {});
+
+  function incrementRevision(taskId: string, tab: string) {
+    setRevisionStates(prev => {
+      const current = prev[taskId]?.[tab];
+      return {
+        ...prev,
+        [taskId]: {
+          ...prev[taskId],
+          [tab]: { count: (current?.count ?? -1) + 1, date: new Date().toISOString() },
+        },
+      };
+    });
+  }
+
+  const [uploadedTaskDefs, setUploadedTaskDefs] = useLocalStorage<Task[]>('dvr:uploadedTasks', []);
+  const [touchedUploadedIds, setTouchedUploadedIds] = useLocalStorage<string[]>('dvr:touchedUploads', []);
+
   // baseTasks: only manually actioned states — never auto-approve mutations
-  const [baseTasks, setBaseTasks] = useState<Task[]>(() =>
-    mockTasks.map(t => {
+  const [baseTasks, setBaseTasks] = useState<Task[]>(() => {
+    const allTasks = [...uploadedTaskDefs, ...mockTasks];
+    return allTasks.map(t => {
       const o = taskOverrides.find(x => x.id === t.id);
-      return o ? { ...t, status: o.status, verifications: o.verifications } : t;
-    })
+      if (!o) return t;
+      return { ...t, status: o.status, verifications: o.verifications, ...(o.assignedTo !== undefined ? { assignedTo: o.assignedTo } : {}) };
+    });
+  });
+
+  const [processingUpload, setProcessingUpload] = useState(false);
+  const uploadCFRef = useRef<HTMLInputElement>(null);
+
+  const availableUsers = useMemo(() => {
+    const emails = new Set(mockTasks.map(t => t.assignedTo));
+    if (effectiveUser) emails.add(effectiveUser);
+    return ['', ...Array.from(emails).sort()];
+  }, [effectiveUser]);
+
+  const uploadedTaskIds = useMemo(() => new Set(uploadedTaskDefs.map(t => t.id)), [uploadedTaskDefs]);
+
+  const removableTaskIds = useMemo(() =>
+    new Set(uploadedTaskDefs.map(t => t.id).filter(id => !touchedUploadedIds.includes(id))),
+    [uploadedTaskDefs, touchedUploadedIds]
   );
+
+  function markUploadedTouched(taskId: string) {
+    if (uploadedTaskIds.has(taskId) && !touchedUploadedIds.includes(taskId)) {
+      setTouchedUploadedIds(prev => [...prev, taskId]);
+    }
+  }
+
+  function handleCFUploadChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    // Capture current task list before async delay
+    const snapshot = [...uploadedTaskDefs, ...baseTasks];
+    setProcessingUpload(true);
+    setTimeout(() => {
+      setProcessingUpload(false);
+      const newTask = generateUploadedTask(snapshot);
+      setUploadedTaskDefs(prev => [newTask, ...prev]);
+      setBaseTasks(prev => [newTask, ...prev]);
+    }, 3000);
+  }
+
+  function handleAssignTask(taskId: string, email: string) {
+    if (email) markUploadedTouched(taskId);
+    setUploadedTaskDefs(prev => prev.map(t => t.id === taskId ? { ...t, assignedTo: email } : t));
+    setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, assignedTo: email } : t));
+  }
+
+  function handleRemoveUploadedTask(taskId: string) {
+    setUploadedTaskDefs(prev => prev.filter(t => t.id !== taskId));
+    setBaseTasks(prev => prev.filter(t => t.id !== taskId));
+    setUploadStates(prev => { const next = { ...prev }; delete next[taskId]; return next; });
+    setActionLogs(prev => { const next = { ...prev }; delete next[taskId]; return next; });
+    setRevisionStates(prev => { const next = { ...prev }; delete next[taskId]; return next; });
+    setTouchedUploadedIds(prev => prev.filter(id => id !== taskId));
+  }
 
   // Keep taskOverrides in sync with manual actions only
   useEffect(() => {
-    setTaskOverrides(baseTasks.map(t => ({ id: t.id, status: t.status, verifications: t.verifications })));
+    setTaskOverrides(baseTasks.map(t => ({ id: t.id, status: t.status, verifications: t.verifications, assignedTo: t.assignedTo })));
   }, [baseTasks]);
 
   // Derived: apply auto-approve on top at render time — never persisted
@@ -150,6 +284,7 @@ export default function App() {
   }, []);
 
   function navigateToCiOverview(taskId: string, tab: VerificationType = 'customFormality') {
+    markUploadedTouched(taskId);
     const next: View = { page: 'ci-overview', taskId, tab };
     setHash(next);
     setView(next);
@@ -193,8 +328,34 @@ export default function App() {
   }
 
   function handleUploadStateChange(taskId: string, tab: string, state: UploadState) {
-    const next = { ...uploadStates, [taskId]: { ...uploadStates[taskId], [tab]: state } };
-    setUploadStates(next);
+    setUploadStates(prev => {
+      const taskStates = { ...(prev[taskId] ?? {}), [tab]: state };
+      if (state === 'done') {
+        if (tab === 'insurance:detail' || tab === 'insurance:draft') {
+          if (taskStates['insurance:detail'] === 'done' && taskStates['insurance:draft'] === 'done') {
+            taskStates['insurance'] = 'done';
+          }
+        } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
+          if (taskStates['draftBL:shipping'] === 'done' && taskStates['draftBL:draft'] === 'done') {
+            taskStates['draftBL'] = 'done';
+          }
+        }
+      }
+      return { ...prev, [taskId]: taskStates };
+    });
+    if (state === 'done') {
+      if (tab === 'insurance:detail' || tab === 'insurance:draft') {
+        const cur = uploadStates[taskId] ?? {};
+        const otherDone = tab === 'insurance:detail' ? cur['insurance:draft'] === 'done' : cur['insurance:detail'] === 'done';
+        if (otherDone) incrementRevision(taskId, 'insurance');
+      } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
+        const cur = uploadStates[taskId] ?? {};
+        const otherDone = tab === 'draftBL:shipping' ? cur['draftBL:draft'] === 'done' : cur['draftBL:shipping'] === 'done';
+        if (otherDone) incrementRevision(taskId, 'draftBL');
+      } else {
+        incrementRevision(taskId, tab);
+      }
+    }
   }
 
   function handleRejectVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
@@ -218,6 +379,27 @@ export default function App() {
         [taskId]: { ...prev[taskId], [verificationType]: { action: 'verified', timestamp: new Date().toISOString(), by: CURRENT_USER } },
       };
     });
+  }
+
+  function handleResetVerificationForUpload(taskId: string, verificationType: VerificationType) {
+    const original = mockTasks.find(t => t.id === taskId);
+    if (!original) return;
+    const originalStatus = original.verifications[verificationType];
+    setBaseTasks(prev => prev.map(t => {
+      if (t.id !== taskId) return t;
+      const verifications = { ...t.verifications, [verificationType]: originalStatus };
+      const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
+      return { ...t, verifications, status: deriveOverallStatus(effective) };
+    }));
+    setActionLogs(prev => {
+      const taskLogs = { ...prev[taskId] };
+      delete taskLogs[verificationType];
+      return { ...prev, [taskId]: taskLogs };
+    });
+  }
+
+  function handleIncrementRevision(taskId: string, vt: VerificationType) {
+    incrementRevision(taskId, vt);
   }
 
   const currentTask =
@@ -299,9 +481,36 @@ export default function App() {
               autoApprove={autoApprove}
               onAutoApproveChange={handleAutoApproveChange}
               onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setTaskPage(1); }}
+              onUploadCF={() => uploadCFRef.current?.click()}
             />
-            <TaskTable tasks={filteredTasks} uploadStates={uploadStates} tabFilters={tabFilters} onSelectTask={(id, tab) => navigateToCiOverview(id, tab)} page={taskPage} onPageChange={setTaskPage} />
+            <input ref={uploadCFRef} type="file" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleCFUploadChange} />
+            <TaskTable
+              tasks={filteredTasks}
+              uploadStates={uploadStates}
+              tabFilters={tabFilters}
+              onSelectTask={(id, tab) => navigateToCiOverview(id, tab)}
+              page={taskPage}
+              onPageChange={setTaskPage}
+              uploadedTaskIds={uploadedTaskIds}
+              removableTaskIds={removableTaskIds}
+              availableUsers={availableUsers}
+              onAssignTask={handleAssignTask}
+              onRemoveTask={handleRemoveUploadedTask}
+            />
           </div>
+
+          {processingUpload && (
+            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+              <div className="bg-white rounded-xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
+                <svg className="w-10 h-10 text-[#0056b8] animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <p className="text-sm font-semibold text-gray-800">Processing document…</p>
+                <p className="text-xs text-gray-400">Extracting and verifying field data</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -330,6 +539,9 @@ export default function App() {
           autoApprove={autoApprove}
           actionLogs={actionLogs[currentTask.id] ?? {}}
           onLogVerified={(vt) => handleLogVerified(currentTask.id, vt)}
+          onResetForUpload={(vt) => handleResetVerificationForUpload(currentTask.id, vt)}
+          revisionStates={revisionStates[currentTask.id] ?? {}}
+          onIncrementRevision={(vt) => handleIncrementRevision(currentTask.id, vt)}
         />
       )}
     </div>

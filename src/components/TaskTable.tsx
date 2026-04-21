@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { Task, VerificationStatus } from '../data/mockData';
 import { deriveOverallStatus } from '../data/mockData';
 import type { UploadState } from './DocumentUploadGate';
@@ -36,13 +36,6 @@ const STATUS_STYLE: Record<VerificationStatus, string> = {
   'Pending Verification': 'bg-gray-100 text-gray-500',
 };
 
-const STATUS_DOT: Record<VerificationStatus, string> = {
-  'All Matches':          'bg-[#34a853]',
-  'Approved':             'bg-[#0056b8]',
-  'Needs Attention':      'bg-[#f5a623]',
-  'Rejected':             'bg-[#d94040]',
-  'Pending Verification': 'bg-gray-400',
-};
 
 const STATUS_SHORT: Record<VerificationStatus, string> = {
   'All Matches':          'All Match',
@@ -79,13 +72,31 @@ interface TaskTableProps {
   onSelectTask: (taskId: string, tab: VerificationType) => void;
   page: number;
   onPageChange: (page: number) => void;
+  uploadedTaskIds?: Set<string>;
+  removableTaskIds?: Set<string>;
+  availableUsers?: string[];
+  onAssignTask?: (taskId: string, email: string) => void;
+  onRemoveTask?: (taskId: string) => void;
 }
 
 const PAGE_SIZE = 10;
 
-export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange }: TaskTableProps) {
+export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask }: TaskTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+
+  // Click outside any assignment cell → close dropdown
+  useEffect(() => {
+    function handleMouseDown(e: MouseEvent) {
+      const cell = (e.target as HTMLElement).closest('[data-assign-cell]');
+      if (!cell || cell.getAttribute('data-assign-cell') !== editingTaskId) {
+        setEditingTaskId(null);
+      }
+    }
+    document.addEventListener('mousedown', handleMouseDown);
+    return () => document.removeEventListener('mousedown', handleMouseDown);
+  }, [editingTaskId]);
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -101,6 +112,10 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
       })
     )
     .sort((a, b) => {
+      // Uploaded tasks always appear at the top
+      const aNew = uploadedTaskIds.has(a.id);
+      const bNew = uploadedTaskIds.has(b.id);
+      if (aNew !== bNew) return aNew ? -1 : 1;
       const av = sortKey === 'status' ? deriveOverallStatus(a.verifications)
         : sortKey === 'assignedTo' ? a.assignedTo : (a.correctValues['INVOICE NO.'] ?? a.id);
       const bv = sortKey === 'status' ? deriveOverallStatus(b.verifications)
@@ -150,8 +165,28 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap">
                 {task.correctValues['INVOICE NO.'] ?? task.id}
               </td>
-              <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
-                {task.assignedTo}
+              <td
+                data-assign-cell={task.id}
+                className="px-6 py-4 text-gray-700 whitespace-nowrap cursor-pointer"
+                onClick={() => { if (editingTaskId !== task.id) setEditingTaskId(task.id); }}
+              >
+                {editingTaskId === task.id ? (
+                  <select
+                    autoFocus
+                    value={task.assignedTo}
+                    onChange={e => {
+                      onAssignTask?.(task.id, e.target.value);
+                      setEditingTaskId(null);
+                    }}
+                    className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 max-w-[180px]"
+                  >
+                    {availableUsers.map(u => (
+                      <option key={u || '__blank__'} value={u}>{u || '— unassigned —'}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <span>{task.assignedTo || <span className="text-gray-400 italic text-xs">— unassigned —</span>}</span>
+                )}
               </td>
               {TAB_COLS.map(({ key }) => {
                 const status = getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {});
@@ -161,21 +196,32 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                     className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
                     onClick={() => onSelectTask(task.id, key)}
                   >
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[status]}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[status]}`} />
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[status]}`}>
                       {STATUS_SHORT[status]}
                     </span>
                   </td>
                 );
               })}
-              <td
-                className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
-                onClick={() => onSelectTask(task.id, 'customFormality')}
-              >
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </td>
+              {removableTaskIds.has(task.id) ? (
+                <td
+                  className="px-4 py-4 cursor-pointer hover:bg-red-50 transition-colors"
+                  onClick={() => onRemoveTask?.(task.id)}
+                  title="Remove this task"
+                >
+                  <svg className="w-4 h-4 text-gray-400 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </td>
+              ) : (
+                <td
+                  className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
+                  onClick={() => onSelectTask(task.id, 'customFormality')}
+                >
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </td>
+              )}
             </tr>
           ))}
           {processed.length === 0 && (

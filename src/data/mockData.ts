@@ -144,7 +144,7 @@ const INS_CANONICAL = [
 ];
 const DBL_CANONICAL = ['Shipper', 'Consignee', 'Vessel Name', 'Gross Weight'];
 const BLD_CANONICAL = ['GI Date', 'ETD Date', 'Manual Billing Date'];
-const ALL_CANONICAL = [...CF_CANONICAL, ...INS_CANONICAL, ...DBL_CANONICAL, ...BLD_CANONICAL];
+export const ALL_CANONICAL = [...CF_CANONICAL, ...INS_CANONICAL, ...DBL_CANONICAL, ...BLD_CANONICAL];
 
 // ─── Helper: build CF document set ────────────────────────────────────────────
 

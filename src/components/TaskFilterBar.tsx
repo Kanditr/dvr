@@ -4,7 +4,7 @@ import type { VerificationType } from '../App';
 const ALL_STATUSES: TaskStatus[] = ['Pending', 'Needs Attention', 'All Match', 'Approved', 'Rejected'];
 
 const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  'Pending':         'Pending Document',
+  'Pending':         'Pending',
   'Needs Attention': 'Needs Attention',
   'All Match':       'All Match',
   'Approved':        'Approved',
@@ -31,7 +31,7 @@ const VERIFICATION_STATUS_LABEL: Record<VerificationStatus, string> = {
   'Approved':             'Approved',
   'Needs Attention':      'Needs Attention',
   'Rejected':             'Rejected',
-  'Pending Verification': 'Pending Document',
+  'Pending Verification': 'Pending',
 };
 
 const TAB_FILTER_DEFS: { key: VerificationType; label: string }[] = [
@@ -69,9 +69,10 @@ interface TaskFilterBarProps {
   autoApprove: boolean;
   onAutoApproveChange: (v: boolean) => void;
   onReset: () => void;
+  onUploadCF?: () => void;
 }
 
-export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, autoApprove, onAutoApproveChange, onReset }: TaskFilterBarProps) {
+export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, autoApprove, onAutoApproveChange, onReset, onUploadCF }: TaskFilterBarProps) {
   return (
     <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-3">
       <div className="flex items-end gap-4 flex-wrap">
@@ -139,6 +140,17 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
         >
           Reset Filter
         </button>
+        {onUploadCF && (
+          <button
+            onClick={onUploadCF}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-[#0056b8] px-3 py-1.5 rounded-md hover:bg-[#004a9f] transition-colors ml-auto pb-[9px]"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12" />
+            </svg>
+            Upload Custom Formality
+          </button>
+        )}
       </div>
     </div>
   );

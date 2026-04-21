@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { buildComparisonRows } from '../utils/comparison';
 import type { Task, ShipDoc } from '../data/mockData';
 import type { VerificationType } from '../App';
@@ -83,14 +83,110 @@ function getDocsForVerification(task: Task, verificationType: VerificationType):
   return task.documents;
 }
 
+// ── Multi-select dropdown ──────────────────────────────────────────────────
+
+interface MultiSelectProps {
+  label: string;
+  options: string[];
+  selected: string[];
+  onChange: (next: string[]) => void;
+  placeholder?: string;
+  minWidth?: string;
+}
+
+function MultiSelectDropdown({ label, options, selected, onChange, placeholder = 'All', minWidth = '160px' }: MultiSelectProps) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  function toggle(value: string) {
+    if (selected.includes(value)) onChange(selected.filter(v => v !== value));
+    else onChange([...selected, value]);
+  }
+
+  const displayText = selected.length === 0
+    ? placeholder
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} selected`;
+
+  return (
+    <div className="flex flex-col gap-0.5" ref={ref}>
+      <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{label}</label>
+      <div className="relative" style={{ minWidth }}>
+        <button
+          type="button"
+          onClick={() => setOpen(o => !o)}
+          className={`w-full flex items-center justify-between pl-3 pr-8 py-1.5 text-xs border rounded focus:outline-none bg-white text-left transition-colors ${
+            open ? 'border-[#0056b8]' : 'border-gray-300'
+          } ${selected.length > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}
+        >
+          <span className="truncate">{displayText}</span>
+        </button>
+        <svg className="absolute right-2 top-2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={open ? 'M5 15l7-7 7 7' : 'M19 9l-7 7-7-7'} />
+        </svg>
+
+        {open && (
+          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 overflow-y-auto"
+               style={{ minWidth, maxHeight: '260px' }}>
+            {/* Select all / clear row */}
+            <div className="px-3 py-1.5 border-b border-gray-100 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => onChange(options)}
+                className="text-[10px] text-[#0056b8] hover:underline"
+              >
+                Select all
+              </button>
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                className="text-[10px] text-gray-400 hover:text-gray-600 hover:underline"
+              >
+                Clear
+              </button>
+            </div>
+            {options.map(opt => (
+              <label
+                key={opt}
+                className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-blue-50 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(opt)}
+                  onChange={() => toggle(opt)}
+                  className="accent-[#0056b8] w-3 h-3 shrink-0"
+                />
+                <span className="truncate">{opt}</span>
+              </label>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Main component ─────────────────────────────────────────────────────────
+
 interface ComparisonTableProps {
   task: Task;
   verificationType: VerificationType;
 }
 
+const STATUS_OPTIONS = ['Match', 'Mismatch'];
+
 export default function ComparisonTable({ task, verificationType }: ComparisonTableProps) {
-  const [fieldFilter, setFieldFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [fieldFilter, setFieldFilter] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   const docs = getDocsForVerification(task, verificationType);
   const allRows = buildComparisonRows({ ...task, documents: docs });
@@ -98,58 +194,41 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
   const uniqueFields = [...new Set(allRows.map(r => r.canonicalField))];
 
   const rows = allRows.filter(row => {
-    if (fieldFilter && row.canonicalField !== fieldFilter) return false;
-    if (statusFilter) {
+    if (fieldFilter.length > 0 && !fieldFilter.includes(row.canonicalField)) return false;
+    if (statusFilter.length > 0) {
       const label = row.rowStatus === 'match' ? 'Match' : 'Mismatch';
-      if (label !== statusFilter) return false;
+      if (!statusFilter.includes(label)) return false;
     }
     return true;
   });
 
-  const hasActiveFilter = fieldFilter !== '' || statusFilter !== '';
+  const hasActiveFilter = fieldFilter.length > 0 || statusFilter.length > 0;
 
   return (
     <div className="flex flex-col h-full min-h-0">
       {/* Filter bar — fixed, never scrolls */}
       <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 flex-wrap bg-white shrink-0">
-        <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Field</label>
-          <div className="relative">
-            <select
-              value={fieldFilter}
-              onChange={e => setFieldFilter(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 min-w-[160px]"
-            >
-              <option value="">All</option>
-              {uniqueFields.map(f => <option key={f} value={f}>{f}</option>)}
-            </select>
-            <svg className="absolute right-2 top-2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        <MultiSelectDropdown
+          label="Field"
+          options={uniqueFields}
+          selected={fieldFilter}
+          onChange={setFieldFilter}
+          placeholder="All"
+          minWidth="180px"
+        />
 
-        <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Status</label>
-          <div className="relative">
-            <select
-              value={statusFilter}
-              onChange={e => setStatusFilter(e.target.value)}
-              className="appearance-none pl-3 pr-8 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 min-w-[120px]"
-            >
-              <option value="">All</option>
-              <option value="Match">Match</option>
-              <option value="Mismatch">Mismatch</option>
-            </select>
-            <svg className="absolute right-2 top-2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
-        </div>
+        <MultiSelectDropdown
+          label="Status"
+          options={STATUS_OPTIONS}
+          selected={statusFilter}
+          onChange={setStatusFilter}
+          placeholder="All"
+          minWidth="130px"
+        />
 
         {hasActiveFilter && (
           <button
-            onClick={() => { setFieldFilter(''); setStatusFilter(''); }}
+            onClick={() => { setFieldFilter([]); setStatusFilter([]); }}
             className="self-end text-xs text-[#0056b8] hover:underline pb-[3px]"
           >
             Reset
