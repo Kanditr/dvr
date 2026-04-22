@@ -87,7 +87,7 @@ function applyAutoApprove(
   });
 }
 
-const DATA_VERSION = 'v2026-04h';
+const DATA_VERSION = 'v2026-04i';
 
 function clearStaleStorage() {
   const stored = localStorage.getItem('dvr:dataVersion');
@@ -179,7 +179,7 @@ export default function App() {
     'dvr:uploadStates', {}
   );
 
-  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string }[]>('dvr:taskOverrides', []);
+  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string; documents?: any[]; correctValues?: Record<string, string> }[]>('dvr:taskOverrides', []);
 
   const [actionLogs, setActionLogs] = useLocalStorage<Record<string, Record<string, ActionLog>>>('dvr:actionLogs', {});
 
@@ -204,14 +204,27 @@ export default function App() {
   const [deletedTaskIds, setDeletedTaskIds] = useLocalStorage<string[]>('dvr:deletedTasks', []);
 
   // baseTasks: only manually actioned states — never auto-approve mutations
-  const [baseTasks, setBaseTasks] = useState<Task[]>(() => {
-    const allTasks = [...uploadedTaskDefs, ...mockTasks].filter(t => !deletedTaskIds.includes(t.id));
-    return allTasks.map(t => {
+  const tasks = useMemo(() => {
+    const allBase = [...uploadedTaskDefs, ...mockTasks].filter(t => !deletedTaskIds.includes(t.id));
+    const merged = allBase.map(t => {
       const o = taskOverrides.find(x => x.id === t.id);
       if (!o) return t;
-      return { ...t, status: o.status, verifications: o.verifications, ...(o.assignedTo !== undefined ? { assignedTo: o.assignedTo } : {}) };
+      return {
+        ...t,
+        status: o.status ?? t.status,
+        verifications: o.verifications ?? t.verifications,
+        assignedTo: o.assignedTo ?? t.assignedTo,
+        documents: o.documents ?? t.documents,
+        correctValues: o.correctValues ?? t.correctValues,
+        fieldStatusOverrides: o.fieldStatusOverrides ?? t.fieldStatusOverrides
+      };
     });
-  });
+
+    if (autoApprove) {
+      return applyAutoApprove(merged, uploadStates, actionLogs);
+    }
+    return merged;
+  }, [uploadedTaskDefs, taskOverrides, deletedTaskIds, autoApprove, uploadStates, actionLogs]);
 
   const [processingUpload, setProcessingUpload] = useState(false);
   const uploadCFRef = useRef<HTMLInputElement>(null);
@@ -236,6 +249,20 @@ export default function App() {
     }
   }
 
+  function updateTaskOverride(taskId: string, partial: Partial<Task>) {
+    setTaskOverrides(prev => {
+      const idx = prev.findIndex(o => o.id === taskId);
+      const existing = idx >= 0 ? prev[idx] : {};
+      const nextOverride = { ...existing, id: taskId, ...partial };
+      if (idx >= 0) {
+        const next = [...prev];
+        next[idx] = nextOverride as any;
+        return next;
+      }
+      return [...prev, nextOverride as any];
+    });
+  }
+
   function handleCFUploadChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -254,39 +281,32 @@ export default function App() {
     setProcessingUpload(true);
     setTimeout(() => {
       setProcessingUpload(false);
+      const snapshot = [...uploadedTaskDefs, ...tasks]; // tasks is already derived
       const newTask = generateUploadedTask(snapshot, CURRENT_USER);
       setUploadedTaskDefs(prev => [newTask, ...prev]);
-      setBaseTasks(prev => [newTask, ...prev]);
     }, 3000);
   }
 
   function handleAssignTask(taskId: string, email: string) {
     if (email) markUploadedTouched(taskId);
-    setUploadedTaskDefs(prev => prev.map(t => t.id === taskId ? { ...t, assignedTo: email } : t));
-    setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, assignedTo: email } : t));
+    updateTaskOverride(taskId, { assignedTo: email });
+    if (uploadedTaskIds.has(taskId)) {
+      setUploadedTaskDefs(prev => prev.map(t => t.id === taskId ? { ...t, assignedTo: email } : t));
+    }
   }
 
   function handleRemoveTask(taskId: string) {
     setDeletedTaskIds(prev => [...prev, taskId]);
     setUploadedTaskDefs(prev => prev.filter(t => t.id !== taskId));
-    setBaseTasks(prev => prev.filter(t => t.id !== taskId));
+    setTaskOverrides(prev => prev.filter(o => o.id !== taskId));
     setUploadStates(prev => { const next = { ...prev }; delete next[taskId]; return next; });
     setActionLogs(prev => { const next = { ...prev }; delete next[taskId]; return next; });
     setRevisionStates(prev => { const next = { ...prev }; delete next[taskId]; return next; });
     setTouchedUploadedIds(prev => prev.filter(id => id !== taskId));
   }
 
-  // Keep taskOverrides in sync with manual actions only
-  useEffect(() => {
-    setTaskOverrides(baseTasks.map(t => ({ id: t.id, status: t.status, verifications: t.verifications, assignedTo: t.assignedTo })));
-  }, [baseTasks]);
-
-  const tasks = useMemo(() => {
-    if (autoApprove) {
-      return applyAutoApprove(baseTasks, uploadStates, actionLogs);
-    }
-    return baseTasks;
-  }, [baseTasks, autoApprove, uploadStates, actionLogs]);
+  // taskOverrides is now the source of truth, handled by updateTaskOverride
+  // (Removed redundant useEffect and baseTasks mapping)
 
   const [search, setSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
@@ -341,22 +361,22 @@ export default function App() {
   }
 
   function handleApprove(taskId: string) {
-    setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Approved' as TaskStatus } : t));
+    updateTaskOverride(taskId, { status: 'Approved' });
     navigateHome();
   }
 
   function handleReject(taskId: string) {
-    setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: 'Rejected' as TaskStatus } : t));
+    updateTaskOverride(taskId, { status: 'Rejected' });
     navigateHome();
   }
 
   function handleApproveVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
-    setBaseTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      const verifications = { ...t.verifications, [verificationType]: 'Approved' as VerificationStatus };
-      const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
-      return { ...t, verifications, status: deriveOverallStatus(effective) };
-    }));
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const verifications = { ...t.verifications, [verificationType]: 'Approved' as VerificationStatus };
+    const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
+    updateTaskOverride(taskId, { verifications, status: deriveOverallStatus(effective) });
+    
     setActionLogs(prev => ({
       ...prev,
       [taskId]: { ...prev[taskId], [verificationType]: { action: 'approve', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark } },
@@ -395,12 +415,12 @@ export default function App() {
   }
 
   function handleRejectVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
-    setBaseTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      const verifications = { ...t.verifications, [verificationType]: 'Rejected' as VerificationStatus };
-      const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
-      return { ...t, verifications, status: deriveOverallStatus(effective) };
-    }));
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const verifications = { ...t.verifications, [verificationType]: 'Rejected' as VerificationStatus };
+    const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
+    updateTaskOverride(taskId, { verifications, status: deriveOverallStatus(effective) });
+
     setActionLogs(prev => ({
       ...prev,
       [taskId]: { ...prev[taskId], [verificationType]: { action: 'reject', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark } },
@@ -421,12 +441,12 @@ export default function App() {
     const original = mockTasks.find(t => t.id === taskId);
     if (!original) return;
     const originalStatus = original.verifications[verificationType];
-    setBaseTasks(prev => prev.map(t => {
-      if (t.id !== taskId) return t;
-      const verifications = { ...t.verifications, [verificationType]: originalStatus };
-      const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
-      return { ...t, verifications, status: deriveOverallStatus(effective) };
-    }));
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+    const verifications = { ...t.verifications, [verificationType]: originalStatus };
+    const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
+    updateTaskOverride(taskId, { verifications, status: deriveOverallStatus(effective) });
+
     setActionLogs(prev => {
       const taskLogs = { ...prev[taskId] };
       delete taskLogs[verificationType];
@@ -436,6 +456,19 @@ export default function App() {
 
   function handleIncrementRevision(taskId: string, vt: VerificationType) {
     incrementRevision(taskId, vt);
+  }
+
+  function handleUpdateTask(updatedTask: Task) {
+    updateTaskOverride(updatedTask.id, {
+      documents: updatedTask.documents,
+      correctValues: updatedTask.correctValues,
+      verifications: updatedTask.verifications,
+      status: updatedTask.status,
+      fieldStatusOverrides: updatedTask.fieldStatusOverrides
+    });
+    if (uploadedTaskIds.has(updatedTask.id)) {
+      setUploadedTaskDefs(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
+    }
   }
 
   const currentTask =
@@ -609,6 +642,7 @@ export default function App() {
               onResetForUpload={(vt) => handleResetVerificationForUpload(currentTask.id, vt)}
               revisionStates={revisionStates[currentTask.id] ?? {}}
               onIncrementRevision={(vt) => handleIncrementRevision(currentTask.id, vt)}
+              onUpdateTask={handleUpdateTask}
             />
           </div>
         )}

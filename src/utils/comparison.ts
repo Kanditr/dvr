@@ -28,8 +28,9 @@ export function buildComparisonRows(task: Task): ComparisonRow[] {
       const isMatch = !isApplicable || value === correctValue;
       return { originalFieldName: originalFieldName ?? '', value, isApplicable, isMatch };
     });
-    // Mismatch only if an applicable doc has a wrong value
-    const rowStatus = cells.every(c => c.isMatch) ? 'match' : 'mismatch';
+    // Mismatch only if an applicable doc has a wrong value, unless overridden
+    const computedStatus = cells.every(c => c.isMatch) ? 'match' : 'mismatch';
+    const rowStatus = task.fieldStatusOverrides?.[field] ?? computedStatus;
     return { canonicalField: field, correctValue, cells, rowStatus };
   });
 }

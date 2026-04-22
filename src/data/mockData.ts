@@ -37,6 +37,7 @@ export interface Task {
   documents: ShipDoc[];
   canonicalFields: string[];
   correctValues: Record<string, string>;
+  fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>;
   status: TaskStatus;
   verifications: Verifications;
 }

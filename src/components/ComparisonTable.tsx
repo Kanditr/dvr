@@ -66,7 +66,10 @@ function getDocsForVerification(task: Task, verificationType: VerificationType):
       'TOTAL NET WEIGHT', 'TOTAL GROSS WEIGHT', 'MARKS & NOS',
     );
     const cfDocs = task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
+    return cfDocs;
+    /*
     return [...cfDocs, buildDocXPortDoc(task, cfFields, CF_DOCXPORT_FIELD_NAMES)];
+    */
   }
   if (verificationType === 'insurance') {
     return task.documents.filter(d => INSURANCE_DOC_TYPES.includes(d.type));
@@ -76,9 +79,12 @@ function getDocsForVerification(task: Task, verificationType: VerificationType):
   }
   if (verificationType === 'blDate') {
     const oblDoc = task.documents.find(d => d.type === 'Original B/L');
+    return oblDoc ? [oblDoc] : [];
+    /*
     return oblDoc
       ? [oblDoc, buildDocXPortDoc(task, ['GI Date', 'ETD Date', 'Manual Billing Date'])]
       : [buildDocXPortDoc(task, ['GI Date', 'ETD Date', 'Manual Billing Date'])];
+    */
   }
   return task.documents;
 }
@@ -179,11 +185,77 @@ function MultiSelectDropdown({ label, options, selected, onChange, placeholder =
 interface ComparisonTableProps {
   task: Task;
   verificationType: VerificationType;
+  onUpdateTask: (task: Task) => void;
 }
 
 const STATUS_OPTIONS = ['Match', 'Mismatch'];
 
-export default function ComparisonTable({ task, verificationType }: ComparisonTableProps) {
+function EditableValue({ value, onSave, isApplicable }: { value: string, onSave: (v: string) => void, isApplicable: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [tempValue, setTempValue] = useState(value);
+  const initialValueRef = useRef(value);
+
+  // Keep tempValue in sync with prop if not editing
+  useEffect(() => {
+    if (!editing) setTempValue(value);
+  }, [value, editing]);
+
+  if (!isApplicable) return <span className="text-gray-300">—</span>;
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        className="w-full text-sm font-medium text-gray-900 border border-[#0056b8] rounded px-1 py-0.5 focus:outline-none bg-white"
+        value={tempValue}
+        onChange={e => {
+          setTempValue(e.target.value);
+          onSave(e.target.value);
+        }}
+        onBlur={() => setEditing(false)}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            setEditing(false);
+          }
+          if (e.key === 'Escape') {
+            setEditing(false);
+            setTempValue(initialValueRef.current);
+            onSave(initialValueRef.current);
+          }
+        }}
+      />
+    );
+  }
+
+  return (
+    <span
+      className="block text-sm font-medium text-gray-900 cursor-text hover:bg-black/5 rounded px-1 -mx-1 transition-colors min-h-[1.25rem]"
+      onClick={() => {
+        initialValueRef.current = value;
+        setEditing(true);
+      }}
+    >
+      {value || ' '}
+    </span>
+  );
+}
+
+function StatusToggle({ status, onChange }: { status: 'match' | 'mismatch', onChange: (s: 'match' | 'mismatch') => void }) {
+  if (status === 'match') {
+    return (
+      <button onClick={() => onChange('mismatch')} className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] hover:bg-[#d4ecd8] transition-colors cursor-pointer focus:outline-none">
+        Match
+      </button>
+    );
+  }
+  return (
+    <button onClick={() => onChange('match')} className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] hover:bg-[#faeed6] transition-colors cursor-pointer focus:outline-none">
+      Mismatch
+    </button>
+  );
+}
+
+export default function ComparisonTable({ task, verificationType, onUpdateTask }: ComparisonTableProps) {
   const [fieldFilter, setFieldFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
@@ -200,6 +272,27 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
     }
     return true;
   });
+
+  function handleSave(docId: string, docType: string, canonicalField: string, originalFieldName: string, newValue: string) {
+    if (docType === 'DocXPort') {
+      const nextCorrectValues = { ...task.correctValues, [canonicalField]: newValue };
+      onUpdateTask({ ...task, correctValues: nextCorrectValues });
+    } else {
+      const nextDocs = task.documents.map(d => {
+        if (d.id !== docId) return d;
+        return {
+          ...d,
+          values: { ...d.values, [originalFieldName]: newValue }
+        };
+      });
+      onUpdateTask({ ...task, documents: nextDocs });
+    }
+  }
+
+  function handleToggleStatus(canonicalField: string, nextStatus: 'match' | 'mismatch') {
+    const nextOverrides = { ...task.fieldStatusOverrides, [canonicalField]: nextStatus };
+    onUpdateTask({ ...task, fieldStatusOverrides: nextOverrides });
+  }
 
   const hasActiveFilter = fieldFilter.length > 0 || statusFilter.length > 0;
 
@@ -237,7 +330,7 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
 
       {/* Scrollable table container — only this area scrolls */}
       <div className="overflow-auto flex-1">
-        <table className="text-sm">
+        <table className="text-sm w-full border-collapse">
           <thead>
             <tr className="bg-[#d9ecf3] border-b border-gray-200">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 sticky top-0 left-0 z-30 bg-[#d9ecf3]">Field</th>
@@ -254,23 +347,27 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
               const rowBg = idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white';
               return (
                 <tr key={row.canonicalField} className={`border-b border-gray-200 ${rowBg}`}>
-                  <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 bg-white">
+                  <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 bg-inherit">
                     {row.canonicalField}
                   </td>
-                  {row.cells.map((cell, ci) => (
-                    <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : cell.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
-                      <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
-                      <span className={`block text-sm font-medium ${!cell.isApplicable ? 'text-gray-300' : 'text-gray-900'}`}>
-                        {cell.isApplicable ? cell.value : '—'}
-                      </span>
-                    </td>
-                  ))}
+                  {row.cells.map((cell, ci) => {
+                    const doc = docs[ci];
+                    return (
+                      <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : cell.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
+                        <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
+                        <EditableValue
+                          value={cell.value}
+                          isApplicable={cell.isApplicable}
+                          onSave={(val) => handleSave(doc.id, doc.type, row.canonicalField, cell.originalFieldName, val)}
+                        />
+                      </td>
+                    );
+                  })}
                   <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                    {row.rowStatus === 'match' ? (
-                      <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36]">Match</span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00]">Mismatch</span>
-                    )}
+                    <StatusToggle 
+                      status={row.rowStatus} 
+                      onChange={(next) => handleToggleStatus(row.canonicalField, next)} 
+                    />
                   </td>
                 </tr>
               );
