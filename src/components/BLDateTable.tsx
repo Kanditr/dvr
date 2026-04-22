@@ -27,8 +27,8 @@ export default function BLDateTable({ task }: BLDateTableProps) {
   const hasData = blDateRaw !== '';
 
   const allRows = [
-    { fieldName: 'GI Date',             valueRaw: task.correctValues['GI Date'] ?? '' },
-    { fieldName: 'ETD Date',            valueRaw: task.correctValues['ETD Date'] ?? '' },
+    { fieldName: 'GI Date', valueRaw: task.correctValues['GI Date'] ?? '' },
+    { fieldName: 'ETD Date', valueRaw: task.correctValues['ETD Date'] ?? '' },
     { fieldName: 'Manual Billing Date', valueRaw: task.correctValues['Manual Billing Date'] ?? '' },
   ].map(row => ({ ...row, isMatch: blDateRaw === row.valueRaw, formatted: formatDate(row.valueRaw) }));
 
@@ -95,7 +95,7 @@ export default function BLDateTable({ task }: BLDateTableProps) {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto">
+      <div>
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-[#d9ecf3] border-b border-gray-200">

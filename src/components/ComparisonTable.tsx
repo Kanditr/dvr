@@ -22,21 +22,21 @@ const DRAFT_BL_DOC_TYPES: ShipDoc['type'][] = [
 ];
 
 const CF_DOCXPORT_FIELD_NAMES: Record<string, string> = {
-  'INVOICE NO.':          'COMMERCIAL INVOICE NO.',
-  'REF NO.':              'REFERENCE NO.',
-  "BUYER'S ORDER NO.":    "BUYER'S ORDER NO.",
-  'ETD PORT':             'PORT OF LOADING (FROM)',
-  'ETA PORT':             'PORT OF DISCHARGE / PORT OF DESTINATION (TO)',
-  'PAYMENT TERM':         'PAYMENT TERM',
-  'PRODUCT LINE ITEM#1':  'DESCRIPTION OF GOODS',
+  'INVOICE NO.': 'COMMERCIAL INVOICE NO.',
+  'REF NO.': 'REFERENCE NO.',
+  "BUYER'S ORDER NO.": "BUYER'S ORDER NO.",
+  'ETD PORT': 'PORT OF LOADING (FROM)',
+  'ETA PORT': 'PORT OF DISCHARGE / PORT OF DESTINATION (TO)',
+  'PAYMENT TERM': 'PAYMENT TERM',
+  'PRODUCT LINE ITEM#1': 'DESCRIPTION OF GOODS',
   'QUANTITY LINE ITEM#1': 'QUANTITY',
-  'AMOUNT LINE ITEM#1':   'AMOUNT',
-  'PRODUCT LINE ITEM#2':  'DESCRIPTION OF GOODS 2',
+  'AMOUNT LINE ITEM#1': 'AMOUNT',
+  'PRODUCT LINE ITEM#2': 'DESCRIPTION OF GOODS 2',
   'QUANTITY LINE ITEM#2': 'QUANTITY 2',
-  'AMOUNT LINE ITEM#2':   'AMOUNT 2',
-  'PRODUCT LINE ITEM#3':  'DESCRIPTION OF GOODS 3',
+  'AMOUNT LINE ITEM#2': 'AMOUNT 2',
+  'PRODUCT LINE ITEM#3': 'DESCRIPTION OF GOODS 3',
   'QUANTITY LINE ITEM#3': 'QUANTITY 3',
-  'AMOUNT LINE ITEM#3':   'AMOUNT 3',
+  'AMOUNT LINE ITEM#3': 'AMOUNT 3',
 };
 
 function buildDocXPortDoc(task: Task, fields: string[], fieldNameMap: Record<string, string> = {}): ShipDoc {
@@ -124,9 +124,8 @@ function MultiSelectDropdown({ label, options, selected, onChange, placeholder =
         <button
           type="button"
           onClick={() => setOpen(o => !o)}
-          className={`w-full flex items-center justify-between pl-3 pr-8 py-1.5 text-xs border rounded focus:outline-none bg-white text-left transition-colors ${
-            open ? 'border-[#0056b8]' : 'border-gray-300'
-          } ${selected.length > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}
+          className={`w-full flex items-center justify-between pl-3 pr-8 py-1.5 text-xs border rounded focus:outline-none bg-white text-left transition-colors ${open ? 'border-[#0056b8]' : 'border-gray-300'
+            } ${selected.length > 0 ? 'text-gray-900 font-medium' : 'text-gray-500'}`}
         >
           <span className="truncate">{displayText}</span>
         </button>
@@ -136,7 +135,7 @@ function MultiSelectDropdown({ label, options, selected, onChange, placeholder =
 
         {open && (
           <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 overflow-y-auto"
-               style={{ minWidth, maxHeight: '260px' }}>
+            style={{ minWidth, maxHeight: '260px' }}>
             {/* Select all / clear row */}
             <div className="px-3 py-1.5 border-b border-gray-100 flex items-center justify-between">
               <button
@@ -238,53 +237,53 @@ export default function ComparisonTable({ task, verificationType }: ComparisonTa
 
       {/* Scrollable table container — only this area scrolls */}
       <div className="overflow-auto flex-1">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-[#d9ecf3] border-b border-gray-200">
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 sticky top-0 left-0 z-30 bg-[#d9ecf3]">Field</th>
-            {docs.map((doc) => (
-              <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700 sticky top-0 z-10 bg-[#d9ecf3]">
-                {doc.type}
-              </th>
-            ))}
-            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 sticky top-0 z-10 bg-[#d9ecf3]">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, idx) => {
-            const rowBg = idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white';
-            return (
-              <tr key={row.canonicalField} className={`border-b border-gray-200 ${rowBg}`}>
-                <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 bg-white">
-                  {row.canonicalField}
-                </td>
-                {row.cells.map((cell, ci) => (
-                  <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : cell.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
-                    <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
-                    <span className={`block text-sm font-medium ${!cell.isApplicable ? 'text-gray-300' : 'text-gray-900'}`}>
-                      {cell.isApplicable ? cell.value : '—'}
-                    </span>
+        <table className="text-sm">
+          <thead>
+            <tr className="bg-[#d9ecf3] border-b border-gray-200">
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 sticky top-0 left-0 z-30 bg-[#d9ecf3]">Field</th>
+              {docs.map((doc) => (
+                <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700 sticky top-0 z-10 bg-[#d9ecf3]">
+                  {doc.type}
+                </th>
+              ))}
+              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 sticky top-0 z-10 bg-[#d9ecf3]">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, idx) => {
+              const rowBg = idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white';
+              return (
+                <tr key={row.canonicalField} className={`border-b border-gray-200 ${rowBg}`}>
+                  <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 bg-white">
+                    {row.canonicalField}
                   </td>
-                ))}
-                <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                  {row.rowStatus === 'match' ? (
-                    <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36]">Match</span>
-                  ) : (
-                    <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00]">Mismatch</span>
-                  )}
+                  {row.cells.map((cell, ci) => (
+                    <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : cell.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
+                      <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
+                      <span className={`block text-sm font-medium ${!cell.isApplicable ? 'text-gray-300' : 'text-gray-900'}`}>
+                        {cell.isApplicable ? cell.value : '—'}
+                      </span>
+                    </td>
+                  ))}
+                  <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
+                    {row.rowStatus === 'match' ? (
+                      <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36]">Match</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00]">Mismatch</span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">
+                  No rows match the current filter.
                 </td>
               </tr>
-            );
-          })}
-          {rows.length === 0 && (
-            <tr>
-              <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">
-                No rows match the current filter.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

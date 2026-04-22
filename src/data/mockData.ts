@@ -32,7 +32,6 @@ export interface Task {
   shipper: string;
   consignee: string;
   submittedDate: string;
-  createdDate?: string;
   lastUpdate?: string;
   assignedTo: string;
   documents: ShipDoc[];
@@ -356,7 +355,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030001', shipmentRef: 'SHP-2026-001', shipper: 'PTT Global Chemical PCL',
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
-    submittedDate: '2026-03-01', createdDate: '2026-03-01', lastUpdate: '2026-03-01T09:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
+    submittedDate: '2026-03-01T08:00:00Z', lastUpdate: '2026-03-01T09:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
     status: 'All Match',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -395,7 +394,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030002', shipmentRef: 'SHP-2026-002', shipper: 'PTT Global Chemical PCL',
     consignee: 'Sinopec Tianjin Chemicals Co., Ltd.',
-    submittedDate: '2026-03-02', createdDate: '2026-03-02', lastUpdate: '2026-03-02T10:30:00Z', assignedTo: 'john.smith@pttgcgroup.com',
+    submittedDate: '2026-03-02T08:05:00Z', lastUpdate: '2026-03-02T10:30:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'Needs Attention', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -434,7 +433,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030003', shipmentRef: 'SHP-2026-003', shipper: 'PTT Global Chemical PCL',
     consignee: 'Qingdao Jifa Group Co., Ltd.',
-    submittedDate: '2026-03-03', createdDate: '2026-03-03', lastUpdate: '2026-03-03T11:15:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
+    submittedDate: '2026-03-03T08:10:00Z', lastUpdate: '2026-03-03T11:15:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'Pending',
     verifications: { customFormality: 'All Matches', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -469,7 +468,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030004', shipmentRef: 'SHP-2026-004', shipper: 'PTT Global Chemical PCL',
     consignee: 'BASF Trading (Shanghai) Co., Ltd.',
-    submittedDate: '2026-03-04', assignedTo: 'james.tan@pttgcgroup.com',
+    submittedDate: '2026-03-04T08:15:00Z', lastUpdate: '2026-03-04T12:00:00Z', assignedTo: 'james.tan@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'All Matches', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -507,7 +506,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030005', shipmentRef: 'SHP-2026-005', shipper: 'PTT Global Chemical PCL',
     consignee: 'Dow Chemical Singapore Pte. Ltd.',
-    submittedDate: '2026-03-05', assignedTo: 'sarah.lim@pttgcgroup.com',
+    submittedDate: '2026-03-05T08:20:00Z', lastUpdate: '2026-03-05T12:00:00Z', assignedTo: 'sarah.lim@pttgcgroup.com',
     status: 'Pending',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -545,7 +544,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030006', shipmentRef: 'SHP-2026-006', shipper: 'PTT Global Chemical PCL',
     consignee: 'LG Chem Ltd.',
-    submittedDate: '2026-03-06', assignedTo: 'alice.tan@pttgcgroup.com',
+    submittedDate: '2026-03-06T08:25:00Z', lastUpdate: '2026-03-06T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'Needs Attention', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -585,7 +584,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030007', shipmentRef: 'SHP-2026-007', shipper: 'PTT Global Chemical PCL',
     consignee: 'PT. Chandra Asri Petrochemical Tbk',
-    submittedDate: '2026-03-07', assignedTo: 'john.smith@pttgcgroup.com',
+    submittedDate: '2026-03-07T08:30:00Z', lastUpdate: '2026-03-07T12:00:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'Needs Attention', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -620,7 +619,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030008', shipmentRef: 'SHP-2026-008', shipper: 'PTT Global Chemical PCL',
     consignee: 'Sinopec Tianjin Chemicals Co., Ltd.',
-    submittedDate: '2026-03-08', assignedTo: 'aisha.patel@pttgcgroup.com',
+    submittedDate: '2026-03-08T08:35:00Z', lastUpdate: '2026-03-08T12:00:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'All Match',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -659,7 +658,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030009', shipmentRef: 'SHP-2026-009', shipper: 'PTT Global Chemical PCL',
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
-    submittedDate: '2026-03-09', assignedTo: 'jane.doe@pttgcgroup.com',
+    submittedDate: '2026-03-09T08:40:00Z', lastUpdate: '2026-03-09T12:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
     status: 'Pending',
     verifications: { customFormality: 'All Matches', insurance: 'Pending Verification', draftBL: 'All Matches', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -697,7 +696,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030010', shipmentRef: 'SHP-2026-010', shipper: 'PTT Global Chemical PCL',
     consignee: 'Qingdao Jifa Group Co., Ltd.',
-    submittedDate: '2026-03-10', assignedTo: 'james.tan@pttgcgroup.com',
+    submittedDate: '2026-03-10T08:45:00Z', lastUpdate: '2026-03-10T12:00:00Z', assignedTo: 'james.tan@pttgcgroup.com',
     status: 'All Match',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -738,7 +737,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030011', shipmentRef: 'SHP-2026-011', shipper: 'PTT Global Chemical PCL',
     consignee: 'Petronas Chemicals Group Bhd',
-    submittedDate: '2026-03-11', assignedTo: 'sarah.lim@pttgcgroup.com',
+    submittedDate: '2026-03-11T08:50:00Z', lastUpdate: '2026-03-11T12:00:00Z', assignedTo: 'sarah.lim@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'Needs Attention', insurance: 'All Matches', draftBL: 'Needs Attention', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -778,7 +777,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030012', shipmentRef: 'SHP-2026-012', shipper: 'PTT Global Chemical PCL',
     consignee: 'LG Chem Ltd.',
-    submittedDate: '2026-03-12', assignedTo: 'alice.tan@pttgcgroup.com',
+    submittedDate: '2026-03-12T08:55:00Z', lastUpdate: '2026-03-12T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Pending',
     verifications: { customFormality: 'All Matches', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -816,7 +815,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030013', shipmentRef: 'SHP-2026-013', shipper: 'PTT Global Chemical PCL',
     consignee: 'BASF Trading (Shanghai) Co., Ltd.',
-    submittedDate: '2026-03-13', assignedTo: 'jane.doe@pttgcgroup.com',
+    submittedDate: '2026-03-13T09:00:00Z', lastUpdate: '2026-03-13T12:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'Needs Attention', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -855,7 +854,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030014', shipmentRef: 'SHP-2026-014', shipper: 'PTT Global Chemical PCL',
     consignee: 'PT. Chandra Asri Petrochemical Tbk',
-    submittedDate: '2026-03-14', assignedTo: 'john.smith@pttgcgroup.com',
+    submittedDate: '2026-03-14T09:05:00Z', lastUpdate: '2026-03-14T12:00:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'All Match',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -894,7 +893,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030015', shipmentRef: 'SHP-2026-015', shipper: 'PTT Global Chemical PCL',
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
-    submittedDate: '2026-03-15', assignedTo: 'aisha.patel@pttgcgroup.com',
+    submittedDate: '2026-03-15T09:10:00Z', lastUpdate: '2026-03-15T12:00:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'Needs Attention', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -932,7 +931,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030016', shipmentRef: 'SHP-2026-016', shipper: 'PTT Global Chemical PCL',
     consignee: 'Sinopec Tianjin Chemicals Co., Ltd.',
-    submittedDate: '2026-03-16', assignedTo: 'james.tan@pttgcgroup.com',
+    submittedDate: '2026-03-16T09:15:00Z', lastUpdate: '2026-03-16T12:00:00Z', assignedTo: 'james.tan@pttgcgroup.com',
     status: 'Pending',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -969,7 +968,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030017', shipmentRef: 'SHP-2026-017', shipper: 'PTT Global Chemical PCL',
     consignee: 'Petronas Chemicals Group Bhd',
-    submittedDate: '2026-03-17', assignedTo: 'sarah.lim@pttgcgroup.com',
+    submittedDate: '2026-03-17T09:20:00Z', lastUpdate: '2026-03-17T12:00:00Z', assignedTo: 'sarah.lim@pttgcgroup.com',
     status: 'All Match',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -1008,7 +1007,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030018', shipmentRef: 'SHP-2026-018', shipper: 'PTT Global Chemical PCL',
     consignee: 'Qingdao Jifa Group Co., Ltd.',
-    submittedDate: '2026-03-18', assignedTo: 'alice.tan@pttgcgroup.com',
+    submittedDate: '2026-03-18T09:25:00Z', lastUpdate: '2026-03-18T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'All Matches', insurance: 'Needs Attention', draftBL: 'All Matches', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -1047,7 +1046,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030019', shipmentRef: 'SHP-2026-019', shipper: 'PTT Global Chemical PCL',
     consignee: 'LG Chem Ltd.',
-    submittedDate: '2026-03-19', assignedTo: 'john.smith@pttgcgroup.com',
+    submittedDate: '2026-03-19T09:30:00Z', lastUpdate: '2026-03-19T12:00:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'Needs Attention', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
@@ -1086,7 +1085,7 @@ export const mockTasks: Task[] = [
   {
     id: '2026030020', shipmentRef: 'SHP-2026-020', shipper: 'PTT Global Chemical PCL',
     consignee: 'Dow Chemical Singapore Pte. Ltd.',
-    submittedDate: '2026-03-20', assignedTo: 'aisha.patel@pttgcgroup.com',
+    submittedDate: '2026-03-20T09:35:00Z', lastUpdate: '2026-03-20T12:00:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'Needs Attention',
     verifications: { customFormality: 'Needs Attention', insurance: 'Needs Attention', draftBL: 'All Matches', blDate: 'All Matches' },
     canonicalFields: ALL_CANONICAL,
@@ -1121,5 +1120,43 @@ export const mockTasks: Task[] = [
     ],
   },
 
+  // T21 — CF: All Matches | Ins: All Matches | BL: All Matches | BL Date: All Matches
+  {
+    id: '0000000000', shipmentRef: 'SHP-2026-021', shipper: 'PTT Global Chemical PCL',
+    consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
+    submittedDate: '2026-03-21T10:00:00Z', lastUpdate: '2026-03-21T11:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
+    status: 'All Match',
+    verifications: { customFormality: 'All Matches', insurance: 'All Matches', draftBL: 'All Matches', blDate: 'All Matches' },
+    canonicalFields: ALL_CANONICAL,
+    correctValues: {
+      'INVOICE NO.': '0000000000', 'REF NO.': '3252010021', "BUYER'S ORDER NO.": '3252010021',
+      'ETD PORT': 'LAEM CHABANG PORT, THAILAND', 'ETA PORT': 'SHANGHAI, CHINA',
+      'PAYMENT TERM': 'T/T BEFORE SHIPMENT',
+      'PRODUCT LINE ITEM#1': 'HDPE InnoPlus HD2200JP', 'QUANTITY LINE ITEM#1': '500',
+      'TOTAL QUANTITY': '500', 'AMOUNT LINE ITEM#1': '465,000.00', 'TOTAL AMOUNT': '465,000.00',
+      'FREIGHT': '20,000.00', 'INCOTERMS': 'CIF SHANGHAI, CHINA',
+      'TOTAL NET WEIGHT': '500,000', 'TOTAL GROSS WEIGHT': '505,000', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_GCM,
+      ...buildInsVals({ invoiceNo: '0000000000', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'SHANGHAI, CHINA', vesselName: 'MV ORIENT PHOENIX', giDate: '21 Mar 2026', totalAmount: '465,000.00', totalQty: '500', products: ['HDPE InnoPlus HD2200JP'], qtys: ['500'] }),
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.',
+      'Vessel Name': 'MV ORIENT PHOENIX', 'Gross Weight': '505,000 KG',
+      'GI Date': '21 Mar 2026', 'ETD Date': '21 Mar 2026', 'Manual Billing Date': '21 Mar 2026',
+    },
+    documents: [
+      ...cfDocs('doc-T21', {
+        'INVOICE NO.': '00000000000', 'REF NO.': '3252010021', "BUYER'S ORDER NO.": '3252010021',
+        'ETD PORT': 'LAEM CHABANG PORT, THAILAND', 'ETA PORT': 'SHANGHAI, CHINA',
+        'PAYMENT TERM': 'T/T BEFORE SHIPMENT',
+        'PRODUCT LINE ITEM#1': 'HDPE InnoPlus HD2200JP', 'QUANTITY LINE ITEM#1': '500',
+        'TOTAL QUANTITY': '500', 'AMOUNT LINE ITEM#1': '465,000.00', 'TOTAL AMOUNT': '465,000.00',
+        'FREIGHT': '20,000.00', 'INCOTERMS': 'CIF SHANGHAI, CHINA',
+        'TOTAL NET WEIGHT': '500,000', 'TOTAL GROSS WEIGHT': '505,000', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.SHANGHAI_GCM,
+      }),
+      ...insDocs('doc-T21', buildInsVals({ invoiceNo: '0000000000', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'SHANGHAI, CHINA', vesselName: 'MV ORIENT PHOENIX', giDate: '21 Mar 2026', totalAmount: '465,000.00', totalQty: '500', products: ['HDPE InnoPlus HD2200JP'], qtys: ['500'] })),
+      ...dblDocs('doc-T21', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.', 'Vessel Name': 'MV ORIENT PHOENIX', 'Gross Weight': '505,000 KG' }),
+      oblDoc('doc-T21', '21 Mar 2026'),
+    ],
+  },
 
 ];

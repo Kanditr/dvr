@@ -55,7 +55,7 @@ function getEffectiveVerifications(task: Task, taskUploadStates: Record<string, 
     ...task.verifications,
     customFormality,
     insurance: (taskUploadStates['insurance'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.insurance,
-    draftBL:   (taskUploadStates['draftBL']   ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
+    draftBL: (taskUploadStates['draftBL'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
     blDate,
   };
 }
@@ -116,7 +116,7 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string):
   const template = cfTasks[Math.floor(Math.random() * cfTasks.length)];
 
   const oldInvoice = template.correctValues['INVOICE NO.'];
-  const oldRef    = template.correctValues['REF NO.'];
+  const oldRef = template.correctValues['REF NO.'];
   const newId = `upload-${Date.now()}`;
 
   // Clone correctValues, replacing invoice / ref numbers
@@ -133,9 +133,9 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string):
     .map(doc => {
       const values = { ...doc.values };
       const fm = doc.fieldMapping;
-      if (fm['INVOICE NO.']       && values[fm['INVOICE NO.']]       === oldInvoice) values[fm['INVOICE NO.']]       = newInvoiceNo;
-      if (fm['REF NO.']           && values[fm['REF NO.']]           === oldRef)     values[fm['REF NO.']]           = newRefNo;
-      if (fm["BUYER'S ORDER NO."] && values[fm["BUYER'S ORDER NO."]] === oldRef)     values[fm["BUYER'S ORDER NO."]] = newRefNo;
+      if (fm['INVOICE NO.'] && values[fm['INVOICE NO.']] === oldInvoice) values[fm['INVOICE NO.']] = newInvoiceNo;
+      if (fm['REF NO.'] && values[fm['REF NO.']] === oldRef) values[fm['REF NO.']] = newRefNo;
+      if (fm["BUYER'S ORDER NO."] && values[fm["BUYER'S ORDER NO."]] === oldRef) values[fm["BUYER'S ORDER NO."]] = newRefNo;
       return {
         ...doc,
         id: `${newId}-${doc.type.toLowerCase().replace(/[\s/]+/g, '-')}`,
@@ -147,7 +147,7 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string):
     ...template,
     id: newId,
     assignedTo: defaultAssignee,
-    submittedDate: new Date().toISOString().split('T')[0],
+    submittedDate: new Date().toISOString(),
     status: 'Pending',
     verifications: {
       customFormality: 'All Matches',
@@ -239,7 +239,7 @@ export default function App() {
   function handleCFUploadChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     // Validate file naming convention: <numbers>_rev<numbers>.pdf
     const nameRegex = /^\d+_rev\d+\.pdf$/i;
     if (!nameRegex.test(file.name)) {
@@ -301,7 +301,7 @@ export default function App() {
   // Compute min/max dates across all tasks for date range defaults
   const { minDate, maxDate } = useMemo(() => {
     const dates = tasks
-      .map(t => t.createdDate ?? t.submittedDate)
+      .map(t => t.submittedDate.split('T')[0])
       .filter(Boolean)
       .sort();
     return {
@@ -451,19 +451,19 @@ export default function App() {
       t.assignedTo.toLowerCase().includes(search.toLowerCase());
     const overallStatus = deriveOverallStatus(getEffectiveVerifications(t, uploadStates[t.id] ?? {}));
     const matchesStatus = statusFilter === 'All' || overallStatus === statusFilter;
-    
+
     // Everyone sees all tasks by default.
     // "Only My Tasks" toggle narrows to the current user for all roles.
     const matchesUser = isAdmin
       ? (!onlyMyTasks || t.assignedTo === CURRENT_USER)
       : (!onlyMyTasks || t.assignedTo === CURRENT_USER);
 
-    // Date range filter on createdDate (falls back to submittedDate)
-    const taskDate = t.createdDate ?? t.submittedDate ?? '';
+    // Date range filter on submittedDate (extracting date part for comparison)
+    const taskDate = (t.submittedDate ?? '').split('T')[0];
     const effectiveFrom = dateFrom || minDate;
     const effectiveTo = dateTo || maxDate;
     const matchesDate = (!effectiveFrom || taskDate >= effectiveFrom) && (!effectiveTo || taskDate <= effectiveTo);
-      
+
     return matchesSearch && matchesStatus && matchesUser && matchesDate;
   });
 
@@ -507,100 +507,112 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f3f6f8]">
+    <div className="h-screen bg-[#f3f6f8] flex flex-col overflow-hidden">
       <Navbar currentUser={effectiveUser} onNavigateHome={navigateHome} onLogout={handleLogout} />
 
-      {view.page === 'home' && (
-        <div className="max-w-screen-xl mx-auto px-6 py-6">
-          <div className="mb-6">
-            <h1 className="text-xl font-bold text-gray-800">Document Verification Tasks</h1>
-            <p className="text-sm text-gray-500 mt-1">
-              Review and verify shipping documents against system records.
-            </p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <TaskFilterBar
-              search={search}
-              onSearchChange={v => { setSearch(v); setTaskPage(1); }}
-              statusFilter={statusFilter}
-              onStatusChange={v => { setStatusFilter(v); setTaskPage(1); }}
-              tabFilters={tabFilters}
-              onTabFilterChange={(key, value) => { setTabFilters(prev => ({ ...prev, [key]: value })); setTaskPage(1); }}
-              onlyMyTasks={onlyMyTasks}
-              onOnlyMyTasksChange={v => { setOnlyMyTasks(v); setTaskPage(1); }}
-              autoApprove={autoApprove}
-              onAutoApproveChange={handleAutoApproveChange}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              minDate={minDate}
-              maxDate={maxDate}
-              onDateFromChange={v => { setDateFrom(v); setTaskPage(1); }}
-              onDateToChange={v => { setDateTo(v); setTaskPage(1); }}
-              onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setTaskPage(1); }}
-              onUploadCF={() => uploadCFRef.current?.click()}
-            />
-            <input ref={uploadCFRef} type="file" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleCFUploadChange} />
-            <TaskTable
-              tasks={filteredTasks}
-              uploadStates={uploadStates}
-              tabFilters={tabFilters}
-              onSelectTask={(id, tab) => navigateToCiOverview(id, tab)}
-              page={taskPage}
-              onPageChange={setTaskPage}
-              isAdmin={isAdmin}
-              uploadedTaskIds={uploadedTaskIds}
-              removableTaskIds={removableTaskIds}
-              availableUsers={availableUsers}
-              onAssignTask={handleAssignTask}
-              onRemoveTask={handleRemoveTask}
-            />
-          </div>
-
-          {processingUpload && (
-            <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-              <div className="bg-white rounded-xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
-                <svg className="w-10 h-10 text-[#0056b8] animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-                <p className="text-sm font-semibold text-gray-800">Processing document…</p>
-                <p className="text-xs text-gray-400">Extracting and verifying field data</p>
+      <div className="flex-1 min-h-0 pt-14 flex flex-col overflow-hidden">
+        {view.page === 'home' && (
+          <div className="max-w-screen-xl mx-auto w-full px-6 py-6 flex flex-col min-h-0 flex-1">
+            <div className="mb-6 shrink-0">
+              <h1 className="text-xl font-bold text-gray-800">Document Verification Tasks</h1>
+              <p className="text-sm text-gray-500 mt-1">
+                Review and verify shipping documents against system records.
+              </p>
+            </div>
+            <div className="bg-white rounded-lg border border-gray-200 flex flex-col flex-1 min-h-0 shadow-sm overflow-hidden">
+              <TaskFilterBar
+                search={search}
+                onSearchChange={v => { setSearch(v); setTaskPage(1); }}
+                statusFilter={statusFilter}
+                onStatusChange={v => { setStatusFilter(v); setTaskPage(1); }}
+                tabFilters={tabFilters}
+                onTabFilterChange={(key, value) => { setTabFilters(prev => ({ ...prev, [key]: value })); setTaskPage(1); }}
+                onlyMyTasks={onlyMyTasks}
+                onOnlyMyTasksChange={v => { setOnlyMyTasks(v); setTaskPage(1); }}
+                autoApprove={autoApprove}
+                onAutoApproveChange={handleAutoApproveChange}
+                dateFrom={dateFrom}
+                dateTo={dateTo}
+                minDate={minDate}
+                maxDate={maxDate}
+                onDateFromChange={v => { setDateFrom(v); setTaskPage(1); }}
+                onDateToChange={v => { setDateTo(v); setTaskPage(1); }}
+                onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setTaskPage(1); }}
+                onUploadCF={() => uploadCFRef.current?.click()}
+              />
+              <input ref={uploadCFRef} type="file" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleCFUploadChange} />
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <TaskTable
+                  tasks={filteredTasks}
+                  uploadStates={uploadStates}
+                  tabFilters={tabFilters}
+                  onSelectTask={(id, tab) => navigateToCiOverview(id, tab)}
+                  page={taskPage}
+                  onPageChange={setTaskPage}
+                  isAdmin={isAdmin}
+                  uploadedTaskIds={uploadedTaskIds}
+                  removableTaskIds={removableTaskIds}
+                  availableUsers={availableUsers}
+                  onAssignTask={handleAssignTask}
+                  onRemoveTask={handleRemoveTask}
+                />
               </div>
             </div>
-          )}
-        </div>
-      )}
 
-      {view.page === 'llm-compare' && <LlmComparePage />}
+            {processingUpload && (
+              <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
+                <div className="bg-white rounded-xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
+                  <svg className="w-10 h-10 text-[#0056b8] animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  <p className="text-sm font-semibold text-gray-800">Processing document…</p>
+                  <p className="text-xs text-gray-400">Extracting and verifying field data</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
-      {view.page === 'settings' && (
-        <SettingsPage
-          autoApprove={autoApprove}
-          onAutoApproveChange={handleAutoApproveChange}
-          onlyMyTasks={onlyMyTasks}
-          onOnlyMyTasksChange={setOnlyMyTasks}
-          onBack={navigateBack}
-        />
-      )}
+        {view.page === 'llm-compare' && (
+          <div className="flex-1 overflow-auto">
+            <LlmComparePage />
+          </div>
+        )}
 
-      {view.page === 'ci-overview' && currentTask && (
-        <CiOverviewPage
-          task={currentTask}
-          activeTab={view.tab}
-          onTabChange={handleTabChange}
-          onBack={navigateHome}
-          onApproveVerification={(vt, reason, remark) => handleApproveVerification(currentTask.id, vt, reason, remark)}
-          onRejectVerification={(vt, reason, remark) => handleRejectVerification(currentTask.id, vt, reason, remark)}
-          uploadStates={uploadStates[currentTask.id] ?? {}}
-          onUploadStateChange={(tab, state) => handleUploadStateChange(currentTask.id, tab, state)}
-          autoApprove={autoApprove}
-          actionLogs={actionLogs[currentTask.id] ?? {}}
-          onLogVerified={(vt) => handleLogVerified(currentTask.id, vt)}
-          onResetForUpload={(vt) => handleResetVerificationForUpload(currentTask.id, vt)}
-          revisionStates={revisionStates[currentTask.id] ?? {}}
-          onIncrementRevision={(vt) => handleIncrementRevision(currentTask.id, vt)}
-        />
-      )}
+        {view.page === 'settings' && (
+          <div className="flex-1 overflow-auto">
+            <SettingsPage
+              autoApprove={autoApprove}
+              onAutoApproveChange={handleAutoApproveChange}
+              onlyMyTasks={onlyMyTasks}
+              onOnlyMyTasksChange={setOnlyMyTasks}
+              onBack={navigateBack}
+            />
+          </div>
+        )}
+
+        {view.page === 'ci-overview' && currentTask && (
+          <div className="flex-1 min-h-0 overflow-hidden">
+            <CiOverviewPage
+              task={currentTask}
+              activeTab={view.tab}
+              onTabChange={handleTabChange}
+              onBack={navigateHome}
+              onApproveVerification={(vt, reason, remark) => handleApproveVerification(currentTask.id, vt, reason, remark)}
+              onRejectVerification={(vt, reason, remark) => handleRejectVerification(currentTask.id, vt, reason, remark)}
+              uploadStates={uploadStates[currentTask.id] ?? {}}
+              onUploadStateChange={(tab, state) => handleUploadStateChange(currentTask.id, tab, state)}
+              autoApprove={autoApprove}
+              actionLogs={actionLogs[currentTask.id] ?? {}}
+              onLogVerified={(vt) => handleLogVerified(currentTask.id, vt)}
+              onResetForUpload={(vt) => handleResetVerificationForUpload(currentTask.id, vt)}
+              revisionStates={revisionStates[currentTask.id] ?? {}}
+              onIncrementRevision={(vt) => handleIncrementRevision(currentTask.id, vt)}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
