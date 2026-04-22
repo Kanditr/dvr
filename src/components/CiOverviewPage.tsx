@@ -44,16 +44,16 @@ const TABS: TabDef[] = [
 
 const STATUS_CONFIG: Record<VerificationStatus, { bg: string; text: string }> = {
   'Pending Verification': { bg: 'bg-gray-100', text: 'text-gray-500' },
-  'Needs Attention': { bg: 'bg-[#fef5e5]', text: 'text-[#ac6f00]' },
+  'Attention': { bg: 'bg-[#fef5e5]', text: 'text-[#ac6f00]' },
   'Rejected': { bg: 'bg-[#faeaea]', text: 'text-[#8c1d1d]' },
-  'All Matches': { bg: 'bg-[#ebf7ed]', text: 'text-[#267d36]' },
+  'Match': { bg: 'bg-[#ebf7ed]', text: 'text-[#267d36]' },
   'Approved': { bg: 'bg-[#e8f0fb]', text: 'text-[#0056b8]' },
 };
 
 const STATUS_LABEL: Record<VerificationStatus, string> = {
-  'All Matches': 'All Match',
+  'Match': 'Match',
   'Approved': 'Approved',
-  'Needs Attention': 'Needs Attention',
+  'Attention': 'Attention',
   'Rejected': 'Rejected',
   'Pending Verification': 'Pending',
 };

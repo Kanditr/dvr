@@ -10,6 +10,7 @@ import LoginPage from './components/LoginPage';
 import { mockTasks, deriveOverallStatus } from './data/mockData';
 import type { Task, TaskStatus, VerificationStatus, Verifications } from './data/mockData';
 import type { UploadState } from './components/DocumentUploadGate';
+import { computeVerificationStatus } from './utils/comparison';
 
 export type VerificationType = 'customFormality' | 'insurance' | 'draftBL' | 'blDate';
 export type ActionLog = { action: 'verified' | 'approve' | 'reject'; timestamp: string; by: string; reason?: string; remark?: string };
@@ -44,12 +45,12 @@ function getEffectiveVerifications(task: Task, taskUploadStates: Record<string, 
   const oblDoc = task.documents.find(d => d.type === 'Original B/L');
   const blDateHasData = !!(oblDoc && oblDoc.values[oblDoc.fieldMapping['B/L Date']]);
   const customFormality = task.verifications.customFormality === 'Pending Verification'
-    ? 'Needs Attention' as VerificationStatus
+    ? 'Attention' as VerificationStatus
     : task.verifications.customFormality;
   const blDate = !blDateHasData
     ? 'Pending Verification' as VerificationStatus
     : task.verifications.blDate === 'Pending Verification'
-      ? 'Needs Attention' as VerificationStatus
+      ? 'Attention' as VerificationStatus
       : task.verifications.blDate;
   return {
     ...task.verifications,
@@ -76,14 +77,19 @@ function applyAutoApprove(
       const wasManuallyActioned = taskLogs[key]?.action === 'approve' || taskLogs[key]?.action === 'reject';
       const isAlreadyApprovedOrRejected = task.verifications[key] === 'Approved' || task.verifications[key] === 'Rejected';
       if (wasManuallyActioned || isAlreadyApprovedOrRejected) return;
-      if (effective[key] === 'All Matches') {
+      if (effective[key] === 'Match') {
         verifications[key] = 'Approved' as VerificationStatus;
         changed = true;
       }
     });
     if (!changed) return task;
     const newEffective = getEffectiveVerifications({ ...task, verifications }, taskUploadStates);
-    return { ...task, verifications, status: deriveOverallStatus(newEffective) };
+    return { 
+      ...task, 
+      verifications, 
+      status: deriveOverallStatus(newEffective),
+      lastUpdate: new Date().toISOString()
+    };
   });
 }
 
@@ -101,18 +107,25 @@ clearStaleStorage();
 // ─── Generate a fully-populated task from an uploaded CF document ─────────────
 const CF_CLONE_TYPES = new Set(['Shipping Advice', 'Custom Invoice', 'Packing List', 'Letter of Credit', 'Shipping Instruction']);
 
-function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string): Task {
-  // Find the next invoice number following the 1015050XXX pattern
-  const maxNum = allCurrentTasks
-    .map(t => parseInt(t.correctValues['INVOICE NO.'] ?? '0', 10))
-    .filter(n => n > 1000000000)
-    .reduce((max, n) => Math.max(max, n), 1015050020);
-  const newNum = maxNum + 1;
-  const newInvoiceNo = String(newNum);
-  const newRefNo = `325201${String(newNum).slice(-4)}`;
+function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, fileName?: string): Task {
+  let newInvoiceNo: string;
+  
+  const fileMatch = fileName?.match(/^(\d+)/);
+  if (fileMatch) {
+    newInvoiceNo = fileMatch[1];
+  } else {
+    // Fallback to sequential generation if filename doesn't start with numbers
+    const maxNum = allCurrentTasks
+      .map(t => parseInt(t.correctValues['INVOICE NO.'] ?? '0', 10))
+      .filter(n => n > 1000000000)
+      .reduce((max, n) => Math.max(max, n), 1015050020);
+    newInvoiceNo = String(maxNum + 1);
+  }
+
+  const newRefNo = `325201${newInvoiceNo.slice(-4)}`;
 
   // Pick a random CF-all-matches task as the data template
-  const cfTasks = mockTasks.filter(t => t.verifications.customFormality === 'All Matches');
+  const cfTasks = mockTasks.filter(t => t.verifications.customFormality === 'Match');
   const template = cfTasks[Math.floor(Math.random() * cfTasks.length)];
 
   const oldInvoice = template.correctValues['INVOICE NO.'];
@@ -150,13 +163,14 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string):
     submittedDate: new Date().toISOString(),
     status: 'Pending',
     verifications: {
-      customFormality: 'All Matches',
+      customFormality: 'Match',
       insurance: 'Pending Verification',
       draftBL: 'Pending Verification',
       blDate: 'Pending Verification',
     },
     correctValues,
     documents,
+    lastUpdate: new Date().toISOString(),
   };
 }
 
@@ -208,16 +222,30 @@ export default function App() {
     const allBase = [...uploadedTaskDefs, ...mockTasks].filter(t => !deletedTaskIds.includes(t.id));
     const merged = allBase.map(t => {
       const o = taskOverrides.find(x => x.id === t.id);
-      if (!o) return t;
-      return {
+      const overrides = {
         ...t,
-        status: o.status ?? t.status,
-        verifications: o.verifications ?? t.verifications,
-        assignedTo: o.assignedTo ?? t.assignedTo,
-        documents: o.documents ?? t.documents,
-        correctValues: o.correctValues ?? t.correctValues,
-        fieldStatusOverrides: o.fieldStatusOverrides ?? t.fieldStatusOverrides
+        status: o?.status ?? t.status,
+        assignedTo: o?.assignedTo ?? t.assignedTo,
+        documents: o?.documents ?? t.documents,
+        correctValues: o?.correctValues ?? t.correctValues,
+        fieldStatusOverrides: o?.fieldStatusOverrides ?? t.fieldStatusOverrides,
+        lastUpdate: o?.lastUpdate ?? t.lastUpdate
       };
+
+      const baseVerifications = o?.verifications ?? t.verifications;
+      const newVerifications: Verifications = { ...baseVerifications };
+      const tabs: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
+      for (const tab of tabs) {
+        if (newVerifications[tab] !== 'Approved' && newVerifications[tab] !== 'Rejected') {
+          const computed = computeVerificationStatus(overrides as Task, tab);
+          if (computed) {
+            newVerifications[tab] = computed;
+          }
+        }
+      }
+      overrides.verifications = newVerifications;
+      overrides.status = deriveOverallStatus(newVerifications);
+      return overrides as Task;
     });
 
     if (autoApprove) {
@@ -253,7 +281,12 @@ export default function App() {
     setTaskOverrides(prev => {
       const idx = prev.findIndex(o => o.id === taskId);
       const existing = idx >= 0 ? prev[idx] : {};
-      const nextOverride = { ...existing, id: taskId, ...partial };
+      const nextOverride = { 
+        ...existing, 
+        id: taskId, 
+        ...partial, 
+        lastUpdate: new Date().toISOString() 
+      };
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = nextOverride as any;
@@ -277,12 +310,12 @@ export default function App() {
 
     e.target.value = '';
     // Capture current task list before async delay
-    const snapshot = [...uploadedTaskDefs, ...baseTasks];
+    const snapshot = [...uploadedTaskDefs, ...tasks];
     setProcessingUpload(true);
     setTimeout(() => {
       setProcessingUpload(false);
       const snapshot = [...uploadedTaskDefs, ...tasks]; // tasks is already derived
-      const newTask = generateUploadedTask(snapshot, CURRENT_USER);
+      const newTask = generateUploadedTask(snapshot, CURRENT_USER, file.name);
       setUploadedTaskDefs(prev => [newTask, ...prev]);
     }, 3000);
   }
@@ -412,6 +445,7 @@ export default function App() {
         incrementRevision(taskId, tab);
       }
     }
+    updateTaskOverride(taskId, {});
   }
 
   function handleRejectVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
@@ -435,6 +469,7 @@ export default function App() {
         [taskId]: { ...prev[taskId], [verificationType]: { action: 'verified', timestamp: new Date().toISOString(), by: CURRENT_USER } },
       };
     });
+    updateTaskOverride(taskId, {});
   }
 
   function handleResetVerificationForUpload(taskId: string, verificationType: VerificationType) {

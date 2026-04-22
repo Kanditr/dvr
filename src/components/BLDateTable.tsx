@@ -94,8 +94,8 @@ export default function BLDateTable({ task, onUpdateTask }: BLDateTableProps) {
     { fieldName: 'Manual Billing Date', valueRaw: task.correctValues['Manual Billing Date'] ?? '' },
   ].map(row => {
     const computedStatus = blDateRaw === row.valueRaw ? 'match' : 'mismatch';
-    const isMatch = (task.fieldStatusOverrides?.[row.fieldName] ?? computedStatus) === 'match';
-    return { ...row, isMatch, computedStatus, overriddenStatus: task.fieldStatusOverrides?.[row.fieldName] ?? computedStatus };
+    const isMatch = (task.fieldStatusOverrides?.[`blDate:${row.fieldName}`] ?? computedStatus) === 'match';
+    return { ...row, isMatch, computedStatus, overriddenStatus: task.fieldStatusOverrides?.[`blDate:${row.fieldName}`] ?? computedStatus };
   });
 
   const uniqueFields = allRows.map(r => r.fieldName);
@@ -128,7 +128,7 @@ export default function BLDateTable({ task, onUpdateTask }: BLDateTableProps) {
   }
 
   function handleToggleStatus(fieldName: string, nextStatus: 'match' | 'mismatch') {
-    const nextOverrides = { ...task.fieldStatusOverrides, [fieldName]: nextStatus };
+    const nextOverrides = { ...task.fieldStatusOverrides, [`blDate:${fieldName}`]: nextStatus };
     onUpdateTask({ ...task, fieldStatusOverrides: nextOverrides });
   }
 

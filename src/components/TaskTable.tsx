@@ -29,18 +29,18 @@ const TAB_COLS: { key: VerificationType; label: string }[] = [
 
 
 const STATUS_STYLE: Record<VerificationStatus, string> = {
-  'All Matches': 'bg-[#ebf7ed] text-[#267d36]',
+  'Match': 'bg-[#ebf7ed] text-[#267d36]',
   'Approved': 'bg-[#e8f0fb] text-[#0056b8]',
-  'Needs Attention': 'bg-[#fef5e5] text-[#ac6f00]',
+  'Attention': 'bg-[#fef5e5] text-[#ac6f00]',
   'Rejected': 'bg-[#faeaea] text-[#8c1d1d]',
   'Pending Verification': 'bg-gray-100 text-gray-500',
 };
 
 
 const STATUS_SHORT: Record<VerificationStatus, string> = {
-  'All Matches': 'All Match',
+  'Match': 'Match',
   'Approved': 'Approved',
-  'Needs Attention': 'Attention',
+  'Attention': 'Attention',
   'Rejected': 'Rejected',
   'Pending Verification': 'Pending',
 };
@@ -60,7 +60,7 @@ function getEffectiveTabStatus(
   }
   const status = task.verifications[tabKey];
   if ((tabKey === 'customFormality' || tabKey === 'blDate') && status === 'Pending Verification') {
-    return 'Needs Attention';
+    return 'Attention';
   }
   return status;
 }
@@ -120,6 +120,12 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
       const aNew = uploadedTaskIds.has(a.id);
       const bNew = uploadedTaskIds.has(b.id);
       if (aNew !== bNew) return aNew ? -1 : 1;
+      // Among new uploads, sort by lastUpdate descending
+      if (aNew && bNew) {
+        const ad = new Date(a.lastUpdate || a.submittedDate).getTime();
+        const bd = new Date(b.lastUpdate || b.submittedDate).getTime();
+        return bd - ad;
+      }
       const av = sortKey === 'status' ? deriveOverallStatus(a.verifications)
         : sortKey === 'assignedTo' ? a.assignedTo : (a.correctValues['INVOICE NO.'] ?? a.id);
       const bv = sortKey === 'status' ? deriveOverallStatus(b.verifications)

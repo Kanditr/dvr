@@ -14,7 +14,42 @@ export interface ComparisonRow {
   rowStatus: 'match' | 'mismatch';
 }
 
-export function buildComparisonRows(task: Task): ComparisonRow[] {
+const CF_DOC_TYPES: ShipDoc['type'][] = [
+  'Shipping Advice',
+  'Custom Invoice',
+  'Packing List',
+  'Shipping Instruction',
+  'Letter of Credit',
+];
+
+const INSURANCE_DOC_TYPES: ShipDoc['type'][] = [
+  'Draft Insurance',
+  'Detail for Insurance Purpose',
+];
+
+const DRAFT_BL_DOC_TYPES: ShipDoc['type'][] = [
+  'Draft B/L',
+  'Shipping Particular',
+];
+
+export function getDocsForVerification(task: Task, verificationType: string): ShipDoc[] {
+  if (verificationType === 'customFormality') {
+    return task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
+  }
+  if (verificationType === 'insurance') {
+    return task.documents.filter(d => INSURANCE_DOC_TYPES.includes(d.type));
+  }
+  if (verificationType === 'draftBL') {
+    return task.documents.filter(d => DRAFT_BL_DOC_TYPES.includes(d.type));
+  }
+  if (verificationType === 'blDate') {
+    const oblDoc = task.documents.find(d => d.type === 'Original B/L');
+    return oblDoc ? [oblDoc] : [];
+  }
+  return [];
+}
+
+export function buildComparisonRows(task: Task, verificationType: string): ComparisonRow[] {
   const relevantFields = task.canonicalFields.filter(field =>
     task.documents.some(doc => doc.fieldMapping[field] !== undefined)
   );
@@ -30,7 +65,39 @@ export function buildComparisonRows(task: Task): ComparisonRow[] {
     });
     // Mismatch only if an applicable doc has a wrong value, unless overridden
     const computedStatus = cells.every(c => c.isMatch) ? 'match' : 'mismatch';
-    const rowStatus = task.fieldStatusOverrides?.[field] ?? computedStatus;
+    const rowStatus = task.fieldStatusOverrides?.[`${verificationType}:${field}`] ?? computedStatus;
     return { canonicalField: field, correctValue, cells, rowStatus };
   });
+}
+
+export function computeVerificationStatus(task: Task, verificationType: string): 'Match' | 'Attention' | null {
+  if (verificationType === 'blDate') {
+    const obl = task.documents.find(d => d.type === 'Original B/L');
+    if (!obl) return null; // No document yet
+    const blDateRaw = obl.values[obl.fieldMapping['B/L Date']] ?? '';
+    const allRows = [
+      { fieldName: 'GI Date', valueRaw: task.correctValues['GI Date'] ?? '' },
+      { fieldName: 'ETD Date', valueRaw: task.correctValues['ETD Date'] ?? '' },
+      { fieldName: 'Manual Billing Date', valueRaw: task.correctValues['Manual Billing Date'] ?? '' },
+    ];
+    let allMatches = true;
+    for (const row of allRows) {
+      const computedStatus = blDateRaw === row.valueRaw ? 'match' : 'mismatch';
+      const isMatch = (task.fieldStatusOverrides?.[`blDate:${row.fieldName}`] ?? computedStatus) === 'match';
+      if (!isMatch) {
+        allMatches = false;
+        break;
+      }
+    }
+    return allMatches ? 'Match' : 'Attention';
+  }
+
+  const docs = getDocsForVerification(task, verificationType);
+  if (docs.length === 0) return null;
+
+  const rows = buildComparisonRows({ ...task, documents: docs }, verificationType);
+  if (rows.length === 0) return 'Match'; // No applicable fields
+
+  const hasMismatch = rows.some(r => r.rowStatus === 'mismatch');
+  return hasMismatch ? 'Attention' : 'Match';
 }

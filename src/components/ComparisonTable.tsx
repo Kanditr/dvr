@@ -1,93 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { buildComparisonRows } from '../utils/comparison';
-import type { Task, ShipDoc } from '../data/mockData';
+import { buildComparisonRows, getDocsForVerification } from '../utils/comparison';
+import type { Task } from '../data/mockData';
 import type { VerificationType } from '../App';
-
-const CF_DOC_TYPES: ShipDoc['type'][] = [
-  'Shipping Advice',
-  'Custom Invoice',
-  'Packing List',
-  'Shipping Instruction',
-  'Letter of Credit',
-];
-
-const INSURANCE_DOC_TYPES: ShipDoc['type'][] = [
-  'Draft Insurance',
-  'Detail for Insurance Purpose',
-];
-
-const DRAFT_BL_DOC_TYPES: ShipDoc['type'][] = [
-  'Draft B/L',
-  'Shipping Particular',
-];
-
-const CF_DOCXPORT_FIELD_NAMES: Record<string, string> = {
-  'INVOICE NO.': 'COMMERCIAL INVOICE NO.',
-  'REF NO.': 'REFERENCE NO.',
-  "BUYER'S ORDER NO.": "BUYER'S ORDER NO.",
-  'ETD PORT': 'PORT OF LOADING (FROM)',
-  'ETA PORT': 'PORT OF DISCHARGE / PORT OF DESTINATION (TO)',
-  'PAYMENT TERM': 'PAYMENT TERM',
-  'PRODUCT LINE ITEM#1': 'DESCRIPTION OF GOODS',
-  'QUANTITY LINE ITEM#1': 'QUANTITY',
-  'AMOUNT LINE ITEM#1': 'AMOUNT',
-  'PRODUCT LINE ITEM#2': 'DESCRIPTION OF GOODS 2',
-  'QUANTITY LINE ITEM#2': 'QUANTITY 2',
-  'AMOUNT LINE ITEM#2': 'AMOUNT 2',
-  'PRODUCT LINE ITEM#3': 'DESCRIPTION OF GOODS 3',
-  'QUANTITY LINE ITEM#3': 'QUANTITY 3',
-  'AMOUNT LINE ITEM#3': 'AMOUNT 3',
-};
-
-function buildDocXPortDoc(task: Task, fields: string[], fieldNameMap: Record<string, string> = {}): ShipDoc {
-  const entries = fields.map(f => {
-    const docFieldName = fieldNameMap[f] ?? f;
-    return { canonical: f, docFieldName, value: task.correctValues[f] ?? '' };
-  });
-  return {
-    id: 'docxport-synthetic',
-    type: 'DocXPort',
-    fieldMapping: Object.fromEntries(entries.map(e => [e.canonical, e.docFieldName])),
-    values: Object.fromEntries(entries.map(e => [e.docFieldName, e.value])),
-  };
-}
-
-function getDocsForVerification(task: Task, verificationType: VerificationType): ShipDoc[] {
-  if (verificationType === 'customFormality') {
-    const cfFields = [
-      'INVOICE NO.', 'REF NO.', "BUYER'S ORDER NO.", 'ETD PORT', 'ETA PORT',
-      'PAYMENT TERM', 'PRODUCT LINE ITEM#1', 'QUANTITY LINE ITEM#1', 'AMOUNT LINE ITEM#1',
-    ];
-    for (let n = 2; task.correctValues[`PRODUCT LINE ITEM#${n}`]; n++) {
-      cfFields.push(`PRODUCT LINE ITEM#${n}`, `QUANTITY LINE ITEM#${n}`, `AMOUNT LINE ITEM#${n}`);
-    }
-    cfFields.push(
-      'TOTAL QUANTITY', 'TOTAL AMOUNT', 'FREIGHT', 'INCOTERMS',
-      'TOTAL NET WEIGHT', 'TOTAL GROSS WEIGHT', 'MARKS & NOS',
-    );
-    const cfDocs = task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
-    return cfDocs;
-    /*
-    return [...cfDocs, buildDocXPortDoc(task, cfFields, CF_DOCXPORT_FIELD_NAMES)];
-    */
-  }
-  if (verificationType === 'insurance') {
-    return task.documents.filter(d => INSURANCE_DOC_TYPES.includes(d.type));
-  }
-  if (verificationType === 'draftBL') {
-    return task.documents.filter(d => DRAFT_BL_DOC_TYPES.includes(d.type));
-  }
-  if (verificationType === 'blDate') {
-    const oblDoc = task.documents.find(d => d.type === 'Original B/L');
-    return oblDoc ? [oblDoc] : [];
-    /*
-    return oblDoc
-      ? [oblDoc, buildDocXPortDoc(task, ['GI Date', 'ETD Date', 'Manual Billing Date'])]
-      : [buildDocXPortDoc(task, ['GI Date', 'ETD Date', 'Manual Billing Date'])];
-    */
-  }
-  return task.documents;
-}
 
 // ── Multi-select dropdown ──────────────────────────────────────────────────
 
@@ -260,7 +174,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask }
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   const docs = getDocsForVerification(task, verificationType);
-  const allRows = buildComparisonRows({ ...task, documents: docs });
+  const allRows = buildComparisonRows({ ...task, documents: docs }, verificationType);
 
   const uniqueFields = [...new Set(allRows.map(r => r.canonicalField))];
 
@@ -290,7 +204,8 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask }
   }
 
   function handleToggleStatus(canonicalField: string, nextStatus: 'match' | 'mismatch') {
-    const nextOverrides = { ...task.fieldStatusOverrides, [canonicalField]: nextStatus };
+    const key = `${verificationType}:${canonicalField}`;
+    const nextOverrides = { ...task.fieldStatusOverrides, [key]: nextStatus };
     onUpdateTask({ ...task, fieldStatusOverrides: nextOverrides });
   }
 
