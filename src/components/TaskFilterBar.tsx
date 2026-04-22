@@ -68,11 +68,17 @@ interface TaskFilterBarProps {
   onOnlyMyTasksChange: (v: boolean) => void;
   autoApprove: boolean;
   onAutoApproveChange: (v: boolean) => void;
+  dateFrom: string;
+  dateTo: string;
+  minDate: string;
+  maxDate: string;
+  onDateFromChange: (v: string) => void;
+  onDateToChange: (v: string) => void;
   onReset: () => void;
   onUploadCF?: () => void;
 }
 
-export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, autoApprove, onAutoApproveChange, onReset, onUploadCF }: TaskFilterBarProps) {
+export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, autoApprove, onAutoApproveChange, dateFrom, dateTo, minDate, maxDate, onDateFromChange, onDateToChange, onReset, onUploadCF }: TaskFilterBarProps) {
   return (
     <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-3">
       <div className="flex items-end gap-4 flex-wrap">
@@ -125,7 +131,34 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           </div>
         ))}
 
-        {/* Toggles */}
+        {/* Created Date range */}
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Created Date</label>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500">From</span>
+              <input
+                type="date"
+                value={dateFrom}
+                min={minDate}
+                max={dateTo || maxDate}
+                onChange={e => onDateFromChange(e.target.value)}
+                className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white"
+              />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs text-gray-500">To</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom || minDate}
+                max={maxDate}
+                onChange={e => onDateToChange(e.target.value)}
+                className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white"
+              />
+            </div>
+          </div>
+        </div>
         <div className="flex flex-col gap-0.5 pb-[2px]">
           <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide invisible select-none">Options</label>
           <div className="flex items-center gap-4 py-2">

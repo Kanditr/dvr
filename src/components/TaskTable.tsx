@@ -22,26 +22,26 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 
 const TAB_COLS: { key: VerificationType; label: string }[] = [
   { key: 'customFormality', label: 'Custom Formality' },
-  { key: 'insurance',       label: 'Draft Insurance' },
-  { key: 'draftBL',         label: 'Draft B/L' },
-  { key: 'blDate',          label: 'B/L Date' },
+  { key: 'insurance', label: 'Draft Insurance' },
+  { key: 'draftBL', label: 'Draft B/L' },
+  { key: 'blDate', label: 'B/L Date' },
 ];
 
 
 const STATUS_STYLE: Record<VerificationStatus, string> = {
-  'All Matches':          'bg-[#ebf7ed] text-[#267d36]',
-  'Approved':             'bg-[#e8f0fb] text-[#0056b8]',
-  'Needs Attention':      'bg-[#fef5e5] text-[#ac6f00]',
-  'Rejected':             'bg-[#faeaea] text-[#8c1d1d]',
+  'All Matches': 'bg-[#ebf7ed] text-[#267d36]',
+  'Approved': 'bg-[#e8f0fb] text-[#0056b8]',
+  'Needs Attention': 'bg-[#fef5e5] text-[#ac6f00]',
+  'Rejected': 'bg-[#faeaea] text-[#8c1d1d]',
   'Pending Verification': 'bg-gray-100 text-gray-500',
 };
 
 
 const STATUS_SHORT: Record<VerificationStatus, string> = {
-  'All Matches':          'All Match',
-  'Approved':             'Approved',
-  'Needs Attention':      'Attention',
-  'Rejected':             'Rejected',
+  'All Matches': 'All Match',
+  'Approved': 'Approved',
+  'Needs Attention': 'Attention',
+  'Rejected': 'Rejected',
   'Pending Verification': 'Pending',
 };
 
@@ -72,6 +72,7 @@ interface TaskTableProps {
   onSelectTask: (taskId: string, tab: VerificationType) => void;
   page: number;
   onPageChange: (page: number) => void;
+  isAdmin?: boolean;
   uploadedTaskIds?: Set<string>;
   removableTaskIds?: Set<string>;
   availableUsers?: string[];
@@ -81,22 +82,24 @@ interface TaskTableProps {
 
 const PAGE_SIZE = 10;
 
-export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask }: TaskTableProps) {
+export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, isAdmin, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask }: TaskTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
-  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
-  // Click outside any assignment cell → close dropdown
-  useEffect(() => {
-    function handleMouseDown(e: MouseEvent) {
-      const cell = (e.target as HTMLElement).closest('[data-assign-cell]');
-      if (!cell || cell.getAttribute('data-assign-cell') !== editingTaskId) {
-        setEditingTaskId(null);
+  function formatLastUpdate(raw: string | undefined): string {
+    if (!raw) return '—';
+    // If it's an ISO datetime (e.g. from new Date().toISOString()), extract date + HH:MM:SS
+    if (raw.includes('T')) {
+      const d = new Date(raw);
+      if (!isNaN(d.getTime())) {
+        const date = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
+        const time = d.toTimeString().slice(0, 8);  // HH:MM:SS
+        return `${date} ${time}`;
       }
     }
-    document.addEventListener('mousedown', handleMouseDown);
-    return () => document.removeEventListener('mousedown', handleMouseDown);
-  }, [editingTaskId]);
+    return raw; // plain date string — return as-is
+  }
 
   function handleSort(key: SortKey) {
     if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -146,13 +149,22 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               <span className="flex items-center">Invoice No. <SortIcon col="id" sortKey={sortKey} sortDir={sortDir} /></span>
             </th>
             <th className={`${thBase} px-6 cursor-pointer select-none whitespace-nowrap`} onClick={() => handleSort('assignedTo')}>
-              <span className="flex items-center">Task Assignment <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>
+              <span className="flex items-center">Assignee <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>
+            </th>
+            <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
+              Created Date
             </th>
             {TAB_COLS.map(({ key, label }) => (
               <th key={key} className={`${thBase} min-w-[140px] whitespace-nowrap`}>
                 {label}
               </th>
             ))}
+            <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
+              Last Update
+            </th>
+            {isAdmin && (
+              <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 w-10">Delete</th>
+            )}
             <th className="px-4 py-2 w-10" />
           </tr>
         </thead>
@@ -165,28 +177,21 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap">
                 {task.correctValues['INVOICE NO.'] ?? task.id}
               </td>
-              <td
-                data-assign-cell={task.id}
-                className="px-6 py-4 text-gray-700 whitespace-nowrap cursor-pointer"
-                onClick={() => { if (editingTaskId !== task.id) setEditingTaskId(task.id); }}
-              >
-                {editingTaskId === task.id ? (
-                  <select
-                    autoFocus
-                    value={task.assignedTo}
-                    onChange={e => {
-                      onAssignTask?.(task.id, e.target.value);
-                      setEditingTaskId(null);
-                    }}
-                    className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 max-w-[180px]"
-                  >
-                    {availableUsers.map(u => (
-                      <option key={u || '__blank__'} value={u}>{u || '— unassigned —'}</option>
-                    ))}
-                  </select>
-                ) : (
-                  <span>{task.assignedTo || <span className="text-gray-400 italic text-xs">— unassigned —</span>}</span>
-                )}
+              <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
+                <select
+                  value={task.assignedTo}
+                  onChange={e => {
+                    onAssignTask?.(task.id, e.target.value);
+                  }}
+                  className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 w-full max-w-[180px] cursor-pointer"
+                >
+                  {availableUsers.map(u => (
+                    <option key={u || '__blank__'} value={u}>{u || '— unassigned —'}</option>
+                  ))}
+                </select>
+              </td>
+              <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
+                {task.createdDate || task.submittedDate}
               </td>
               {TAB_COLS.map(({ key }) => {
                 const status = getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {});
@@ -202,13 +207,27 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                   </td>
                 );
               })}
-              {removableTaskIds.has(task.id) ? (
+              <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
+                {formatLastUpdate(task.lastUpdate ?? task.submittedDate)}
+              </td>
+              {isAdmin && (
+                <td
+                  className="px-4 py-4 text-center cursor-pointer hover:bg-red-50 transition-colors"
+                  onClick={(e) => { e.stopPropagation(); setTaskToDelete(task.id); }}
+                  title="Delete this record"
+                >
+                  <svg className="w-4 h-4 text-gray-400 hover:text-red-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </td>
+              )}
+              {removableTaskIds.has(task.id) && !isAdmin ? (
                 <td
                   className="px-4 py-4 cursor-pointer hover:bg-red-50 transition-colors"
                   onClick={() => onRemoveTask?.(task.id)}
                   title="Remove this task"
                 >
-                  <svg className="w-4 h-4 text-gray-400 hover:text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-gray-400 hover:text-red-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </td>
@@ -217,7 +236,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                   className="px-4 py-4 cursor-pointer hover:bg-blue-50 transition-colors"
                   onClick={() => onSelectTask(task.id, 'customFormality')}
                 >
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 text-gray-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </td>
@@ -254,11 +273,10 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               <button
                 key={p}
                 onClick={() => onPageChange(p as number)}
-                className={`min-w-[28px] px-2 py-1 rounded border transition-colors ${
-                  p === safePage
-                    ? 'border-[#0056b8] bg-[#0056b8] text-white'
-                    : 'border-gray-200 text-gray-600 hover:bg-gray-50'
-                }`}
+                className={`min-w-[28px] px-2 py-1 rounded border transition-colors ${p === safePage
+                  ? 'border-[#0056b8] bg-[#0056b8] text-white'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}
               >
                 {p}
               </button>
@@ -273,6 +291,41 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
           </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {taskToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setTaskToDelete(null)} />
+          <div className="relative bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-6">
+            <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center mb-4">
+              <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Confirm Deletion</h3>
+            <p className="text-xs text-gray-500 mb-6">
+              Are you sure you want to delete this record? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setTaskToDelete(null)}
+                className="px-4 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onRemoveTask?.(taskToDelete);
+                  setTaskToDelete(null);
+                }}
+                className="px-4 py-1.5 text-sm text-white bg-red-500 hover:bg-red-600 rounded transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -62,14 +62,20 @@ function getEffectiveVerifications(task: Task, taskUploadStates: Record<string, 
 
 function applyAutoApprove(
   tasks: Task[],
-  uploadStates: Record<string, Record<string, UploadState>>
+  uploadStates: Record<string, Record<string, UploadState>>,
+  actionLogs: Record<string, Record<string, ActionLog>>
 ): Task[] {
   return tasks.map(task => {
     const taskUploadStates = uploadStates[task.id] ?? {};
+    const taskLogs = actionLogs[task.id] ?? {};
     const effective = getEffectiveVerifications(task, taskUploadStates);
     const verifications = { ...task.verifications };
     let changed = false;
     (['customFormality', 'insurance', 'draftBL', 'blDate'] as VerificationType[]).forEach(key => {
+      // Skip tabs that were manually approved or rejected — never overwrite them
+      const wasManuallyActioned = taskLogs[key]?.action === 'approve' || taskLogs[key]?.action === 'reject';
+      const isAlreadyApprovedOrRejected = task.verifications[key] === 'Approved' || task.verifications[key] === 'Rejected';
+      if (wasManuallyActioned || isAlreadyApprovedOrRejected) return;
       if (effective[key] === 'All Matches') {
         verifications[key] = 'Approved' as VerificationStatus;
         changed = true;
@@ -86,7 +92,7 @@ const DATA_VERSION = 'v2026-04h';
 function clearStaleStorage() {
   const stored = localStorage.getItem('dvr:dataVersion');
   if (stored !== DATA_VERSION) {
-    ['dvr:taskOverrides', 'dvr:uploadStates', 'dvr:actionLogs', 'dvr:uploadedTasks', 'dvr:revisionStates', 'dvr:touchedUploads'].forEach(k => localStorage.removeItem(k));
+    ['dvr:taskOverrides', 'dvr:uploadStates', 'dvr:actionLogs', 'dvr:uploadedTasks', 'dvr:revisionStates', 'dvr:touchedUploads', 'dvr:deletedTasks'].forEach(k => localStorage.removeItem(k));
     localStorage.setItem('dvr:dataVersion', DATA_VERSION);
   }
 }
@@ -95,7 +101,7 @@ clearStaleStorage();
 // ─── Generate a fully-populated task from an uploaded CF document ─────────────
 const CF_CLONE_TYPES = new Set(['Shipping Advice', 'Custom Invoice', 'Packing List', 'Letter of Credit', 'Shipping Instruction']);
 
-function generateUploadedTask(allCurrentTasks: Task[]): Task {
+function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string): Task {
   // Find the next invoice number following the 1015050XXX pattern
   const maxNum = allCurrentTasks
     .map(t => parseInt(t.correctValues['INVOICE NO.'] ?? '0', 10))
@@ -140,7 +146,7 @@ function generateUploadedTask(allCurrentTasks: Task[]): Task {
   return {
     ...template,
     id: newId,
-    assignedTo: '',
+    assignedTo: defaultAssignee,
     submittedDate: new Date().toISOString().split('T')[0],
     status: 'Pending',
     verifications: {
@@ -167,6 +173,7 @@ export default function App() {
   const [onlyMyTasks, setOnlyMyTasks] = useLocalStorage<boolean>('dvr:onlyMyTasks', false);
 
   const CURRENT_USER = effectiveUser ?? 'jane.doe@pttgcgroup.com';
+  const isAdmin = CURRENT_USER === 'admin.admin@pttgcgroup.com';
 
   const [uploadStates, setUploadStates] = useLocalStorage<Record<string, Record<string, UploadState>>>(
     'dvr:uploadStates', {}
@@ -194,9 +201,11 @@ export default function App() {
   const [uploadedTaskDefs, setUploadedTaskDefs] = useLocalStorage<Task[]>('dvr:uploadedTasks', []);
   const [touchedUploadedIds, setTouchedUploadedIds] = useLocalStorage<string[]>('dvr:touchedUploads', []);
 
+  const [deletedTaskIds, setDeletedTaskIds] = useLocalStorage<string[]>('dvr:deletedTasks', []);
+
   // baseTasks: only manually actioned states — never auto-approve mutations
   const [baseTasks, setBaseTasks] = useState<Task[]>(() => {
-    const allTasks = [...uploadedTaskDefs, ...mockTasks];
+    const allTasks = [...uploadedTaskDefs, ...mockTasks].filter(t => !deletedTaskIds.includes(t.id));
     return allTasks.map(t => {
       const o = taskOverrides.find(x => x.id === t.id);
       if (!o) return t;
@@ -209,6 +218,7 @@ export default function App() {
 
   const availableUsers = useMemo(() => {
     const emails = new Set(mockTasks.map(t => t.assignedTo));
+    emails.add('admin.admin@pttgcgroup.com');
     if (effectiveUser) emails.add(effectiveUser);
     return ['', ...Array.from(emails).sort()];
   }, [effectiveUser]);
@@ -229,13 +239,22 @@ export default function App() {
   function handleCFUploadChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    
+    // Validate file naming convention: <numbers>_rev<numbers>.pdf
+    const nameRegex = /^\d+_rev\d+\.pdf$/i;
+    if (!nameRegex.test(file.name)) {
+      alert('Invalid file name. Please ensure the file follows the naming convention: <numbers>_rev<numbers>.pdf');
+      e.target.value = '';
+      return;
+    }
+
     e.target.value = '';
     // Capture current task list before async delay
     const snapshot = [...uploadedTaskDefs, ...baseTasks];
     setProcessingUpload(true);
     setTimeout(() => {
       setProcessingUpload(false);
-      const newTask = generateUploadedTask(snapshot);
+      const newTask = generateUploadedTask(snapshot, CURRENT_USER);
       setUploadedTaskDefs(prev => [newTask, ...prev]);
       setBaseTasks(prev => [newTask, ...prev]);
     }, 3000);
@@ -247,7 +266,8 @@ export default function App() {
     setBaseTasks(prev => prev.map(t => t.id === taskId ? { ...t, assignedTo: email } : t));
   }
 
-  function handleRemoveUploadedTask(taskId: string) {
+  function handleRemoveTask(taskId: string) {
+    setDeletedTaskIds(prev => [...prev, taskId]);
     setUploadedTaskDefs(prev => prev.filter(t => t.id !== taskId));
     setBaseTasks(prev => prev.filter(t => t.id !== taskId));
     setUploadStates(prev => { const next = { ...prev }; delete next[taskId]; return next; });
@@ -261,11 +281,12 @@ export default function App() {
     setTaskOverrides(baseTasks.map(t => ({ id: t.id, status: t.status, verifications: t.verifications, assignedTo: t.assignedTo })));
   }, [baseTasks]);
 
-  // Derived: apply auto-approve on top at render time — never persisted
-  const tasks = useMemo(
-    () => autoApprove ? applyAutoApprove(baseTasks, uploadStates) : baseTasks,
-    [baseTasks, autoApprove, uploadStates]
-  );
+  const tasks = useMemo(() => {
+    if (autoApprove) {
+      return applyAutoApprove(baseTasks, uploadStates, actionLogs);
+    }
+    return baseTasks;
+  }, [baseTasks, autoApprove, uploadStates, actionLogs]);
 
   const [search, setSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
@@ -276,6 +297,21 @@ export default function App() {
     draftBL: 'All',
     blDate: 'All',
   });
+
+  // Compute min/max dates across all tasks for date range defaults
+  const { minDate, maxDate } = useMemo(() => {
+    const dates = tasks
+      .map(t => t.createdDate ?? t.submittedDate)
+      .filter(Boolean)
+      .sort();
+    return {
+      minDate: dates[0] ?? '',
+      maxDate: dates[dates.length - 1] ?? '',
+    };
+  }, [tasks]);
+
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   useEffect(() => {
     function onHashChange() { setView(parseHash()); }
@@ -415,13 +451,27 @@ export default function App() {
       t.assignedTo.toLowerCase().includes(search.toLowerCase());
     const overallStatus = deriveOverallStatus(getEffectiveVerifications(t, uploadStates[t.id] ?? {}));
     const matchesStatus = statusFilter === 'All' || overallStatus === statusFilter;
-    const matchesUser = !onlyMyTasks || t.assignedTo === CURRENT_USER;
-    return matchesSearch && matchesStatus && matchesUser;
+    
+    // Everyone sees all tasks by default.
+    // "Only My Tasks" toggle narrows to the current user for all roles.
+    const matchesUser = isAdmin
+      ? (!onlyMyTasks || t.assignedTo === CURRENT_USER)
+      : (!onlyMyTasks || t.assignedTo === CURRENT_USER);
+
+    // Date range filter on createdDate (falls back to submittedDate)
+    const taskDate = t.createdDate ?? t.submittedDate ?? '';
+    const effectiveFrom = dateFrom || minDate;
+    const effectiveTo = dateTo || maxDate;
+    const matchesDate = (!effectiveFrom || taskDate >= effectiveFrom) && (!effectiveTo || taskDate <= effectiveTo);
+      
+    return matchesSearch && matchesStatus && matchesUser && matchesDate;
   });
 
   function handleAutoApproveChange(value: boolean) {
     setAutoApprove(value);
-    if (value) setOnlyMyTasks(true);
+    if (value) {
+      setOnlyMyTasks(true);
+    }
   }
 
   function navigateToLlmCompare() {
@@ -480,7 +530,13 @@ export default function App() {
               onOnlyMyTasksChange={v => { setOnlyMyTasks(v); setTaskPage(1); }}
               autoApprove={autoApprove}
               onAutoApproveChange={handleAutoApproveChange}
-              onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setTaskPage(1); }}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              minDate={minDate}
+              maxDate={maxDate}
+              onDateFromChange={v => { setDateFrom(v); setTaskPage(1); }}
+              onDateToChange={v => { setDateTo(v); setTaskPage(1); }}
+              onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setTaskPage(1); }}
               onUploadCF={() => uploadCFRef.current?.click()}
             />
             <input ref={uploadCFRef} type="file" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleCFUploadChange} />
@@ -491,11 +547,12 @@ export default function App() {
               onSelectTask={(id, tab) => navigateToCiOverview(id, tab)}
               page={taskPage}
               onPageChange={setTaskPage}
+              isAdmin={isAdmin}
               uploadedTaskIds={uploadedTaskIds}
               removableTaskIds={removableTaskIds}
               availableUsers={availableUsers}
               onAssignTask={handleAssignTask}
-              onRemoveTask={handleRemoveUploadedTask}
+              onRemoveTask={handleRemoveTask}
             />
           </div>
 
