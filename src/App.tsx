@@ -314,6 +314,18 @@ export default function App() {
       return;
     }
 
+    // Check if invoice number already exists
+    const fileInvoiceMatch = file.name.match(/^(\d+)/);
+    if (fileInvoiceMatch) {
+      const fileInvoiceNo = fileInvoiceMatch[1];
+      const existingTask = tasks.find(t => t.correctValues['INVOICE NO.'] === fileInvoiceNo);
+      if (existingTask) {
+        alert(`Invoice No. ${fileInvoiceNo} already exists. Please upload the revised document in the Custom Formality page instead.`);
+        e.target.value = '';
+        return;
+      }
+    }
+
     e.target.value = '';
     // Capture current task list before async delay
     const snapshot = [...uploadedTaskDefs, ...tasks];
@@ -321,7 +333,7 @@ export default function App() {
     setTimeout(() => {
       setProcessingUpload(false);
       const snapshot = [...uploadedTaskDefs, ...tasks]; // tasks is already derived
-      const newTask = generateUploadedTask(snapshot, CURRENT_USER, file.name);
+      const newTask = generateUploadedTask(snapshot, '', file.name);
       setUploadedTaskDefs(prev => [newTask, ...prev]);
     }, 3000);
   }
