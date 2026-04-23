@@ -105,8 +105,9 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, 
     }
   }
 
-  // Clone ALL documents, replacing invoice / ref wherever they appear
+  // Clone ONLY Custom Formality documents, replacing invoice / ref wherever they appear
   const documents = template.documents
+    .filter(doc => CF_CLONE_TYPES.has(doc.type))
     .map(doc => {
       const values = { ...doc.values };
       for (const [key, val] of Object.entries(values)) {
@@ -224,6 +225,9 @@ export default function App() {
 
     const toUpdate: any[] = [];
     tasks.forEach(t => {
+      // Unassigned tasks should NOT be auto-approved
+      if (!t.assignedTo) return;
+
       let changed = false;
       const nextV = { ...t.verifications };
       (['customFormality', 'insurance', 'draftBL', 'blDate'] as VerificationType[]).forEach(k => {
@@ -450,6 +454,20 @@ export default function App() {
       }
       return { ...prev, [taskId]: taskStates };
     });
+
+    if (tab === 'blDate' && state === 'done') {
+      const t = tasks.find(x => x.id === taskId);
+      if (t && !t.documents.find(d => d.type === 'Original B/L')) {
+        const newDoc = {
+          id: `${taskId}-obl`,
+          type: 'Original B/L',
+          fieldMapping: { 'B/L Date': 'bl_date' },
+          values: { bl_date: t.correctValues['GI Date'] || '21 Mar 2026' }
+        };
+        updateTaskOverride(taskId, { documents: [...t.documents, newDoc] });
+      }
+    }
+
     if (state === 'done') {
       if (tab === 'insurance:detail' || tab === 'insurance:draft') {
         const cur = uploadStates[taskId] ?? {};

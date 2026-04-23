@@ -446,10 +446,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       Reject
                     </button>
                     <button
-                      onClick={() => !isTabPending && !isTabActioned && !(autoApprove && activeTabStatus !== 'Attention') && setConfirm({ action: 'approve', vt: activeTab })}
-                      disabled={isTabPending || isTabActioned || (autoApprove && activeTabStatus !== 'Attention')}
+                      onClick={() => !isTabPending && !isTabActioned && !(autoApprove && task.assignedTo && activeTabStatus !== 'Attention') && setConfirm({ action: 'approve', vt: activeTab })}
+                      disabled={isTabPending || isTabActioned || (autoApprove && task.assignedTo && activeTabStatus !== 'Attention')}
                       title={!isTabActioned && autoApprove && activeTabStatus !== 'Attention' ? 'Auto Approve is enabled in Settings' : undefined}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && activeTabStatus !== 'Attention') ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
+                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && task.assignedTo && activeTabStatus !== 'Attention') ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
                     >
                       Approve
                     </button>
@@ -507,7 +507,17 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 </div>
               )
             ) : activeTab === 'blDate' ? (
-              <BLDateTable task={task} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
+              isBLDateDone ? (
+                <BLDateTable task={task} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
+              ) : (
+                <div className="flex items-stretch gap-4 p-6">
+                  <UploadSlot
+                    label="Original Bill of Lading"
+                    state={uploadStates['blDate'] ?? 'idle'}
+                    onUpload={() => handleUpload('blDate')}
+                  />
+                </div>
+              )
             ) : (
               <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
             )}

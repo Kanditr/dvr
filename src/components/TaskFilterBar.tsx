@@ -137,25 +137,43 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">From</span>
-              <input
-                type="date"
-                value={dateFrom}
-                min={minDate}
-                max={dateTo || maxDate}
-                onChange={e => onDateFromChange(e.target.value)}
-                className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  readOnly
+                  value={dateFrom ? dateFrom.split('-').reverse().join('/') : ''}
+                  placeholder="dd/mm/yyyy"
+                  className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px]"
+                />
+                <input
+                  type="date"
+                  value={dateFrom}
+                  min={minDate}
+                  max={dateTo || maxDate}
+                  onChange={e => onDateFromChange(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                />
+              </div>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">To</span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom || minDate}
-                max={maxDate}
-                onChange={e => onDateToChange(e.target.value)}
-                className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  readOnly
+                  value={dateTo ? dateTo.split('-').reverse().join('/') : ''}
+                  placeholder="dd/mm/yyyy"
+                  className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px]"
+                />
+                <input
+                  type="date"
+                  value={dateTo}
+                  min={dateFrom || minDate}
+                  max={maxDate}
+                  onChange={e => onDateToChange(e.target.value)}
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                />
+              </div>
             </div>
           </div>
         </div>

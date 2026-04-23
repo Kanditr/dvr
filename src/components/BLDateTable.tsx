@@ -95,15 +95,43 @@ function EditableValue({ value, onSave, isReadOnly }: { value: string, onSave: (
 }
 
 function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mismatch', onChange: (s: 'match' | 'mismatch') => void, isReadOnly?: boolean }) {
+  const [isEditing, setIsEditing] = useState(false);
+
+  if (isEditing && !isReadOnly) {
+    return (
+      <select
+        autoFocus
+        value={status}
+        onChange={(e) => {
+          onChange(e.target.value as 'match' | 'mismatch');
+          setIsEditing(false);
+        }}
+        onBlur={() => setIsEditing(false)}
+        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 cursor-pointer"
+      >
+        <option value="match">Match</option>
+        <option value="mismatch">Mismatch</option>
+      </select>
+    );
+  }
+
   if (status === 'match') {
     return (
-      <button onClick={() => !isReadOnly && onChange('mismatch')} disabled={isReadOnly} className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}>
+      <button 
+        onClick={() => !isReadOnly && setIsEditing(true)} 
+        disabled={isReadOnly} 
+        className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}
+      >
         Match
       </button>
     );
   }
   return (
-    <button onClick={() => !isReadOnly && onChange('match')} disabled={isReadOnly} className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}>
+    <button 
+      onClick={() => !isReadOnly && setIsEditing(true)} 
+      disabled={isReadOnly} 
+      className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}
+    >
       Mismatch
     </button>
   );
