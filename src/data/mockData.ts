@@ -312,7 +312,7 @@ function insDocs(id: string, vals: Record<string, string>, mismatch?: Record<str
 }
 
 function dblDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>): ShipDoc[] {
-  return [{
+  const dbl: ShipDoc = {
     id: `${id}-dbl`,
     type: 'Draft B/L',
     fieldMapping: { 'Shipper': 'shipper', 'Consignee': 'consignee', 'Vessel Name': 'vessel_name', 'Gross Weight': 'gross_weight' },
@@ -322,7 +322,19 @@ function dblDocs(id: string, vals: Record<string, string>, mismatch?: Record<str
       vessel_name: mismatch?.['Vessel Name'] ?? vals['Vessel Name'],
       gross_weight: mismatch?.['Gross Weight'] ?? vals['Gross Weight'],
     },
-  }];
+  };
+  const sp: ShipDoc = {
+    id: `${id}-sp`,
+    type: 'Shipping Particular',
+    fieldMapping: { 'Shipper': 'SHIPPER', 'Consignee': 'CONSIGNEE', 'Vessel Name': 'VESSEL/VOYAGE', 'Gross Weight': 'TOTAL GROSS WEIGHT' },
+    values: {
+      'SHIPPER':            mismatch?.['Shipper']      ?? vals['Shipper'],
+      'CONSIGNEE':          mismatch?.['Consignee']    ?? vals['Consignee'],
+      'VESSEL/VOYAGE':      mismatch?.['Vessel Name']  ?? vals['Vessel Name'],
+      'TOTAL GROSS WEIGHT': mismatch?.['Gross Weight'] ?? vals['Gross Weight'],
+    },
+  };
+  return [dbl, sp];
 }
 
 function oblDoc(id: string, date: string): ShipDoc {

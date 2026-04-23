@@ -100,14 +100,16 @@ interface ComparisonTableProps {
   task: Task;
   verificationType: VerificationType;
   onUpdateTask: (task: Task) => void;
+  isReadOnly?: boolean;
 }
 
 const STATUS_OPTIONS = ['Match', 'Mismatch'];
 
-function EditableValue({ value, onSave, isApplicable }: { value: string, onSave: (v: string) => void, isApplicable: boolean }) {
+function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: string, onSave: (v: string) => void, isApplicable: boolean, isReadOnly?: boolean }) {
   const [editing, setEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value);
   const initialValueRef = useRef(value);
+  const [originalValue] = useState(value);
 
   // Keep tempValue in sync with prop if not editing
   useEffect(() => {
@@ -124,52 +126,79 @@ function EditableValue({ value, onSave, isApplicable }: { value: string, onSave:
         value={tempValue}
         onChange={e => {
           setTempValue(e.target.value);
-          onSave(e.target.value);
         }}
-        onBlur={() => setEditing(false)}
+        onBlur={() => {
+          setEditing(false);
+          if (tempValue !== initialValueRef.current) {
+            onSave(tempValue);
+          }
+        }}
         onKeyDown={e => {
           if (e.key === 'Enter') {
             setEditing(false);
+            if (tempValue !== initialValueRef.current) {
+              onSave(tempValue);
+            }
           }
           if (e.key === 'Escape') {
             setEditing(false);
             setTempValue(initialValueRef.current);
-            onSave(initialValueRef.current);
           }
         }}
       />
     );
   }
 
+  const isEdited = value !== originalValue;
+
   return (
-    <span
-      className="block text-sm font-medium text-gray-900 cursor-text hover:bg-black/5 rounded px-1 -mx-1 transition-colors min-h-[1.25rem]"
-      onClick={() => {
-        initialValueRef.current = value;
-        setEditing(true);
-      }}
-    >
-      {value || ' '}
-    </span>
+    <div className="flex items-center gap-1 group/edit">
+      <span
+        className={`block text-sm font-medium text-gray-900 ${isReadOnly ? '' : 'cursor-text hover:bg-black/5'} rounded px-1 -ml-1 transition-colors min-h-[1.25rem] flex-1`}
+        onClick={() => {
+          if (isReadOnly) return;
+          initialValueRef.current = value;
+          setEditing(true);
+        }}
+      >
+        {value || ' '}
+      </span>
+      {isEdited && !isReadOnly && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            setTempValue(originalValue);
+            onSave(originalValue);
+          }}
+          className="shrink-0 p-1 rounded-full text-gray-400 hover:text-[#0056b8] hover:bg-blue-50 transition-colors opacity-0 group-hover/edit:opacity-100"
+          title="Undo edit"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }
 
-function StatusToggle({ status, onChange }: { status: 'match' | 'mismatch', onChange: (s: 'match' | 'mismatch') => void }) {
+function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mismatch', onChange: (s: 'match' | 'mismatch') => void, isReadOnly?: boolean }) {
   if (status === 'match') {
     return (
-      <button onClick={() => onChange('mismatch')} className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] hover:bg-[#d4ecd8] transition-colors cursor-pointer focus:outline-none">
+      <button onClick={() => !isReadOnly && onChange('mismatch')} disabled={isReadOnly} className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}>
         Match
       </button>
     );
   }
   return (
-    <button onClick={() => onChange('match')} className="inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] hover:bg-[#faeed6] transition-colors cursor-pointer focus:outline-none">
+    <button onClick={() => !isReadOnly && onChange('match')} disabled={isReadOnly} className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}>
       Mismatch
     </button>
   );
 }
 
-export default function ComparisonTable({ task, verificationType, onUpdateTask }: ComparisonTableProps) {
+export default function ComparisonTable({ task, verificationType, onUpdateTask, isReadOnly }: ComparisonTableProps) {
   const [fieldFilter, setFieldFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
@@ -188,9 +217,21 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask }
   });
 
   function handleSave(docId: string, docType: string, canonicalField: string, originalFieldName: string, newValue: string) {
+    if (isReadOnly) return;
+    
+    // Lock the current status so it doesn't change automatically when value updates
+    const currentOverride = task.fieldStatusOverrides?.[`${verificationType}:${canonicalField}`];
+    let nextOverrides = task.fieldStatusOverrides ?? {};
+    if (!currentOverride) {
+       const row = rows.find(r => r.canonicalField === canonicalField);
+       if (row) {
+          nextOverrides = { ...nextOverrides, [`${verificationType}:${canonicalField}`]: row.rowStatus };
+       }
+    }
+
     if (docType === 'DocXPort') {
       const nextCorrectValues = { ...task.correctValues, [canonicalField]: newValue };
-      onUpdateTask({ ...task, correctValues: nextCorrectValues });
+      onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides });
     } else {
       const nextDocs = task.documents.map(d => {
         if (d.id !== docId) return d;
@@ -199,7 +240,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask }
           values: { ...d.values, [originalFieldName]: newValue }
         };
       });
-      onUpdateTask({ ...task, documents: nextDocs });
+      onUpdateTask({ ...task, documents: nextDocs, fieldStatusOverrides: nextOverrides });
     }
   }
 
@@ -273,6 +314,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask }
                         <EditableValue
                           value={cell.value}
                           isApplicable={cell.isApplicable}
+                          isReadOnly={isReadOnly}
                           onSave={(val) => handleSave(doc.id, doc.type, row.canonicalField, cell.originalFieldName, val)}
                         />
                       </td>
@@ -281,7 +323,8 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask }
                   <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
                     <StatusToggle 
                       status={row.rowStatus} 
-                      onChange={(next) => handleToggleStatus(row.canonicalField, next)} 
+                      onChange={(next) => handleToggleStatus(row.canonicalField, next)}
+                      isReadOnly={isReadOnly}
                     />
                   </td>
                 </tr>

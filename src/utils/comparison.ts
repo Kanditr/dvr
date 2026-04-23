@@ -19,6 +19,7 @@ const CF_DOC_TYPES: ShipDoc['type'][] = [
   'Custom Invoice',
   'Packing List',
   'Shipping Instruction',
+  'DocXPort',
   'Letter of Credit',
 ];
 
@@ -34,7 +35,14 @@ const DRAFT_BL_DOC_TYPES: ShipDoc['type'][] = [
 
 export function getDocsForVerification(task: Task, verificationType: string): ShipDoc[] {
   if (verificationType === 'customFormality') {
-    return task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
+    const actualDocs = task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
+    const docXPort: ShipDoc = {
+      id: 'docxport',
+      type: 'DocXPort',
+      values: {}, 
+      fieldMapping: {} // Clear all mapping to show dashes for all fields
+    };
+    return [...actualDocs, docXPort].sort((a, b) => CF_DOC_TYPES.indexOf(a.type) - CF_DOC_TYPES.indexOf(b.type));
   }
   if (verificationType === 'insurance') {
     return task.documents.filter(d => INSURANCE_DOC_TYPES.includes(d.type));

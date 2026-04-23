@@ -42,56 +42,19 @@ function setHash(view: View) {
 }
 
 function getEffectiveVerifications(task: Task, taskUploadStates: Record<string, UploadState>): Verifications {
-  const oblDoc = task.documents.find(d => d.type === 'Original B/L');
-  const blDateHasData = !!(oblDoc && oblDoc.values[oblDoc.fieldMapping['B/L Date']]);
   const customFormality = task.verifications.customFormality === 'Pending Verification'
     ? 'Attention' as VerificationStatus
     : task.verifications.customFormality;
-  const blDate = !blDateHasData
-    ? 'Pending Verification' as VerificationStatus
-    : task.verifications.blDate === 'Pending Verification'
-      ? 'Attention' as VerificationStatus
-      : task.verifications.blDate;
   return {
     ...task.verifications,
     customFormality,
     insurance: (taskUploadStates['insurance'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.insurance,
     draftBL: (taskUploadStates['draftBL'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
-    blDate,
+    blDate: (taskUploadStates['blDate'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.blDate,
   };
 }
 
-function applyAutoApprove(
-  tasks: Task[],
-  uploadStates: Record<string, Record<string, UploadState>>,
-  actionLogs: Record<string, Record<string, ActionLog>>
-): Task[] {
-  return tasks.map(task => {
-    const taskUploadStates = uploadStates[task.id] ?? {};
-    const taskLogs = actionLogs[task.id] ?? {};
-    const effective = getEffectiveVerifications(task, taskUploadStates);
-    const verifications = { ...task.verifications };
-    let changed = false;
-    (['customFormality', 'insurance', 'draftBL', 'blDate'] as VerificationType[]).forEach(key => {
-      // Skip tabs that were manually approved or rejected — never overwrite them
-      const wasManuallyActioned = taskLogs[key]?.action === 'approve' || taskLogs[key]?.action === 'reject';
-      const isAlreadyApprovedOrRejected = task.verifications[key] === 'Approved' || task.verifications[key] === 'Rejected';
-      if (wasManuallyActioned || isAlreadyApprovedOrRejected) return;
-      if (effective[key] === 'Match') {
-        verifications[key] = 'Approved' as VerificationStatus;
-        changed = true;
-      }
-    });
-    if (!changed) return task;
-    const newEffective = getEffectiveVerifications({ ...task, verifications }, taskUploadStates);
-    return { 
-      ...task, 
-      verifications, 
-      status: deriveOverallStatus(newEffective),
-      lastUpdate: new Date().toISOString()
-    };
-  });
-}
+// Auto Approve logic moved to useEffect to ensure permanence
 
 const DATA_VERSION = 'v2026-04i';
 
@@ -132,23 +95,27 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, 
   const oldRef = template.correctValues['REF NO.'];
   const newId = `upload-${Date.now()}`;
 
-  // Clone correctValues, replacing invoice / ref numbers
-  const correctValues: Record<string, string> = {
-    ...template.correctValues,
-    'INVOICE NO.': newInvoiceNo,
-    'REF NO.': newRefNo,
-    "BUYER'S ORDER NO.": newRefNo,
-  };
+  // Clone correctValues, replacing invoice / ref numbers globally
+  const correctValues: Record<string, string> = { ...template.correctValues };
+  for (const [key, val] of Object.entries(correctValues)) {
+    if (typeof val === 'string') {
+      correctValues[key] = val
+        .replace(new RegExp(oldInvoice, 'g'), newInvoiceNo)
+        .replace(new RegExp(oldRef, 'g'), newRefNo);
+    }
+  }
 
-  // Clone only CF documents, replacing invoice / ref wherever they appear
+  // Clone ALL documents, replacing invoice / ref wherever they appear
   const documents = template.documents
-    .filter(d => CF_CLONE_TYPES.has(d.type))
     .map(doc => {
       const values = { ...doc.values };
-      const fm = doc.fieldMapping;
-      if (fm['INVOICE NO.'] && values[fm['INVOICE NO.']] === oldInvoice) values[fm['INVOICE NO.']] = newInvoiceNo;
-      if (fm['REF NO.'] && values[fm['REF NO.']] === oldRef) values[fm['REF NO.']] = newRefNo;
-      if (fm["BUYER'S ORDER NO."] && values[fm["BUYER'S ORDER NO."]] === oldRef) values[fm["BUYER'S ORDER NO."]] = newRefNo;
+      for (const [key, val] of Object.entries(values)) {
+        if (typeof val === 'string') {
+          values[key] = val
+            .replace(new RegExp(oldInvoice, 'g'), newInvoiceNo)
+            .replace(new RegExp(oldRef, 'g'), newRefNo);
+        }
+      }
       return {
         ...doc,
         id: `${newId}-${doc.type.toLowerCase().replace(/[\s/]+/g, '-')}`,
@@ -248,11 +215,50 @@ export default function App() {
       return overrides as Task;
     });
 
-    if (autoApprove) {
-      return applyAutoApprove(merged, uploadStates, actionLogs);
-    }
     return merged;
-  }, [uploadedTaskDefs, taskOverrides, deletedTaskIds, autoApprove, uploadStates, actionLogs]);
+  }, [uploadedTaskDefs, mockTasks, deletedTaskIds, taskOverrides, uploadStates]);
+
+  // Handle Auto-Approve permanently
+  useEffect(() => {
+    if (!autoApprove) return;
+
+    const toUpdate: any[] = [];
+    tasks.forEach(t => {
+      let changed = false;
+      const nextV = { ...t.verifications };
+      (['customFormality', 'insurance', 'draftBL', 'blDate'] as VerificationType[]).forEach(k => {
+        // If it's currently a Match, auto-approve it permanently
+        if (nextV[k] === 'Match') {
+          nextV[k] = 'Approved';
+          changed = true;
+        }
+      });
+
+      if (changed) {
+        toUpdate.push({
+          id: t.id,
+          verifications: nextV,
+          status: deriveOverallStatus(nextV),
+          lastUpdate: new Date().toISOString()
+        });
+      }
+    });
+
+    if (toUpdate.length > 0) {
+      setTaskOverrides(prev => {
+        const next = [...prev];
+        toUpdate.forEach(upd => {
+          const idx = next.findIndex(o => o.id === upd.id);
+          if (idx >= 0) {
+            next[idx] = { ...next[idx], ...upd };
+          } else {
+            next.push(upd);
+          }
+        });
+        return next;
+      });
+    }
+  }, [tasks, autoApprove, setTaskOverrides]);
 
   const [processingUpload, setProcessingUpload] = useState(false);
   const uploadCFRef = useRef<HTMLInputElement>(null);

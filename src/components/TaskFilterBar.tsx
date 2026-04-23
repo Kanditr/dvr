@@ -1,44 +1,44 @@
 import type { TaskStatus, VerificationStatus } from '../data/mockData';
 import type { VerificationType } from '../App';
 
-const ALL_STATUSES: TaskStatus[] = ['Pending', 'Needs Attention', 'All Match', 'Approved', 'Rejected'];
+const ALL_STATUSES: TaskStatus[] = ['Pending', 'Attention', 'Match', 'Approved', 'Rejected'];
 
 const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  'Pending':         'Pending',
-  'Needs Attention': 'Needs Attention',
-  'All Match':       'All Match',
-  'Approved':        'Approved',
-  'Rejected':        'Rejected',
+  'Pending': 'Pending',
+  'Attention': 'Attention',
+  'Match': 'Match',
+  'Approved': 'Approved',
+  'Rejected': 'Rejected',
 };
 
 const VERIFICATION_STATUSES: VerificationStatus[] = [
-  'Pending Verification', 'Needs Attention', 'All Matches', 'Approved', 'Rejected',
+  'Pending Verification', 'Attention', 'Match', 'Approved', 'Rejected',
 ];
 
 const NO_PENDING_DOC_STATUSES: VerificationStatus[] = [
-  'Needs Attention', 'All Matches', 'Approved', 'Rejected',
+  'Attention', 'Match', 'Approved', 'Rejected',
 ];
 
 const TAB_STATUSES: Record<VerificationType, VerificationStatus[]> = {
   customFormality: NO_PENDING_DOC_STATUSES,
-  insurance:       VERIFICATION_STATUSES,
-  draftBL:         VERIFICATION_STATUSES,
-  blDate:          VERIFICATION_STATUSES,
+  insurance: VERIFICATION_STATUSES,
+  draftBL: VERIFICATION_STATUSES,
+  blDate: VERIFICATION_STATUSES,
 };
 
 const VERIFICATION_STATUS_LABEL: Record<VerificationStatus, string> = {
-  'All Matches':          'All Matches',
-  'Approved':             'Approved',
-  'Needs Attention':      'Needs Attention',
-  'Rejected':             'Rejected',
+  'Match': 'Match',
+  'Approved': 'Approved',
+  'Attention': 'Attention',
+  'Rejected': 'Rejected',
   'Pending Verification': 'Pending',
 };
 
 const TAB_FILTER_DEFS: { key: VerificationType; label: string }[] = [
   { key: 'customFormality', label: 'Custom Formality' },
-  { key: 'insurance',       label: 'Draft Insurance' },
-  { key: 'draftBL',         label: 'Draft B/L' },
-  { key: 'blDate',          label: 'B/L Date' },
+  { key: 'insurance', label: 'Draft Insurance' },
+  { key: 'draftBL', label: 'Draft B/L' },
+  { key: 'blDate', label: 'B/L Date' },
 ];
 
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {

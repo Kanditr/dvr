@@ -20,7 +20,7 @@ const TABS: TabDef[] = [
     type: 'customFormality',
     label: 'Custom Formality Verification',
     shortLabel: 'Custom Formality',
-    documents: ['Shipping Advice', 'Custom Invoice', 'Packing List', 'SI or L/C' /*, 'DocXPort'*/],
+    documents: ['Shipping Advice', 'Custom Invoice', 'Packing List', 'SI or L/C', 'DocXPort'],
   },
   {
     type: 'insurance',
@@ -38,7 +38,7 @@ const TABS: TabDef[] = [
     type: 'blDate',
     label: 'B/L Date Verification',
     shortLabel: 'B/L Date',
-    documents: ['Original B/L' /*, 'DocXPort → GI Date / ETD Date / Manual Billing Date'*/],
+    documents: ['Original B/L', 'DocXPort → GI Date / ETD Date / Manual Billing Date'],
   },
 ];
 
@@ -183,7 +183,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     if (
       prev.tab === activeTab &&
       autoApprove &&
-      prev.status === 'All Matches' &&
+      prev.status === 'Match' &&
       currStatus === 'Approved'
     ) {
       setIsTransitioning(true);
@@ -223,11 +223,15 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     }, 2500);
   }
 
-  const isUploadTab = activeTab === 'insurance' || activeTab === 'draftBL';
+  const isUploadTab = activeTab === 'insurance' || activeTab === 'draftBL' || activeTab === 'blDate';
   const isInsuranceDone = (uploadStates['insurance:detail'] ?? 'idle') === 'done' && (uploadStates['insurance:draft'] ?? 'idle') === 'done';
   const isDraftBLDone = (uploadStates['draftBL:shipping'] ?? 'idle') === 'done' && (uploadStates['draftBL:draft'] ?? 'idle') === 'done';
+  const isBLDateDone = (uploadStates['blDate'] ?? 'idle') === 'done';
+
   const currentUploadState: UploadState = isUploadTab
-    ? (activeTab === 'insurance' ? (isInsuranceDone ? 'done' : 'idle') : (isDraftBLDone ? 'done' : 'idle'))
+    ? (activeTab === 'insurance' ? (isInsuranceDone ? 'done' : 'idle')
+      : activeTab === 'draftBL' ? (isDraftBLDone ? 'done' : 'idle')
+        : (isBLDateDone ? 'done' : 'idle'))
     : 'done';
 
   const oblDoc = task.documents.find(d => d.type === 'Original B/L');
@@ -236,7 +240,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   const isTabPending =
     (activeTab === 'insurance' && !isInsuranceDone)
     || (activeTab === 'draftBL' && !isDraftBLDone)
-    || (activeTab === 'blDate' && !blDateHasData);
+    || (activeTab === 'blDate' && !isBLDateDone);
 
   // Auto-log "verified" the first time a tab is viewed with a non-pending status
   useEffect(() => {
@@ -257,18 +261,18 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
 
   const effectiveVerifications: Verifications = {
     ...task.verifications,
-    customFormality: task.verifications.customFormality === 'Pending Verification' ? 'Needs Attention' : task.verifications.customFormality,
+    customFormality: task.verifications.customFormality === 'Pending Verification' ? 'Attention' : task.verifications.customFormality,
     insurance: (uploadStates['insurance'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.insurance,
     draftBL: (uploadStates['draftBL'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
-    blDate: !blDateHasData ? 'Pending Verification' : task.verifications.blDate === 'Pending Verification' ? 'Needs Attention' : task.verifications.blDate,
+    blDate: (uploadStates['blDate'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.blDate,
   };
   const effectiveStatus = deriveOverallStatus(effectiveVerifications);
   const activeTabDef = TABS.find(t => t.type === activeTab)!;
 
   const activeTabStatus: VerificationStatus = (() => {
     let s: VerificationStatus = task.verifications[activeTab];
-    if (activeTab === 'blDate' && !blDateHasData) s = 'Pending Verification';
-    else if ((activeTab === 'customFormality' || activeTab === 'blDate') && s === 'Pending Verification') s = 'Needs Attention';
+    if (activeTab === 'blDate' && (uploadStates['blDate'] ?? 'idle') !== 'done') s = 'Pending Verification';
+    else if (activeTab === 'customFormality' && s === 'Pending Verification') s = 'Attention';
     return s;
   })();
   const isTabActioned = activeTabStatus === 'Approved' || activeTabStatus === 'Rejected';
@@ -324,14 +328,14 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 || (tab.type === 'blDate' && !blDateHasData);
               let tabStatus: VerificationStatus = task.verifications[tab.type];
               if (tab.type === 'blDate' && !blDateHasData) tabStatus = 'Pending Verification';
-              else if ((tab.type === 'customFormality' || tab.type === 'blDate') && tabStatus === 'Pending Verification') tabStatus = 'Needs Attention';
+              else if ((tab.type === 'customFormality' || tab.type === 'blDate') && tabStatus === 'Pending Verification') tabStatus = 'Attention';
               return (
                 <button
                   key={tab.type}
                   onClick={() => onTabChange(tab.type)}
                   className={`flex flex-col items-start gap-1.5 px-5 py-3 border-b-2 transition-colors whitespace-nowrap min-w-0 ${isActive
-                      ? 'border-[#0056b8] bg-white'
-                      : 'border-transparent hover:bg-gray-50 hover:border-gray-200'
+                    ? 'border-[#0056b8] bg-white'
+                    : 'border-transparent hover:bg-gray-50 hover:border-gray-200'
                     }`}
                 >
                   <span className={`text-xs font-semibold ${isActive ? 'text-[#0056b8]' : 'text-gray-500'}`}>
@@ -377,6 +381,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <button
                     onClick={() => {
                       const wasActioned = task.verifications[activeTab] === 'Approved' || task.verifications[activeTab] === 'Rejected';
+                      if (wasActioned) return; // Disallow re-upload if already actioned
                       if (activeTab === 'insurance') {
                         onUploadStateChange('insurance:detail', 'idle');
                         onUploadStateChange('insurance:draft', 'idle');
@@ -388,7 +393,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       }
                       if (wasActioned) onResetForUpload(activeTab);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium text-[#0056b8] border border-[#0056b8] rounded-md hover:bg-[#e8f0fb] transition-colors shrink-0"
+                    disabled={isTabActioned}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabActioned ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
                   >
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -401,9 +407,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <>
                     <input ref={reUploadActionRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleReUploadAfterAction} />
                     <button
-                      onClick={() => !reUploadPending && reUploadActionRef.current?.click()}
-                      disabled={reUploadPending}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${reUploadPending ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                      onClick={() => !reUploadPending && !isTabActioned && reUploadActionRef.current?.click()}
+                      disabled={reUploadPending || isTabActioned}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${reUploadPending || isTabActioned ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -440,10 +446,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       Reject
                     </button>
                     <button
-                      onClick={() => !isTabPending && !isTabActioned && !(autoApprove && activeTabStatus !== 'Needs Attention') && setConfirm({ action: 'approve', vt: activeTab })}
-                      disabled={isTabPending || isTabActioned || (autoApprove && activeTabStatus !== 'Needs Attention')}
-                      title={!isTabActioned && autoApprove && activeTabStatus !== 'Needs Attention' ? 'Auto Approve is enabled in Settings' : undefined}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && activeTabStatus !== 'Needs Attention') ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
+                      onClick={() => !isTabPending && !isTabActioned && !(autoApprove && activeTabStatus !== 'Attention') && setConfirm({ action: 'approve', vt: activeTab })}
+                      disabled={isTabPending || isTabActioned || (autoApprove && activeTabStatus !== 'Attention')}
+                      title={!isTabActioned && autoApprove && activeTabStatus !== 'Attention' ? 'Auto Approve is enabled in Settings' : undefined}
+                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && activeTabStatus !== 'Attention') ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
                     >
                       Approve
                     </button>
@@ -468,7 +474,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
           <div className="flex-1 flex flex-col min-h-0">
             {activeTab === 'insurance' ? (
               isInsuranceDone ? (
-                <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} />
+                <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
               ) : (
                 <div className="flex items-stretch gap-4 p-6">
                   <UploadSlot
@@ -485,7 +491,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               )
             ) : activeTab === 'draftBL' ? (
               isDraftBLDone ? (
-                <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} />
+                <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
               ) : (
                 <div className="flex items-stretch gap-4 p-6">
                   <UploadSlot
@@ -501,9 +507,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 </div>
               )
             ) : activeTab === 'blDate' ? (
-              <BLDateTable task={task} onUpdateTask={onUpdateTask} />
+              <BLDateTable task={task} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
             ) : (
-              <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} />
+              <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
             )}
           </div>
         </div>
