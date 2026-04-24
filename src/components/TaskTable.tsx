@@ -154,6 +154,9 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               <th className={`${thBase} px-6 cursor-pointer select-none`} onClick={() => handleSort('assignedTo')}>
                 <span className="flex items-center">Assignee <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>
               </th>
+              <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
+                Edit Assignee
+              </th>
               {TAB_COLS.map(({ key, label }) => (
                 <th key={key} className={`${thBase} min-w-[140px] whitespace-nowrap`}>
                   {label}
@@ -180,13 +183,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 <td className="px-6 py-4 text-gray-800 font-medium whitespace-nowrap">
                   {task.correctValues['INVOICE NO.'] ?? task.id}
                 </td>
-                <td
-                  className="px-6 py-4 text-gray-700 cursor-pointer hover:bg-black/5 transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingAssigneeId(task.id);
-                  }}
-                >
+                <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
                   {editingAssigneeId === task.id ? (
                     <select
                       autoFocus
@@ -196,7 +193,6 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                         setEditingAssigneeId(null);
                       }}
                       onBlur={() => setEditingAssigneeId(null)}
-                      onClick={(e) => e.stopPropagation()}
                       className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 w-full max-w-[180px] cursor-pointer"
                     >
                       {availableUsers.map(u => (
@@ -206,6 +202,17 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                   ) : (
                     <span>{task.assignedTo || '— unassigned —'}</span>
                   )}
+                </td>
+                <td className="px-4 py-4 text-gray-700">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingAssigneeId(task.id);
+                    }}
+                    className="text-xs text-[#0056b8] hover:underline font-medium"
+                  >
+                    Edit
+                  </button>
                 </td>
                 {TAB_COLS.map(({ key }) => {
                   const status = getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {});
