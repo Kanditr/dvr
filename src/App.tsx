@@ -7,10 +7,11 @@ import CiOverviewPage from './components/CiOverviewPage';
 import LlmComparePage from './components/LlmComparePage';
 import SettingsPage from './components/SettingsPage';
 import LoginPage from './components/LoginPage';
-import { mockTasks, deriveOverallStatus } from './data/mockData';
+import { mockTasks, deriveOverallStatus, insDocs, dblDocs } from './data/mockData';
 import type { Task, TaskStatus, VerificationStatus, Verifications } from './data/mockData';
 import type { UploadState } from './components/DocumentUploadGate';
 import { computeVerificationStatus } from './utils/comparison';
+import { validateFileName } from './utils/validation';
 
 export type VerificationType = 'customFormality' | 'insurance' | 'draftBL' | 'blDate';
 export type ActionLog = { action: 'verified' | 'approve' | 'reject'; timestamp: string; by: string; reason?: string; remark?: string };
@@ -73,11 +74,12 @@ const CF_CLONE_TYPES = new Set(['Shipping Advice', 'Custom Invoice', 'Packing Li
 function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, fileName?: string): Task {
   let newInvoiceNo: string;
   
-  const fileMatch = fileName?.match(/^(\d+)/);
+  // New format: PREFIX_INVOICENORevREVISION.pdf
+  const fileMatch = fileName?.match(/^[A-Z_]+_(.+)Rev\d+\.pdf$/i);
   if (fileMatch) {
     newInvoiceNo = fileMatch[1];
   } else {
-    // Fallback to sequential generation if filename doesn't start with numbers
+    // Fallback
     const maxNum = allCurrentTasks
       .map(t => parseInt(t.correctValues['INVOICE NO.'] ?? '0', 10))
       .filter(n => n > 1000000000)
@@ -167,14 +169,28 @@ export default function App() {
 
   const [revisionStates, setRevisionStates] = useLocalStorage<Record<string, Record<string, { count: number; date: string }>>>('dvr:revisionStates', {});
 
-  function incrementRevision(taskId: string, tab: string) {
+  function incrementRevision(taskId: string, tab: string, specificRev?: number, defaultToZero?: boolean) {
     setRevisionStates(prev => {
       const current = prev[taskId]?.[tab];
+      let nextCount: number;
+      if (specificRev !== undefined) {
+        nextCount = specificRev;
+      } else {
+        // If defaultToZero is true and it doesn't exist, we start at 0.
+        // If it exists, we increment it.
+        if (current === undefined) {
+          nextCount = 0;
+        } else {
+          // If defaultToZero is true, we might NOT want to increment? 
+          // Usually auto-set means "ensure it has a value".
+          nextCount = defaultToZero ? current.count : current.count + 1;
+        }
+      }
       return {
         ...prev,
         [taskId]: {
           ...prev[taskId],
-          [tab]: { count: (current?.count ?? -1) + 1, date: new Date().toISOString() },
+          [tab]: { count: nextCount, date: new Date().toISOString() },
         },
       };
     });
@@ -184,6 +200,9 @@ export default function App() {
   const [touchedUploadedIds, setTouchedUploadedIds] = useLocalStorage<string[]>('dvr:touchedUploads', []);
 
   const [deletedTaskIds, setDeletedTaskIds] = useLocalStorage<string[]>('dvr:deletedTasks', []);
+
+  // Temporary storage for ObjectURLs (not persistent across refreshes)
+  const [fileUrls, setFileUrls] = useState<Record<string, Record<string, string>>>({});
 
   // baseTasks: only manually actioned states — never auto-approve mutations
   const tasks = useMemo(() => {
@@ -225,8 +244,8 @@ export default function App() {
 
     const toUpdate: any[] = [];
     tasks.forEach(t => {
-      // Unassigned tasks should NOT be auto-approved
-      if (!t.assignedTo) return;
+      // Only auto-approve tasks assigned to the CURRENT_USER
+      if (t.assignedTo !== CURRENT_USER) return;
 
       let changed = false;
       const nextV = { ...t.verifications };
@@ -262,7 +281,7 @@ export default function App() {
         return next;
       });
     }
-  }, [tasks, autoApprove, setTaskOverrides]);
+  }, [tasks, autoApprove, setTaskOverrides, CURRENT_USER]);
 
   const [processingUpload, setProcessingUpload] = useState(false);
   const uploadCFRef = useRef<HTMLInputElement>(null);
@@ -310,27 +329,31 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file naming convention: <numbers>_rev<numbers>.pdf
-    const nameRegex = /^\d+_rev\d+\.pdf$/i;
-    if (!nameRegex.test(file.name)) {
-      alert('Invalid file name. Please ensure the file follows the naming convention: <numbers>_rev<numbers>.pdf');
+    const { error, invoiceNo, revNum } = validateFileName(file.name, 'CustomsFormality');
+    if (error) {
+      alert(error);
       e.target.value = '';
       return;
     }
 
-    // Check if invoice number already exists
-    const fileInvoiceMatch = file.name.match(/^(\d+)/);
-    if (fileInvoiceMatch) {
-      const fileInvoiceNo = fileInvoiceMatch[1];
-      const existingTask = tasks.find(t => t.correctValues['INVOICE NO.'] === fileInvoiceNo);
+    if (revNum !== 0) {
+      alert('Only the first version (Rev0) can be uploaded from the main page. For revised versions, please upload them directly within the specific task page.');
+      e.target.value = '';
+      return;
+    }
+
+    if (invoiceNo) {
+      const existingTask = tasks.find(t => (t.correctValues['INVOICE NO.'] || t.id) === invoiceNo);
       if (existingTask) {
-        alert(`Invoice No. ${fileInvoiceNo} already exists. Please upload the revised document in the Custom Formality page instead.`);
+        alert(`Invoice No. ${invoiceNo} already exists. Please upload the revised document in the Custom Formality page instead.`);
         e.target.value = '';
         return;
       }
     }
 
     e.target.value = '';
+    const url = URL.createObjectURL(file);
+    
     // Capture current task list before async delay
     const snapshot = [...uploadedTaskDefs, ...tasks];
     setProcessingUpload(true);
@@ -338,6 +361,12 @@ export default function App() {
       setProcessingUpload(false);
       const snapshot = [...uploadedTaskDefs, ...tasks]; // tasks is already derived
       const newTask = generateUploadedTask(snapshot, '', file.name);
+      
+      setFileUrls(prev => ({
+        ...prev,
+        [newTask.id]: { ...(prev[newTask.id] ?? {}), customFormality: url }
+      }));
+
       setUploadedTaskDefs(prev => [newTask, ...prev]);
     }, 3000);
   }
@@ -438,7 +467,7 @@ export default function App() {
     }));
   }
 
-  function handleUploadStateChange(taskId: string, tab: string, state: UploadState) {
+  function handleUploadStateChange(taskId: string, tab: string, state: UploadState, revNum?: number) {
     setUploadStates(prev => {
       const taskStates = { ...(prev[taskId] ?? {}), [tab]: state };
       if (state === 'done') {
@@ -469,16 +498,37 @@ export default function App() {
     }
 
     if (state === 'done') {
-      if (tab === 'insurance:detail' || tab === 'insurance:draft') {
-        const cur = uploadStates[taskId] ?? {};
-        const otherDone = tab === 'insurance:detail' ? cur['insurance:draft'] === 'done' : cur['insurance:detail'] === 'done';
-        if (otherDone) incrementRevision(taskId, 'insurance');
-      } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
-        const cur = uploadStates[taskId] ?? {};
-        const otherDone = tab === 'draftBL:shipping' ? cur['draftBL:draft'] === 'done' : cur['draftBL:shipping'] === 'done';
-        if (otherDone) incrementRevision(taskId, 'draftBL');
-      } else {
-        incrementRevision(taskId, tab);
+      const t = tasks.find(x => x.id === taskId);
+      if (t) {
+        if (tab === 'insurance:detail' || tab === 'insurance:draft') {
+          const cur = uploadStates[taskId] ?? {};
+          const otherTab = tab === 'insurance:detail' ? 'insurance:draft' : 'insurance:detail';
+          const otherDone = cur[otherTab] === 'done';
+          if (otherDone) {
+            incrementRevision(taskId, 'insurance', revNum, false);
+            // Generate mock documents for insurance if not already present
+            if (!t.documents.some(d => d.type === 'Draft Insurance')) {
+               const mockIns = insDocs(taskId, t.correctValues);
+               updateTaskOverride(taskId, { documents: [...t.documents, ...mockIns] });
+            }
+          }
+        } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
+          const cur = uploadStates[taskId] ?? {};
+          const otherTab = tab === 'draftBL:shipping' ? 'draftBL:draft' : 'draftBL:shipping';
+          const otherDone = cur[otherTab] === 'done';
+          if (otherDone) {
+            incrementRevision(taskId, 'draftBL', revNum, false);
+            // Generate mock documents for draftBL if not already present
+            if (!t.documents.some(d => d.type === 'Draft B/L')) {
+               const mockDbl = dblDocs(taskId, t.correctValues);
+               updateTaskOverride(taskId, { documents: [...t.documents, ...mockDbl] });
+            }
+          }
+        } else if (tab === 'blDate') {
+           incrementRevision(taskId, tab, revNum, false);
+        } else {
+           incrementRevision(taskId, tab, revNum, false);
+        }
       }
     }
     updateTaskOverride(taskId, {});
@@ -525,8 +575,8 @@ export default function App() {
     });
   }
 
-  function handleIncrementRevision(taskId: string, vt: VerificationType) {
-    incrementRevision(taskId, vt);
+  function handleIncrementRevision(taskId: string, vt: VerificationType, revNum?: number, defaultToZero?: boolean) {
+    incrementRevision(taskId, vt, revNum, defaultToZero);
   }
 
   function handleUpdateTask(updatedTask: Task) {
@@ -549,10 +599,24 @@ export default function App() {
 
   const filteredTasks = tasks.filter(t => {
     const invoiceNo = t.correctValues['INVOICE NO.'] ?? t.id;
-    const matchesSearch =
-      search === '' ||
-      invoiceNo.toLowerCase().includes(search.toLowerCase()) ||
-      t.assignedTo.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = (() => {
+      if (search === '') return true;
+      try {
+        // Escape special characters except * and ?, then convert wildcards to regex
+        const regexPattern = search
+          .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape other regex chars
+          .replace(/\*/g, '.*')
+          .replace(/\?/g, '.');
+        const regex = new RegExp(regexPattern, 'i');
+        return regex.test(invoiceNo) || regex.test(t.assignedTo);
+      } catch (e) {
+        // Fallback to includes if regex is invalid
+        return (
+          invoiceNo.toLowerCase().includes(search.toLowerCase()) ||
+          t.assignedTo.toLowerCase().includes(search.toLowerCase())
+        );
+      }
+    })();
     const overallStatus = deriveOverallStatus(getEffectiveVerifications(t, uploadStates[t.id] ?? {}));
     const matchesStatus = statusFilter === 'All' || overallStatus === statusFilter;
 
@@ -706,14 +770,20 @@ export default function App() {
               onApproveVerification={(vt, reason, remark) => handleApproveVerification(currentTask.id, vt, reason, remark)}
               onRejectVerification={(vt, reason, remark) => handleRejectVerification(currentTask.id, vt, reason, remark)}
               uploadStates={uploadStates[currentTask.id] ?? {}}
-              onUploadStateChange={(tab, state) => handleUploadStateChange(currentTask.id, tab, state)}
+              onUploadStateChange={(tab, state, revNum) => handleUploadStateChange(currentTask.id, tab, state, revNum)}
               autoApprove={autoApprove}
+              currentUser={CURRENT_USER}
               actionLogs={actionLogs[currentTask.id] ?? {}}
               onLogVerified={(vt) => handleLogVerified(currentTask.id, vt)}
               onResetForUpload={(vt) => handleResetVerificationForUpload(currentTask.id, vt)}
               revisionStates={revisionStates[currentTask.id] ?? {}}
-              onIncrementRevision={(vt) => handleIncrementRevision(currentTask.id, vt)}
+              onIncrementRevision={(vt, revNum, defaultToZero) => handleIncrementRevision(currentTask.id, vt, revNum, defaultToZero)}
               onUpdateTask={handleUpdateTask}
+              fileUrls={fileUrls[currentTask.id] ?? {}}
+              onFileUrlChange={(tab, url) => setFileUrls(prev => ({
+                ...prev,
+                [currentTask.id]: { ...(prev[currentTask.id] ?? {}), [tab]: url }
+              }))}
             />
           </div>
         )}

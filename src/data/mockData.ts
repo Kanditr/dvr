@@ -293,7 +293,7 @@ function buildInsVals(p: InsValsParams): Record<string, string> {
   return result;
 }
 
-function insDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>): ShipDoc[] {
+export function insDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>): ShipDoc[] {
   const isLC = !!vals['FOR LETTER OF CREDIT PURPOSE'];
   const dipFields = isLC ? INS_DIP_FIELDS_LC : INS_DIP_FIELDS_BASE;
   const draftFields = isLC ? INS_DRAFT_FIELDS_LC : INS_DRAFT_FIELDS_BASE;
@@ -311,7 +311,7 @@ function insDocs(id: string, vals: Record<string, string>, mismatch?: Record<str
   ];
 }
 
-function dblDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>): ShipDoc[] {
+export function dblDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>): ShipDoc[] {
   const dbl: ShipDoc = {
     id: `${id}-dbl`,
     type: 'Draft B/L',

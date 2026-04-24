@@ -7,6 +7,7 @@ import ComparisonTable from './ComparisonTable';
 import BLDateTable from './BLDateTable';
 import type { UploadState } from './DocumentUploadGate';
 import ConfirmModal from './ConfirmModal';
+import { validateFileName } from '../utils/validation';
 
 interface TabDef {
   type: VerificationType;
@@ -67,7 +68,7 @@ function VerificationBadge({ status }: { status: VerificationStatus }) {
   );
 }
 
-function UploadSlot({ label, state, onUpload }: { label: string; state: UploadState; onUpload: () => void }) {
+function UploadSlot({ label, state, onUpload }: { label: string; state: UploadState; onUpload: (file: File) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   if (state === 'done') {
@@ -101,14 +102,21 @@ function UploadSlot({ label, state, onUpload }: { label: string; state: UploadSt
       className="flex-1 border-2 border-dashed border-gray-300 hover:border-[#0056b8] hover:bg-gray-50 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer transition-colors"
       onClick={() => inputRef.current?.click()}
       onDragOver={e => e.preventDefault()}
-      onDrop={e => { e.preventDefault(); if (e.dataTransfer.files?.[0]) onUpload(); }}
+      onDrop={e => { 
+        e.preventDefault(); 
+        const file = e.dataTransfer.files?.[0];
+        if (file) onUpload(file); 
+      }}
     >
       <input
         ref={inputRef}
         type="file"
         accept=".pdf,.png,.jpg,.jpeg,.tiff"
         className="hidden"
-        onChange={e => { if (e.target.files?.[0]) { onUpload(); e.target.value = ''; } }}
+        onChange={e => { 
+          const file = e.target.files?.[0];
+          if (file) { onUpload(file); e.target.value = ''; } 
+        }}
       />
       <div className="w-12 h-12 rounded-full bg-[#e8f0fb] flex items-center justify-center">
         <svg className="w-6 h-6 text-[#0056b8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,14 +149,17 @@ interface CiOverviewPageProps {
   onApproveVerification: (vt: VerificationType, reason?: string, remark?: string) => void;
   onRejectVerification: (vt: VerificationType, reason?: string, remark?: string) => void;
   autoApprove: boolean;
+  currentUser: string;
   uploadStates: Record<string, UploadState>;
-  onUploadStateChange: (tab: string, state: UploadState) => void;
+  onUploadStateChange: (tab: string, state: UploadState, revNum?: number) => void;
   actionLogs: Record<string, ActionLog>;
   onLogVerified: (vt: VerificationType) => void;
   onResetForUpload: (vt: VerificationType) => void;
   revisionStates: Record<string, { count: number; date: string }>;
-  onIncrementRevision: (vt: VerificationType) => void;
+  onIncrementRevision: (vt: VerificationType, revNum?: number) => void;
   onUpdateTask: (task: Task) => void;
+  fileUrls: Record<string, string>;
+  onFileUrlChange: (tab: string, url: string) => void;
 }
 
 function formatActionTimestamp(iso: string): string {
@@ -166,7 +177,7 @@ function formatRevDate(iso: string): string {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
-export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, actionLogs, onLogVerified, onResetForUpload, revisionStates, onIncrementRevision, onUpdateTask }: CiOverviewPageProps) {
+export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, currentUser, actionLogs, onLogVerified, onResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange }: CiOverviewPageProps) {
   const reUploadActionRef = useRef<HTMLInputElement>(null);
   const [reUploadPending, setReUploadPending] = useState(false);
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
@@ -195,31 +206,77 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     prevTabRef.current = { tab: activeTab, status: currStatus };
   }, [task.verifications[activeTab], activeTab]);
 
-  function handleUpload(tab: string) {
+  function handleUpload(tab: string, file: File) {
+    const prefixMap: Record<string, string> = {
+      'insurance:detail': 'DetailInsurance',
+      'insurance:draft': 'DraftInsurance',
+      'draftBL:shipping': 'ShippingParticular',
+      'draftBL:draft': 'DraftBL',
+      'blDate': 'OriginalBL'
+    };
+    const expectedPrefix = prefixMap[tab] || 'Document';
+    const expectedInvoiceNo = task.correctValues['INVOICE NO.'] || task.id;
+    const latestRevision = revisionStates[activeTab]?.count ?? 0;
+
+    const { error, revNum } = validateFileName(file.name, expectedPrefix, expectedInvoiceNo, latestRevision);
+    if (error) {
+      alert(error);
+      return;
+    }
+
+    // New logic: Check if the revision matches the other document in the same pair (Insurance or Draft B/L)
+    if (activeTab === 'insurance' || activeTab === 'draftBL') {
+      const otherTab = tab.endsWith(':detail') ? tab.replace(':detail', ':draft') 
+                    : tab.endsWith(':draft') ? tab.replace(':draft', tab.includes('insurance') ? ':detail' : ':shipping')
+                    : tab.endsWith(':shipping') ? tab.replace(':shipping', ':draft')
+                    : null;
+      
+      if (otherTab && uploadStates[otherTab] === 'done') {
+        // We need to know the revision of the first file. 
+        // Since we don't store individual file revisions in state, we'll use the revNum we just parsed 
+        // to validate against the "latestRevision" which is effectively what the first file set.
+        // Actually, onIncrementRevision hasn't happened yet for THIS upload pair completion.
+        // If one is "done", the revision for the tab has not yet incremented to the next count.
+        // So the first file's revision IS latestRevision.
+        if (revNum !== latestRevision) {
+          alert(`Revision number (${revNum}) is not the same as the first document (${latestRevision}). Both documents in ${activeTab === 'insurance' ? 'Draft Insurance' : 'Draft B/L'} must have the same revision number.`);
+          return;
+        }
+      }
+    }
+
     onUploadStateChange(tab, 'loading');
-    setTimeout(() => onUploadStateChange(tab, 'done'), 2500);
+    const url = URL.createObjectURL(file);
+    setTimeout(() => {
+      onUploadStateChange(tab, 'done', revNum);
+      onFileUrlChange(tab, url);
+    }, 2500);
   }
 
   function handleReUploadAfterAction(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (activeTab === 'customFormality') {
-      const nameRegex = /^\d+_rev\d+\.pdf$/i;
-      if (!nameRegex.test(file.name)) {
-        alert('Invalid file name. Please ensure the file follows the naming convention: <numbers>_rev<numbers>.pdf');
-        e.target.value = '';
-        return;
-      }
+    const expectedInvoiceNo = task.correctValues['INVOICE NO.'] || task.id;
+    const latestRevision = revisionStates[activeTab]?.count ?? 0;
+
+    // handleReUploadAfterAction is currently only accessible for customFormality
+    const { error, revNum } = validateFileName(file.name, 'CustomsFormality', expectedInvoiceNo, latestRevision);
+    if (error) {
+      alert(error);
+      e.target.value = '';
+      return;
     }
 
     e.target.value = '';
     const wasActioned = task.verifications[activeTab] === 'Approved' || task.verifications[activeTab] === 'Rejected';
     setReUploadPending(true);
+    const url = URL.createObjectURL(file);
     setTimeout(() => {
       setReUploadPending(false);
       if (wasActioned) onResetForUpload(activeTab);
-      onIncrementRevision(activeTab);
+      onIncrementRevision(activeTab, revNum);
+      onFileUrlChange(activeTab, url);
     }, 2500);
   }
 
@@ -252,7 +309,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   // Auto-set Rev. 00 the first time a tab has data (before any manual upload)
   useEffect(() => {
     if (!isTabPending && !revisionStates[activeTab]) {
-      onIncrementRevision(activeTab);
+      onIncrementRevision(activeTab, undefined, true);
     }
   }, [activeTab, task.id, isTabPending]);
 
@@ -378,33 +435,107 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               <div className="flex items-center gap-3">
                 {/* Re-upload for insurance / draftBL once both files are already loaded */}
                 {isUploadTab && currentUploadState === 'done' && (
-                  <button
-                    onClick={() => {
-                      const wasActioned = task.verifications[activeTab] === 'Approved' || task.verifications[activeTab] === 'Rejected';
-                      if (wasActioned) return; // Disallow re-upload if already actioned
-                      if (activeTab === 'insurance') {
-                        onUploadStateChange('insurance:detail', 'idle');
-                        onUploadStateChange('insurance:draft', 'idle');
-                        onUploadStateChange('insurance', 'idle');
-                      } else {
-                        onUploadStateChange('draftBL:shipping', 'idle');
-                        onUploadStateChange('draftBL:draft', 'idle');
-                        onUploadStateChange('draftBL', 'idle');
-                      }
-                      if (wasActioned) onResetForUpload(activeTab);
-                    }}
-                    disabled={isTabActioned}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabActioned ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Upload File
-                  </button>
+                  <>
+                    {activeTab === 'insurance' ? (
+                      <>
+                        <button
+                          onClick={() => window.open(fileUrls['insurance:detail'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          View Detail
+                        </button>
+                        <button
+                          onClick={() => window.open(fileUrls['insurance:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          View Draft
+                        </button>
+                      </>
+                    ) : activeTab === 'draftBL' ? (
+                      <>
+                        <button
+                          onClick={() => window.open(fileUrls['draftBL:shipping'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          View Particular
+                        </button>
+                        <button
+                          onClick={() => window.open(fileUrls['draftBL:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          View Draft
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => window.open(fileUrls[activeTab] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View File
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        const wasActioned = task.verifications[activeTab] === 'Approved' || task.verifications[activeTab] === 'Rejected';
+                        if (wasActioned) return; // Disallow re-upload if already actioned
+                        if (activeTab === 'insurance') {
+                          onUploadStateChange('insurance:detail', 'idle');
+                          onUploadStateChange('insurance:draft', 'idle');
+                          onUploadStateChange('insurance', 'idle');
+                        } else if (activeTab === 'draftBL') {
+                          onUploadStateChange('draftBL:shipping', 'idle');
+                          onUploadStateChange('draftBL:draft', 'idle');
+                          onUploadStateChange('draftBL', 'idle');
+                        } else if (activeTab === 'blDate') {
+                          onUploadStateChange('blDate', 'idle');
+                        }
+                        if (wasActioned) onResetForUpload(activeTab);
+                      }}
+                      disabled={isTabActioned}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabActioned ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Upload File
+                    </button>
+                  </>
                 )}
                 {/* Upload File always available for Custom Formality / B/L Date */}
                 {!isUploadTab && (
                   <>
+                    {activeTab === 'customFormality' && (
+                      <button
+                        onClick={() => window.open(fileUrls[activeTab] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        View File
+                      </button>
+                    )}
                     <input ref={reUploadActionRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleReUploadAfterAction} />
                     <button
                       onClick={() => !reUploadPending && !isTabActioned && reUploadActionRef.current?.click()}
@@ -446,10 +577,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       Reject
                     </button>
                     <button
-                      onClick={() => !isTabPending && !isTabActioned && !(autoApprove && task.assignedTo && activeTabStatus !== 'Attention') && setConfirm({ action: 'approve', vt: activeTab })}
-                      disabled={isTabPending || isTabActioned || (autoApprove && task.assignedTo && activeTabStatus !== 'Attention')}
-                      title={!isTabActioned && autoApprove && activeTabStatus !== 'Attention' ? 'Auto Approve is enabled in Settings' : undefined}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && task.assignedTo && activeTabStatus !== 'Attention') ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
+                      onClick={() => !isTabPending && !isTabActioned && !(autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') && setConfirm({ action: 'approve', vt: activeTab })}
+                      disabled={isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention')}
+                      title={!isTabActioned && autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention' ? 'Auto Approve is enabled in Settings' : undefined}
+                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
                     >
                       Approve
                     </button>
@@ -480,12 +611,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <UploadSlot
                     label="Detail for Insurance Purpose"
                     state={uploadStates['insurance:detail'] ?? 'idle'}
-                    onUpload={() => handleUpload('insurance:detail')}
+                    onUpload={(file) => handleUpload('insurance:detail', file)}
                   />
                   <UploadSlot
                     label="Draft Insurance"
                     state={uploadStates['insurance:draft'] ?? 'idle'}
-                    onUpload={() => handleUpload('insurance:draft')}
+                    onUpload={(file) => handleUpload('insurance:draft', file)}
                   />
                 </div>
               )
@@ -497,12 +628,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <UploadSlot
                     label="Shipping Particular"
                     state={uploadStates['draftBL:shipping'] ?? 'idle'}
-                    onUpload={() => handleUpload('draftBL:shipping')}
+                    onUpload={(file) => handleUpload('draftBL:shipping', file)}
                   />
                   <UploadSlot
                     label="Draft B/L"
                     state={uploadStates['draftBL:draft'] ?? 'idle'}
-                    onUpload={() => handleUpload('draftBL:draft')}
+                    onUpload={(file) => handleUpload('draftBL:draft', file)}
                   />
                 </div>
               )
@@ -514,7 +645,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <UploadSlot
                     label="Original Bill of Lading"
                     state={uploadStates['blDate'] ?? 'idle'}
-                    onUpload={() => handleUpload('blDate')}
+                    onUpload={(file) => handleUpload('blDate', file)}
                   />
                 </div>
               )

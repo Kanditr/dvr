@@ -91,7 +91,7 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             </svg>
             <input
               type="text"
-              placeholder="Search by CI No. or assigned user..."
+              placeholder="Search by CI No. or assignee..."
               value={search}
               onChange={e => onSearchChange(e.target.value)}
               className="pl-9 pr-4 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] w-full"
