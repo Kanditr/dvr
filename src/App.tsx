@@ -174,6 +174,10 @@ export default function App() {
       const current = prev[taskId]?.[tab];
       let nextCount: number;
       if (specificRev !== undefined) {
+        // Prevent setting a lower revision if it already exists
+        if (current !== undefined && specificRev < current.count) {
+          return prev;
+        }
         nextCount = specificRev;
       } else {
         // If defaultToZero is true and it doesn't exist, we start at 0.

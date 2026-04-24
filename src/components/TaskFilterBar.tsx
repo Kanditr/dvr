@@ -1,3 +1,4 @@
+import { useRef } from 'react';
 import type { TaskStatus, VerificationStatus } from '../data/mockData';
 import type { VerificationType } from '../App';
 
@@ -79,6 +80,9 @@ interface TaskFilterBarProps {
 }
 
 export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, autoApprove, onAutoApproveChange, dateFrom, dateTo, minDate, maxDate, onDateFromChange, onDateToChange, onReset, onUploadCF }: TaskFilterBarProps) {
+  const dateFromRef = useRef<HTMLInputElement>(null);
+  const dateToRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="px-6 py-4 border-b border-gray-200 flex flex-col gap-3">
       <div className="flex items-end gap-4 flex-wrap">
@@ -137,15 +141,25 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">From</span>
-              <div className="relative">
+              <div 
+                className="relative cursor-pointer"
+                onClick={() => {
+                  try {
+                    dateFromRef.current?.showPicker();
+                  } catch (e) {
+                    dateFromRef.current?.focus();
+                  }
+                }}
+              >
                 <input
                   type="text"
                   readOnly
                   value={dateFrom ? dateFrom.split('-').reverse().join('/') : ''}
                   placeholder="dd/mm/yyyy"
-                  className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px]"
+                  className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px] cursor-pointer"
                 />
                 <input
+                  ref={dateFromRef}
                   type="date"
                   value={dateFrom}
                   min={minDate}
@@ -157,15 +171,25 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">To</span>
-              <div className="relative">
+              <div 
+                className="relative cursor-pointer"
+                onClick={() => {
+                  try {
+                    dateToRef.current?.showPicker();
+                  } catch (e) {
+                    dateToRef.current?.focus();
+                  }
+                }}
+              >
                 <input
                   type="text"
                   readOnly
                   value={dateTo ? dateTo.split('-').reverse().join('/') : ''}
                   placeholder="dd/mm/yyyy"
-                  className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px]"
+                  className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px] cursor-pointer"
                 />
                 <input
+                  ref={dateToRef}
                   type="date"
                   value={dateTo}
                   min={dateFrom || minDate}

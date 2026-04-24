@@ -182,10 +182,21 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   const [reUploadPending, setReUploadPending] = useState(false);
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  
+  // Track the revision of the first file uploaded in a pair (insurance or draftBL)
+  const [partialRevisionStates, setPartialRevisionStates] = useState<Record<string, number>>({});
+  const [isReUploading, setIsReUploading] = useState(false);
+
   const prevTabRef = useRef<{ tab: VerificationType; status: VerificationStatus }>({
     tab: activeTab,
     status: task.verifications[activeTab],
   });
+
+  // Reset states when switching tabs or tasks
+  useEffect(() => {
+    setPartialRevisionStates({});
+    setIsReUploading(false);
+  }, [activeTab, task.id]);
 
   useEffect(() => {
     const prev = prevTabRef.current;
@@ -224,23 +235,24 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       return;
     }
 
-    // New logic: Check if the revision matches the other document in the same pair (Insurance or Draft B/L)
+    // Check consistency for pairs (Insurance or Draft B/L)
     if (activeTab === 'insurance' || activeTab === 'draftBL') {
       const otherTab = tab.endsWith(':detail') ? tab.replace(':detail', ':draft') 
                     : tab.endsWith(':draft') ? tab.replace(':draft', tab.includes('insurance') ? ':detail' : ':shipping')
                     : tab.endsWith(':shipping') ? tab.replace(':shipping', ':draft')
                     : null;
       
-      if (otherTab && uploadStates[otherTab] === 'done') {
-        // We need to know the revision of the first file. 
-        // Since we don't store individual file revisions in state, we'll use the revNum we just parsed 
-        // to validate against the "latestRevision" which is effectively what the first file set.
-        // Actually, onIncrementRevision hasn't happened yet for THIS upload pair completion.
-        // If one is "done", the revision for the tab has not yet incremented to the next count.
-        // So the first file's revision IS latestRevision.
-        if (revNum !== latestRevision) {
-          alert(`Revision number (${revNum}) is not the same as the first document (${latestRevision}). Both documents in ${activeTab === 'insurance' ? 'Draft Insurance' : 'Draft B/L'} must have the same revision number.`);
-          return;
+      if (otherTab) {
+        if (uploadStates[otherTab] === 'done') {
+          // Second file: must match the first file's revision
+          const firstFileRev = partialRevisionStates[`${activeTab}:first`];
+          if (firstFileRev !== undefined && revNum !== firstFileRev) {
+            alert(`Revision number (${revNum}) is not the same as the first document (${firstFileRev}). Both documents in ${activeTab === 'insurance' ? 'Draft Insurance' : 'Draft B/L'} must have the same revision number.`);
+            return;
+          }
+        } else {
+          // First file: set the expected revision for the second file
+          setPartialRevisionStates(prev => ({ ...prev, [`${activeTab}:first`]: revNum! }));
         }
       }
     }
@@ -250,6 +262,15 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     setTimeout(() => {
       onUploadStateChange(tab, 'done', revNum);
       onFileUrlChange(tab, url);
+
+      // If this was the second file of a pair, close the re-upload slots
+      const otherTab = tab.endsWith(':detail') ? tab.replace(':detail', ':draft') 
+                    : tab.endsWith(':draft') ? tab.replace(':draft', tab.includes('insurance') ? ':detail' : ':shipping')
+                    : tab.endsWith(':shipping') ? tab.replace(':shipping', ':draft')
+                    : null;
+      if (otherTab && uploadStates[otherTab] === 'done') {
+        setIsReUploading(false);
+      }
     }, 2500);
   }
 
@@ -498,6 +519,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       onClick={() => {
                         const wasActioned = task.verifications[activeTab] === 'Approved' || task.verifications[activeTab] === 'Rejected';
                         if (wasActioned) return; // Disallow re-upload if already actioned
+                        
+                        setIsReUploading(true);
+                        
                         if (activeTab === 'insurance') {
                           onUploadStateChange('insurance:detail', 'idle');
                           onUploadStateChange('insurance:draft', 'idle');
@@ -602,41 +626,47 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               )}
             </div>
           )}
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col min-h-0 overflow-auto">
             {activeTab === 'insurance' ? (
-              isInsuranceDone ? (
-                <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
-              ) : (
-                <div className="flex items-stretch gap-4 p-6">
-                  <UploadSlot
-                    label="Detail for Insurance Purpose"
-                    state={uploadStates['insurance:detail'] ?? 'idle'}
-                    onUpload={(file) => handleUpload('insurance:detail', file)}
-                  />
-                  <UploadSlot
-                    label="Draft Insurance"
-                    state={uploadStates['insurance:draft'] ?? 'idle'}
-                    onUpload={(file) => handleUpload('insurance:draft', file)}
-                  />
-                </div>
-              )
+              <>
+                {(isReUploading || !isInsuranceDone) && (
+                  <div className="flex items-stretch gap-4 p-6 border-b border-gray-100 shrink-0">
+                    <UploadSlot
+                      label="Detail for Insurance Purpose"
+                      state={uploadStates['insurance:detail'] ?? 'idle'}
+                      onUpload={(file) => handleUpload('insurance:detail', file)}
+                    />
+                    <UploadSlot
+                      label="Draft Insurance"
+                      state={uploadStates['insurance:draft'] ?? 'idle'}
+                      onUpload={(file) => handleUpload('insurance:draft', file)}
+                    />
+                  </div>
+                )}
+                {(isInsuranceDone || isReUploading) && (
+                  <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
+                )}
+              </>
             ) : activeTab === 'draftBL' ? (
-              isDraftBLDone ? (
-                <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
-              ) : (
-                <div className="flex items-stretch gap-4 p-6">
-                  <UploadSlot
-                    label="Shipping Particular"
-                    state={uploadStates['draftBL:shipping'] ?? 'idle'}
-                    onUpload={(file) => handleUpload('draftBL:shipping', file)}
-                  />
-                  <UploadSlot
-                    label="Draft B/L"
-                    state={uploadStates['draftBL:draft'] ?? 'idle'}
-                    onUpload={(file) => handleUpload('draftBL:draft', file)}
-                  />
-                </div>
-              )
+              <>
+                {(isReUploading || !isDraftBLDone) && (
+                  <div className="flex items-stretch gap-4 p-6 border-b border-gray-100 shrink-0">
+                    <UploadSlot
+                      label="Shipping Particular"
+                      state={uploadStates['draftBL:shipping'] ?? 'idle'}
+                      onUpload={(file) => handleUpload('draftBL:shipping', file)}
+                    />
+                    <UploadSlot
+                      label="Draft B/L"
+                      state={uploadStates['draftBL:draft'] ?? 'idle'}
+                      onUpload={(file) => handleUpload('draftBL:draft', file)}
+                    />
+                  </div>
+                )}
+                {(isDraftBLDone || isReUploading) && (
+                  <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
+                )}
+              </>
             ) : activeTab === 'blDate' ? (
               isBLDateDone ? (
                 <BLDateTable task={task} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
