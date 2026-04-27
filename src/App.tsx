@@ -62,7 +62,7 @@ const DATA_VERSION = 'v2026-04i';
 function clearStaleStorage() {
   const stored = localStorage.getItem('dvr:dataVersion');
   if (stored !== DATA_VERSION) {
-    ['dvr:taskOverrides', 'dvr:uploadStates', 'dvr:actionLogs', 'dvr:uploadedTasks', 'dvr:revisionStates', 'dvr:touchedUploads', 'dvr:deletedTasks'].forEach(k => localStorage.removeItem(k));
+    ['dvr:taskOverrides', 'dvr:uploadStates', 'dvr:actionLogs', 'dvr:uploadedTasks', 'dvr:revisionStates', 'dvr:touchedUploads', 'dvr:deletedTasks', 'dvr:revisionHistory'].forEach(k => localStorage.removeItem(k));
     localStorage.setItem('dvr:dataVersion', DATA_VERSION);
   }
 }
@@ -169,36 +169,8 @@ export default function App() {
 
   const [revisionStates, setRevisionStates] = useLocalStorage<Record<string, Record<string, { count: number; date: string }>>>('dvr:revisionStates', {});
 
-  function incrementRevision(taskId: string, tab: string, specificRev?: number, defaultToZero?: boolean) {
-    setRevisionStates(prev => {
-      const current = prev[taskId]?.[tab];
-      let nextCount: number;
-      if (specificRev !== undefined) {
-        // Prevent setting a lower revision if it already exists
-        if (current !== undefined && specificRev < current.count) {
-          return prev;
-        }
-        nextCount = specificRev;
-      } else {
-        // If defaultToZero is true and it doesn't exist, we start at 0.
-        // If it exists, we increment it.
-        if (current === undefined) {
-          nextCount = 0;
-        } else {
-          // If defaultToZero is true, we might NOT want to increment? 
-          // Usually auto-set means "ensure it has a value".
-          nextCount = defaultToZero ? current.count : current.count + 1;
-        }
-      }
-      return {
-        ...prev,
-        [taskId]: {
-          ...prev[taskId],
-          [tab]: { count: nextCount, date: new Date().toISOString() },
-        },
-      };
-    });
-  }
+  const [revisionHistory, setRevisionHistory] = useLocalStorage<Record<string, Record<string, Record<number, any>>>>('dvr:revisionHistory', {});
+  const [fileUrlsHistory, setFileUrlsHistory] = useState<Record<string, Record<string, Record<number, Record<string, string>>>>>({});
 
   const [uploadedTaskDefs, setUploadedTaskDefs] = useLocalStorage<Task[]>('dvr:uploadedTasks', []);
   const [touchedUploadedIds, setTouchedUploadedIds] = useLocalStorage<string[]>('dvr:touchedUploads', []);
@@ -241,6 +213,59 @@ export default function App() {
 
     return merged;
   }, [uploadedTaskDefs, mockTasks, deletedTaskIds, taskOverrides, uploadStates]);
+
+  function incrementRevision(taskId: string, tab: string, specificRev?: number, defaultToZero?: boolean) {
+    const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      const current = revisionStates[taskId]?.[tab];
+      let nextCount: number;
+      if (specificRev !== undefined) {
+        if (current !== undefined && specificRev < current.count) return;
+        nextCount = specificRev;
+      } else {
+        nextCount = current === undefined ? 0 : (defaultToZero ? current.count : current.count + 1);
+      }
+
+      const currentRevNum = current?.count ?? 0;
+      
+      setRevisionHistory(h => ({
+        ...h,
+        [taskId]: {
+          ...(h[taskId] ?? {}),
+          [tab]: {
+            ...(h[taskId]?.[tab] ?? {}),
+            [currentRevNum]: {
+              documents: task.documents,
+              correctValues: task.correctValues,
+              verifications: task.verifications,
+              fieldStatusOverrides: task.fieldStatusOverrides
+            }
+          }
+        }
+      }));
+
+      if (fileUrls[taskId]) {
+        setFileUrlsHistory(fh => ({
+          ...fh,
+          [taskId]: {
+            ...(fh[taskId] ?? {}),
+            [tab]: {
+              ...(fh[taskId]?.[tab] ?? {}),
+              [currentRevNum]: { ...fileUrls[taskId] }
+            }
+          }
+        }));
+      }
+
+      setRevisionStates(prev => ({
+        ...prev,
+        [taskId]: {
+          ...(prev[taskId] ?? {}),
+          [tab]: { count: nextCount, date: new Date().toISOString() },
+        },
+      }));
+    }
+  }
 
   // Handle Auto-Approve permanently
   useEffect(() => {
@@ -359,7 +384,6 @@ export default function App() {
     const url = URL.createObjectURL(file);
     
     // Capture current task list before async delay
-    const snapshot = [...uploadedTaskDefs, ...tasks];
     setProcessingUpload(true);
     setTimeout(() => {
       setProcessingUpload(false);
@@ -510,11 +534,15 @@ export default function App() {
           const otherDone = cur[otherTab] === 'done';
           if (otherDone) {
             incrementRevision(taskId, 'insurance', revNum, false);
-            // Generate mock documents for insurance if not already present
-            if (!t.documents.some(d => d.type === 'Draft Insurance')) {
-               const mockIns = insDocs(taskId, t.correctValues);
-               updateTaskOverride(taskId, { documents: [...t.documents, ...mockIns] });
-            }
+            
+            // Generate mock documents for insurance, injecting mismatch if it's a revision
+            const isRevision = revNum !== undefined && revNum > 0;
+            const mismatch = isRevision ? { 'AMOUNT INSURED HEREUNDER': `USD ${((Math.random() * 100000) + 100000).toFixed(2)}` } : undefined;
+            const newInsDocs = insDocs(taskId, t.correctValues, mismatch);
+            
+            // Filter out old insurance documents and append new ones
+            const filteredDocs = t.documents.filter(d => d.type !== 'Draft Insurance' && d.type !== 'Detail for Insurance Purpose');
+            updateTaskOverride(taskId, { documents: [...filteredDocs, ...newInsDocs] });
           }
         } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
           const cur = uploadStates[taskId] ?? {};
@@ -522,11 +550,15 @@ export default function App() {
           const otherDone = cur[otherTab] === 'done';
           if (otherDone) {
             incrementRevision(taskId, 'draftBL', revNum, false);
-            // Generate mock documents for draftBL if not already present
-            if (!t.documents.some(d => d.type === 'Draft B/L')) {
-               const mockDbl = dblDocs(taskId, t.correctValues);
-               updateTaskOverride(taskId, { documents: [...t.documents, ...mockDbl] });
-            }
+            
+            // Generate mock documents for draftBL, injecting mismatch if it's a revision
+            const isRevision = revNum !== undefined && revNum > 0;
+            const mismatch = isRevision ? { 'Gross Weight': `${(Math.random() * 500000 + 100000).toFixed(0)} KG` } : undefined;
+            const newDblDocs = dblDocs(taskId, t.correctValues, mismatch);
+            
+            // Filter out old draftBL documents and append new ones
+            const filteredDocs = t.documents.filter(d => d.type !== 'Draft B/L' && d.type !== 'Shipping Particular');
+            updateTaskOverride(taskId, { documents: [...filteredDocs, ...newDblDocs] });
           }
         } else if (tab === 'blDate') {
            incrementRevision(taskId, tab, revNum, false);
@@ -600,6 +632,13 @@ export default function App() {
     view.page === 'ci-overview'
       ? tasks.find(t => t.id === view.taskId) ?? null
       : null;
+
+  // If we are in ci-overview but the task is missing (e.g. wiped by storage clear), go home
+  useEffect(() => {
+    if (view.page === 'ci-overview' && !currentTask && tasks.length > 0) {
+      navigateHome();
+    }
+  }, [view.page, currentTask, tasks.length]);
 
   const filteredTasks = tasks.filter(t => {
     const invoiceNo = t.correctValues['INVOICE NO.'] ?? t.id;
@@ -788,6 +827,8 @@ export default function App() {
                 ...prev,
                 [currentTask.id]: { ...(prev[currentTask.id] ?? {}), [tab]: url }
               }))}
+              revisionHistory={revisionHistory[currentTask.id] ?? {}}
+              fileUrlsHistory={fileUrlsHistory[currentTask.id] ?? {}}
             />
           </div>
         )}

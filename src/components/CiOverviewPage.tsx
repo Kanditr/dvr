@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useMemo } from 'react';
 import type { Task, VerificationStatus, Verifications } from '../data/mockData';
 import { deriveOverallStatus } from '../data/mockData';
 import type { VerificationType, ActionLog } from '../App';
@@ -156,10 +156,12 @@ interface CiOverviewPageProps {
   onLogVerified: (vt: VerificationType) => void;
   onResetForUpload: (vt: VerificationType) => void;
   revisionStates: Record<string, { count: number; date: string }>;
-  onIncrementRevision: (vt: VerificationType, revNum?: number) => void;
+  onIncrementRevision: (vt: VerificationType, revNum?: number, defaultToZero?: boolean) => void;
   onUpdateTask: (task: Task) => void;
   fileUrls: Record<string, string>;
   onFileUrlChange: (tab: string, url: string) => void;
+  revisionHistory: Record<string, Record<number, any>>;
+  fileUrlsHistory: Record<string, Record<number, Record<string, string>>>;
 }
 
 function formatActionTimestamp(iso: string): string {
@@ -177,11 +179,44 @@ function formatRevDate(iso: string): string {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
-export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, currentUser, actionLogs, onLogVerified, onResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange }: CiOverviewPageProps) {
+export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, currentUser, actionLogs, onLogVerified, onResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange, revisionHistory, fileUrlsHistory }: CiOverviewPageProps) {
   const reUploadActionRef = useRef<HTMLInputElement>(null);
   const [reUploadPending, setReUploadPending] = useState(false);
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  const [viewingRevision, setViewingRevision] = useState<Record<string, number>>({});
+  const latestRevision = revisionStates[activeTab]?.count ?? 0;
+  const activeRevision = viewingRevision[activeTab] ?? latestRevision;
+
+  // Automatically shift to the latest revision when switching tabs or when a new revision is uploaded
+  useEffect(() => {
+    setViewingRevision(prev => {
+      if (prev[activeTab] === undefined) return prev;
+      const next = { ...prev };
+      delete next[activeTab];
+      return next;
+    });
+  }, [activeTab, latestRevision]);
+
+  const displayTask = useMemo(() => {
+    if (activeRevision === latestRevision) return task;
+    const historical = revisionHistory[activeTab]?.[activeRevision];
+    if (!historical) return task;
+    return {
+      ...task,
+      documents: historical.documents,
+      correctValues: historical.correctValues,
+      verifications: historical.verifications,
+      fieldStatusOverrides: historical.fieldStatusOverrides
+    };
+  }, [task, activeTab, activeRevision, latestRevision, revisionHistory]);
+
+  const displayFileUrls = useMemo(() => {
+    if (activeRevision === latestRevision) return fileUrls;
+    const historical = fileUrlsHistory[activeTab]?.[activeRevision];
+    return historical ?? fileUrls;
+  }, [fileUrls, activeTab, activeRevision, latestRevision, fileUrlsHistory]);
   
   // Track the revision of the first file uploaded in a pair (insurance or draftBL)
   const [partialRevisionStates, setPartialRevisionStates] = useState<Record<string, number>>({});
@@ -434,9 +469,36 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-sm font-semibold text-gray-900">{activeTabDef.label}</h2>
                   {revisionStates[activeTab] && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-[#e8f0fb] text-[#0056b8] border border-[#c5d9f5] whitespace-nowrap">
-                      Rev. {String(revisionStates[activeTab].count).padStart(2, '0')} · {formatRevDate(revisionStates[activeTab].date)}
-                    </span>
+                    <div className="flex items-center gap-1">
+                      {latestRevision > 0 && (
+                        <button
+                          onClick={() => setViewingRevision(prev => ({ ...prev, [activeTab]: activeRevision - 1 }))}
+                          disabled={activeRevision <= 0}
+                          className={`p-0.5 rounded transition-colors ${activeRevision <= 0 ? 'text-gray-300 cursor-not-allowed' : 'text-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                          title="Previous Revision"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                      )}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap transition-colors ${activeRevision !== latestRevision ? 'bg-[#fff2f0] text-[#c2410c] border-[#ffdfd6]' : 'bg-[#e8f0fb] text-[#0056b8] border-[#c5d9f5]'}`}>
+                        Rev. {String(activeRevision).padStart(2, '0')} · {formatRevDate(revisionStates[activeTab].date)}
+                        {activeRevision !== latestRevision && <span className="ml-1">(past revision)</span>}
+                      </span>
+                      {latestRevision > 0 && (
+                        <button
+                          onClick={() => setViewingRevision(prev => ({ ...prev, [activeTab]: activeRevision + 1 }))}
+                          disabled={activeRevision >= latestRevision}
+                          className={`p-0.5 rounded transition-colors ${activeRevision >= latestRevision ? 'text-gray-300 cursor-not-allowed' : 'text-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                          title="Next Revision"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5">
@@ -460,59 +522,59 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     {activeTab === 'insurance' ? (
                       <>
                         <button
-                          onClick={() => window.open(fileUrls['insurance:detail'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          onClick={() => window.open(displayFileUrls['insurance:detail'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
                           className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
-                          View Detail
+                          View Detail Insurance
                         </button>
                         <button
-                          onClick={() => window.open(fileUrls['insurance:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          onClick={() => window.open(displayFileUrls['insurance:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
                           className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
-                          View Draft
+                          View Draft Insurance
                         </button>
                       </>
                     ) : activeTab === 'draftBL' ? (
                       <>
                         <button
-                          onClick={() => window.open(fileUrls['draftBL:shipping'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          onClick={() => window.open(displayFileUrls['draftBL:shipping'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
                           className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
-                          View Particular
+                          View Shipping Particular
                         </button>
                         <button
-                          onClick={() => window.open(fileUrls['draftBL:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          onClick={() => window.open(displayFileUrls['draftBL:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
                           className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                           </svg>
-                          View Draft
+                          View Draft B/L
                         </button>
                       </>
                     ) : (
                       <button
-                        onClick={() => window.open(fileUrls[activeTab] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                        onClick={() => window.open(displayFileUrls[activeTab] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
                         className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
-                        View File
+                        View Original B/L
                       </button>
                     )}
                     <button
@@ -521,6 +583,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         if (wasActioned) return; // Disallow re-upload if already actioned
                         
                         setIsReUploading(true);
+                        setViewingRevision(prev => ({ ...prev, [activeTab]: latestRevision })); // Jump back to latest on re-upload
                         
                         if (activeTab === 'insurance') {
                           onUploadStateChange('insurance:detail', 'idle');
@@ -550,19 +613,24 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <>
                     {activeTab === 'customFormality' && (
                       <button
-                        onClick={() => window.open(fileUrls[activeTab] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                        onClick={() => window.open(displayFileUrls[activeTab] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
                         className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                         </svg>
-                        View File
+                        View Custom Formality
                       </button>
                     )}
                     <input ref={reUploadActionRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleReUploadAfterAction} />
                     <button
-                      onClick={() => !reUploadPending && !isTabActioned && reUploadActionRef.current?.click()}
+                      onClick={() => {
+                        if (!reUploadPending && !isTabActioned) {
+                          setViewingRevision(prev => ({ ...prev, [activeTab]: latestRevision })); // Jump back to latest
+                          reUploadActionRef.current?.click();
+                        }
+                      }}
                       disabled={reUploadPending || isTabActioned}
                       className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${reUploadPending || isTabActioned ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
                     >
@@ -574,7 +642,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   </>
                 )}
                 <button
-                  onClick={() => !isTabPending && exportVerificationTab(task, activeTab)}
+                  onClick={() => !isTabPending && exportVerificationTab(displayTask, activeTab)}
                   disabled={isTabPending}
                   className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabPending ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-gray-600 border-gray-300 hover:bg-gray-50'}`}
                 >
@@ -595,16 +663,16 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   <>
                     <button
                       onClick={() => !isTabPending && !isTabActioned && setConfirm({ action: 'reject', vt: activeTab })}
-                      disabled={isTabPending || isTabActioned}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned ? 'border border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed' : 'border border-red-600 text-red-600 hover:bg-red-50'}`}
+                      disabled={isTabPending || isTabActioned || activeRevision !== latestRevision}
+                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || activeRevision !== latestRevision ? 'border border-gray-300 text-gray-400 bg-gray-100 cursor-not-allowed' : 'border border-red-600 text-red-600 hover:bg-red-50'}`}
                     >
                       Reject
                     </button>
                     <button
                       onClick={() => !isTabPending && !isTabActioned && !(autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') && setConfirm({ action: 'approve', vt: activeTab })}
-                      disabled={isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention')}
+                      disabled={isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') || activeRevision !== latestRevision}
                       title={!isTabActioned && autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention' ? 'Auto Approve is enabled in Settings' : undefined}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
+                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') || activeRevision !== latestRevision ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
                     >
                       Approve
                     </button>
@@ -644,7 +712,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   </div>
                 )}
                 {(isInsuranceDone || isReUploading) && (
-                  <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
+                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
                 )}
               </>
             ) : activeTab === 'draftBL' ? (
@@ -664,12 +732,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   </div>
                 )}
                 {(isDraftBLDone || isReUploading) && (
-                  <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
+                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
                 )}
               </>
             ) : activeTab === 'blDate' ? (
               isBLDateDone ? (
-                <BLDateTable task={task} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
+                <BLDateTable task={displayTask} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
               ) : (
                 <div className="flex items-stretch gap-4 p-6">
                   <UploadSlot
@@ -680,7 +748,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 </div>
               )
             ) : (
-              <ComparisonTable task={task} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned} />
+              <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
             )}
           </div>
         </div>
