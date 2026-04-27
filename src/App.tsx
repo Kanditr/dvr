@@ -436,9 +436,13 @@ export default function App() {
       .map(t => t.submittedDate.split('T')[0])
       .filter(Boolean)
       .sort();
+    
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
+    const latestDate = dates[dates.length - 1] ?? '';
+    
     return {
       minDate: dates[0] ?? '',
-      maxDate: dates[dates.length - 1] ?? '',
+      maxDate: latestDate > today ? latestDate : today,
     };
   }, [tasks]);
 
