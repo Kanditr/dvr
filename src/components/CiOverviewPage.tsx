@@ -199,6 +199,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     });
   }, [activeTab, latestRevision]);
 
+  const availableRevisions = useMemo(() => {
+    const history = revisionHistory[activeTab] ?? {};
+    const keys = Object.keys(history).map(Number);
+    const all = [...keys, latestRevision].sort((a, b) => a - b);
+    return Array.from(new Set(all));
+  }, [activeTab, revisionHistory, latestRevision]);
+
   const displayTask = useMemo(() => {
     if (activeRevision === latestRevision) return task;
     const historical = revisionHistory[activeTab]?.[activeRevision];
@@ -472,9 +479,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     <div className="flex items-center gap-1">
                       {latestRevision > 0 && (
                         <button
-                          onClick={() => setViewingRevision(prev => ({ ...prev, [activeTab]: activeRevision - 1 }))}
-                          disabled={activeRevision <= 0}
-                          className={`p-0.5 rounded transition-colors ${activeRevision <= 0 ? 'text-gray-300 cursor-not-allowed' : 'text-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                          onClick={() => {
+                            const idx = availableRevisions.indexOf(activeRevision);
+                            if (idx > 0) setViewingRevision(prev => ({ ...prev, [activeTab]: availableRevisions[idx - 1] }));
+                          }}
+                          disabled={activeRevision <= availableRevisions[0]}
+                          className={`p-0.5 rounded transition-colors ${activeRevision <= availableRevisions[0] ? 'text-gray-300 cursor-not-allowed' : 'text-[#0056b8] hover:bg-[#e8f0fb]'}`}
                           title="Previous Revision"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -483,12 +493,15 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         </button>
                       )}
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap transition-colors ${activeRevision !== latestRevision ? 'bg-[#fff2f0] text-[#c2410c] border-[#ffdfd6]' : 'bg-[#e8f0fb] text-[#0056b8] border-[#c5d9f5]'}`}>
-                        Rev. {String(activeRevision).padStart(2, '0')} · {formatRevDate(revisionStates[activeTab].date)}
+                        Rev. {String(activeRevision).padStart(2, '0')} · {formatRevDate(activeRevision === latestRevision ? revisionStates[activeTab].date : (revisionHistory[activeTab]?.[activeRevision]?.date ?? revisionStates[activeTab].date))}
                         {activeRevision !== latestRevision && <span className="ml-1">(past revision)</span>}
                       </span>
                       {latestRevision > 0 && (
                         <button
-                          onClick={() => setViewingRevision(prev => ({ ...prev, [activeTab]: activeRevision + 1 }))}
+                          onClick={() => {
+                            const idx = availableRevisions.indexOf(activeRevision);
+                            if (idx >= 0 && idx < availableRevisions.length - 1) setViewingRevision(prev => ({ ...prev, [activeTab]: availableRevisions[idx + 1] }));
+                          }}
                           disabled={activeRevision >= latestRevision}
                           className={`p-0.5 rounded transition-colors ${activeRevision >= latestRevision ? 'text-gray-300 cursor-not-allowed' : 'text-[#0056b8] hover:bg-[#e8f0fb]'}`}
                           title="Next Revision"

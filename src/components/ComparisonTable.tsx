@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { buildComparisonRows, getDocsForVerification } from '../utils/comparison';
 import type { Task } from '../data/mockData';
 import type { VerificationType } from '../App';
@@ -233,6 +233,20 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
   const docs = getDocsForVerification(task, verificationType);
   const allRows = buildComparisonRows({ ...task, documents: docs }, verificationType);
 
+  // Freeze the match status so it doesn't change when values are edited locally
+  const frozenMatches = useMemo(() => {
+    const matches: Record<string, boolean> = {};
+    allRows.forEach(row => {
+      row.cells.forEach((cell, ci) => {
+        const key = `${row.canonicalField}:${ci}`;
+        matches[key] = cell.isMatch;
+      });
+    });
+    return matches;
+    // Only recalculate when the structure of documents changes (e.g. new revision/upload)
+    // We use doc IDs to detect structural changes.
+  }, [task.id, verificationType, docs.map(d => d.id).join(',')]);
+
   const uniqueFields = [...new Set(allRows.map(r => r.canonicalField))];
 
   const rows = allRows.filter(row => {
@@ -337,7 +351,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
                   {row.cells.map((cell, ci) => {
                     const doc = docs[ci];
                     return (
-                      <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : cell.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
+                      <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : frozenMatches[`${row.canonicalField}:${ci}`] ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
                         <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
                         <EditableValue
                           value={cell.value}

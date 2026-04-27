@@ -238,7 +238,8 @@ export default function App() {
               documents: task.documents,
               correctValues: task.correctValues,
               verifications: task.verifications,
-              fieldStatusOverrides: task.fieldStatusOverrides
+              fieldStatusOverrides: task.fieldStatusOverrides,
+              date: current?.date ?? new Date().toISOString()
             }
           }
         }
