@@ -206,6 +206,7 @@ export default function App() {
           }
         }
       }
+
       overrides.verifications = newVerifications;
       overrides.status = deriveOverallStatus(newVerifications);
       return overrides as Task;
@@ -213,6 +214,42 @@ export default function App() {
 
     return merged;
   }, [uploadedTaskDefs, mockTasks, deletedTaskIds, taskOverrides, uploadStates]);
+
+  const pendingAutoApproveRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (pendingAutoApproveRef.current.size === 0) return;
+    if (!autoApprove) {
+      pendingAutoApproveRef.current.clear();
+      return;
+    }
+
+    pendingAutoApproveRef.current.forEach(item => {
+      const [taskId, tab] = item.split('|') as [string, VerificationType];
+      const t = tasks.find(x => x.id === taskId);
+      if (!t || t.assignedTo !== CURRENT_USER) {
+        pendingAutoApproveRef.current.delete(item);
+        return;
+      }
+
+      let changed = false;
+      const nextV = { ...t.verifications };
+      if (nextV[tab] === 'Match') {
+        nextV[tab] = 'Approved';
+        changed = true;
+      }
+
+      if (changed) {
+        updateTaskOverride(taskId, { verifications: nextV, status: deriveOverallStatus(nextV) });
+      }
+      pendingAutoApproveRef.current.delete(item);
+    });
+  }, [tasks, autoApprove, CURRENT_USER]);
+
+  function applyAutoApprovePersistent(taskId: string, tab: VerificationType) {
+    if (!autoApprove) return;
+    pendingAutoApproveRef.current.add(`${taskId}|${tab}`);
+  }
 
   function incrementRevision(taskId: string, tab: string, specificRev?: number, defaultToZero?: boolean) {
     const task = tasks.find(t => t.id === taskId);
@@ -267,51 +304,6 @@ export default function App() {
       }));
     }
   }
-
-  // Handle Auto-Approve permanently
-  useEffect(() => {
-    if (!autoApprove) return;
-
-    const toUpdate: any[] = [];
-    tasks.forEach(t => {
-      // Only auto-approve tasks assigned to the CURRENT_USER
-      if (t.assignedTo !== CURRENT_USER) return;
-
-      let changed = false;
-      const nextV = { ...t.verifications };
-      (['customFormality', 'insurance', 'draftBL', 'blDate'] as VerificationType[]).forEach(k => {
-        // If it's currently a Match, auto-approve it permanently
-        if (nextV[k] === 'Match') {
-          nextV[k] = 'Approved';
-          changed = true;
-        }
-      });
-
-      if (changed) {
-        toUpdate.push({
-          id: t.id,
-          verifications: nextV,
-          status: deriveOverallStatus(nextV),
-          lastUpdate: new Date().toISOString()
-        });
-      }
-    });
-
-    if (toUpdate.length > 0) {
-      setTaskOverrides(prev => {
-        const next = [...prev];
-        toUpdate.forEach(upd => {
-          const idx = next.findIndex(o => o.id === upd.id);
-          if (idx >= 0) {
-            next[idx] = { ...next[idx], ...upd };
-          } else {
-            next.push(upd);
-          }
-        });
-        return next;
-      });
-    }
-  }, [tasks, autoApprove, setTaskOverrides, CURRENT_USER]);
 
   const [processingUpload, setProcessingUpload] = useState(false);
   const uploadCFRef = useRef<HTMLInputElement>(null);
@@ -389,7 +381,7 @@ export default function App() {
     setTimeout(() => {
       setProcessingUpload(false);
       const snapshot = [...uploadedTaskDefs, ...tasks]; // tasks is already derived
-      const newTask = generateUploadedTask(snapshot, '', file.name);
+      const newTask = generateUploadedTask(snapshot, '', file.name); // Keep unassigned initially
       
       setFileUrls(prev => ({
         ...prev,
@@ -548,6 +540,7 @@ export default function App() {
             // Filter out old insurance documents and append new ones
             const filteredDocs = t.documents.filter(d => d.type !== 'Draft Insurance' && d.type !== 'Detail for Insurance Purpose');
             updateTaskOverride(taskId, { documents: [...filteredDocs, ...newInsDocs] });
+            applyAutoApprovePersistent(taskId, 'insurance');
           }
         } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
           const cur = uploadStates[taskId] ?? {};
@@ -564,11 +557,14 @@ export default function App() {
             // Filter out old draftBL documents and append new ones
             const filteredDocs = t.documents.filter(d => d.type !== 'Draft B/L' && d.type !== 'Shipping Particular');
             updateTaskOverride(taskId, { documents: [...filteredDocs, ...newDblDocs] });
+            applyAutoApprovePersistent(taskId, 'draftBL');
           }
         } else if (tab === 'blDate') {
            incrementRevision(taskId, tab, revNum, false);
+           applyAutoApprovePersistent(taskId, 'blDate');
         } else {
            incrementRevision(taskId, tab, revNum, false);
+           applyAutoApprovePersistent(taskId, tab as VerificationType);
         }
       }
     }
@@ -600,7 +596,7 @@ export default function App() {
   }
 
   function handleResetVerificationForUpload(taskId: string, verificationType: VerificationType) {
-    const original = mockTasks.find(t => t.id === taskId);
+    const original = mockTasks.find(t => t.id === taskId) || uploadedTaskDefs.find(t => t.id === taskId);
     if (!original) return;
     const originalStatus = original.verifications[verificationType];
     const t = tasks.find(x => x.id === taskId);
@@ -724,7 +720,7 @@ export default function App() {
 
   return (
     <div className="h-screen bg-[#f3f6f8] flex flex-col overflow-hidden">
-      <Navbar currentUser={effectiveUser} onNavigateHome={navigateHome} onLogout={handleLogout} />
+      <Navbar currentUser={effectiveUser} autoApprove={autoApprove} onAutoApproveChange={handleAutoApproveChange} onNavigateHome={navigateHome} onLogout={handleLogout} />
 
       <div className="flex-1 min-h-0 pt-14 flex flex-col overflow-hidden">
         {view.page === 'home' && (
@@ -756,7 +752,7 @@ export default function App() {
                 onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setTaskPage(1); }}
                 onUploadCF={() => uploadCFRef.current?.click()}
               />
-              <input ref={uploadCFRef} type="file" accept=".pdf,.xlsx,.xls,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleCFUploadChange} />
+              <input ref={uploadCFRef} type="file" accept="*" className="hidden" onChange={handleCFUploadChange} />
               <div className="flex-1 min-h-0 overflow-hidden">
                 <TaskTable
                   tasks={filteredTasks}
@@ -799,8 +795,6 @@ export default function App() {
         {view.page === 'settings' && (
           <div className="flex-1 overflow-auto">
             <SettingsPage
-              autoApprove={autoApprove}
-              onAutoApproveChange={handleAutoApproveChange}
               onlyMyTasks={onlyMyTasks}
               onOnlyMyTasksChange={setOnlyMyTasks}
               onBack={navigateBack}

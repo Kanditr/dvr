@@ -117,9 +117,9 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
 
   if (status === 'match') {
     return (
-      <button 
-        onClick={() => !isReadOnly && setIsEditing(true)} 
-        disabled={isReadOnly} 
+      <button
+        onClick={() => !isReadOnly && setIsEditing(true)}
+        disabled={isReadOnly}
         className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}
       >
         Match
@@ -127,9 +127,9 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
     );
   }
   return (
-    <button 
-      onClick={() => !isReadOnly && setIsEditing(true)} 
-      disabled={isReadOnly} 
+    <button
+      onClick={() => !isReadOnly && setIsEditing(true)}
+      disabled={isReadOnly}
       className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}
     >
       Mismatch
@@ -306,11 +306,7 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
                 </td>
 
                 <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                  <StatusToggle
-                    status={row.overriddenStatus as 'match' | 'mismatch'}
-                    onChange={(next) => handleToggleStatus(row.fieldName, next)}
-                    isReadOnly={isReadOnly}
-                  />
+                  {/* Status value removed as per request */}
                 </td>
               </tr>
             ))}

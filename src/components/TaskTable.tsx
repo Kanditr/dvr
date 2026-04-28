@@ -171,7 +171,6 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               {isAdmin && (
                 <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 w-10 sticky top-0 z-20 bg-[#d9ecf3] shadow-[0_1px_0_rgba(0,0,0,0.05)]">Delete</th>
               )}
-              <th className="px-4 py-2 w-16 sticky top-0 z-20 bg-[#d9ecf3] shadow-[0_1px_0_rgba(0,0,0,0.05)]" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -245,14 +244,6 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                     </svg>
                   </td>
                 )}
-                <td
-                  className="px-4 py-4 text-center cursor-pointer"
-                  onClick={(e) => { e.stopPropagation(); onSelectTask(task.id, 'customFormality'); }}
-                >
-                  <svg className="w-4 h-4 text-gray-400 mx-auto group-hover:text-[#0056b8] transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </td>
               </tr>
             ))}
             {processed.length === 0 && (

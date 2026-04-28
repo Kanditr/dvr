@@ -1,6 +1,4 @@
 interface SettingsPageProps {
-  autoApprove: boolean;
-  onAutoApproveChange: (value: boolean) => void;
   onlyMyTasks: boolean;
   onOnlyMyTasksChange: (value: boolean) => void;
   onBack: () => void;
@@ -26,7 +24,6 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 }
 
 export default function SettingsPage({
-  autoApprove, onAutoApproveChange,
   onlyMyTasks, onOnlyMyTasksChange,
   onBack,
 }: SettingsPageProps) {
@@ -56,17 +53,6 @@ export default function SettingsPage({
             </p>
           </div>
           <Toggle checked={onlyMyTasks} onChange={onOnlyMyTasksChange} />
-        </div>
-
-        {/* Auto Approve */}
-        <div className="px-6 py-5 flex items-start justify-between gap-6">
-          <div>
-            <p className="text-sm font-semibold text-gray-800">Auto Approve</p>
-            <p className="text-xs text-gray-500 mt-0.5">
-              When enabled, all document verifications are automatically approved. The Approve button will be disabled on individual tasks.
-            </p>
-          </div>
-          <Toggle checked={autoApprove} onChange={onAutoApproveChange} />
         </div>
 
       </div>

@@ -102,20 +102,20 @@ function UploadSlot({ label, state, onUpload }: { label: string; state: UploadSt
       className="flex-1 border-2 border-dashed border-gray-300 hover:border-[#0056b8] hover:bg-gray-50 rounded-xl p-8 flex flex-col items-center gap-3 cursor-pointer transition-colors"
       onClick={() => inputRef.current?.click()}
       onDragOver={e => e.preventDefault()}
-      onDrop={e => { 
-        e.preventDefault(); 
+      onDrop={e => {
+        e.preventDefault();
         const file = e.dataTransfer.files?.[0];
-        if (file) onUpload(file); 
+        if (file) onUpload(file);
       }}
     >
       <input
         ref={inputRef}
         type="file"
-        accept=".pdf,.png,.jpg,.jpeg,.tiff"
+        accept="*"
         className="hidden"
-        onChange={e => { 
+        onChange={e => {
           const file = e.target.files?.[0];
-          if (file) { onUpload(file); e.target.value = ''; } 
+          if (file) { onUpload(file); e.target.value = ''; }
         }}
       />
       <div className="w-12 h-12 rounded-full bg-[#e8f0fb] flex items-center justify-center">
@@ -224,7 +224,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     const historical = fileUrlsHistory[activeTab]?.[activeRevision];
     return historical ?? fileUrls;
   }, [fileUrls, activeTab, activeRevision, latestRevision, fileUrlsHistory]);
-  
+
   // Track the revision of the first file uploaded in a pair (insurance or draftBL)
   const [partialRevisionStates, setPartialRevisionStates] = useState<Record<string, number>>({});
   const [isReUploading, setIsReUploading] = useState(false);
@@ -279,11 +279,11 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
 
     // Check consistency for pairs (Insurance or Draft B/L)
     if (activeTab === 'insurance' || activeTab === 'draftBL') {
-      const otherTab = tab.endsWith(':detail') ? tab.replace(':detail', ':draft') 
-                    : tab.endsWith(':draft') ? tab.replace(':draft', tab.includes('insurance') ? ':detail' : ':shipping')
-                    : tab.endsWith(':shipping') ? tab.replace(':shipping', ':draft')
-                    : null;
-      
+      const otherTab = tab.endsWith(':detail') ? tab.replace(':detail', ':draft')
+        : tab.endsWith(':draft') ? tab.replace(':draft', tab.includes('insurance') ? ':detail' : ':shipping')
+          : tab.endsWith(':shipping') ? tab.replace(':shipping', ':draft')
+            : null;
+
       if (otherTab) {
         if (uploadStates[otherTab] === 'done') {
           // Second file: must match the first file's revision
@@ -306,14 +306,27 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       onFileUrlChange(tab, url);
 
       // If this was the second file of a pair, close the re-upload slots
-      const otherTab = tab.endsWith(':detail') ? tab.replace(':detail', ':draft') 
-                    : tab.endsWith(':draft') ? tab.replace(':draft', tab.includes('insurance') ? ':detail' : ':shipping')
-                    : tab.endsWith(':shipping') ? tab.replace(':shipping', ':draft')
-                    : null;
+      const otherTab = tab.endsWith(':detail') ? tab.replace(':detail', ':draft')
+        : tab.endsWith(':draft') ? tab.replace(':draft', tab.includes('insurance') ? ':detail' : ':shipping')
+          : tab.endsWith(':shipping') ? tab.replace(':shipping', ':draft')
+            : null;
       if (otherTab && uploadStates[otherTab] === 'done') {
         setIsReUploading(false);
       }
     }, 2500);
+  }
+
+  function handleCancelReUpload() {
+    setIsReUploading(false);
+    if (activeTab === 'insurance') {
+      onUploadStateChange('insurance:detail', 'done');
+      onUploadStateChange('insurance:draft', 'done');
+      onUploadStateChange('insurance', 'done');
+    } else if (activeTab === 'draftBL') {
+      onUploadStateChange('draftBL:shipping', 'done');
+      onUploadStateChange('draftBL:draft', 'done');
+      onUploadStateChange('draftBL', 'done');
+    }
   }
 
   function handleReUploadAfterAction(e: React.ChangeEvent<HTMLInputElement>) {
@@ -514,9 +527,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     </div>
                   )}
                 </div>
-                <p className="text-xs text-gray-500 mt-0.5">
+                {/* <p className="text-xs text-gray-500 mt-0.5">
                   Green cells indicate matching values. Orange cells indicate mismatches.
-                </p>
+                </p> */}
+                <div className="h-4 mt-0.5" />
                 {actionLogs[activeTab] && (() => {
                   const log = actionLogs[activeTab];
                   const label = log.action === 'approve' ? 'Last approved' : log.action === 'reject' ? 'Last rejected' : 'Last verified';
@@ -592,12 +606,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     )}
                     <button
                       onClick={() => {
-                        const wasActioned = task.verifications[activeTab] === 'Approved' || task.verifications[activeTab] === 'Rejected';
-                        if (wasActioned) return; // Disallow re-upload if already actioned
-                        
+                        const isApproved = task.verifications[activeTab] === 'Approved';
+                        const isRejected = task.verifications[activeTab] === 'Rejected';
+                        if (isApproved) return; // Disallow re-upload if already approved
+
                         setIsReUploading(true);
                         setViewingRevision(prev => ({ ...prev, [activeTab]: latestRevision })); // Jump back to latest on re-upload
-                        
+
                         if (activeTab === 'insurance') {
                           onUploadStateChange('insurance:detail', 'idle');
                           onUploadStateChange('insurance:draft', 'idle');
@@ -609,10 +624,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         } else if (activeTab === 'blDate') {
                           onUploadStateChange('blDate', 'idle');
                         }
-                        if (wasActioned) onResetForUpload(activeTab);
+                        if (isRejected) onResetForUpload(activeTab);
                       }}
-                      disabled={isTabActioned}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${isTabActioned ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                      disabled={activeTabStatus === 'Approved'}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${activeTabStatus === 'Approved' ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />
@@ -636,16 +651,16 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         View Custom Formality
                       </button>
                     )}
-                    <input ref={reUploadActionRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={handleReUploadAfterAction} />
+                    <input ref={reUploadActionRef} type="file" accept="*" className="hidden" onChange={handleReUploadAfterAction} />
                     <button
                       onClick={() => {
-                        if (!reUploadPending && !isTabActioned) {
+                        if (!reUploadPending && activeTabStatus !== 'Approved') {
                           setViewingRevision(prev => ({ ...prev, [activeTab]: latestRevision })); // Jump back to latest
                           reUploadActionRef.current?.click();
                         }
                       }}
-                      disabled={reUploadPending || isTabActioned}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${reUploadPending || isTabActioned ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                      disabled={reUploadPending || activeTabStatus === 'Approved'}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${reUploadPending || activeTabStatus === 'Approved' ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />
@@ -711,19 +726,37 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             {activeTab === 'insurance' ? (
               <>
                 {(isReUploading || !isInsuranceDone) && (
-                  <div className="flex items-stretch gap-4 p-6 border-b border-gray-100 shrink-0">
-                    <UploadSlot
-                      label="Detail for Insurance Purpose"
-                      state={uploadStates['insurance:detail'] ?? 'idle'}
-                      onUpload={(file) => handleUpload('insurance:detail', file)}
-                    />
-                    <UploadSlot
-                      label="Draft Insurance"
-                      state={uploadStates['insurance:draft'] ?? 'idle'}
-                      onUpload={(file) => handleUpload('insurance:draft', file)}
-                    />
+                  <div className="border-b border-gray-100 shrink-0">
+                    <div className="px-6 pt-4 flex justify-end items-center">
+
+                      {isReUploading && (
+                        <button
+                          onClick={handleCancelReUpload}
+                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          title="Cancel upload"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+
+                    </div>
+                    <div className="flex items-stretch gap-4 p-6 pt-2">
+                      <UploadSlot
+                        label="Detail for Insurance Purpose"
+                        state={uploadStates['insurance:detail'] ?? 'idle'}
+                        onUpload={(file) => handleUpload('insurance:detail', file)}
+                      />
+                      <UploadSlot
+                        label="Draft Insurance"
+                        state={uploadStates['insurance:draft'] ?? 'idle'}
+                        onUpload={(file) => handleUpload('insurance:draft', file)}
+                      />
+                    </div>
                   </div>
                 )}
+
                 {(isInsuranceDone || isReUploading) && (
                   <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
                 )}
@@ -731,19 +764,37 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             ) : activeTab === 'draftBL' ? (
               <>
                 {(isReUploading || !isDraftBLDone) && (
-                  <div className="flex items-stretch gap-4 p-6 border-b border-gray-100 shrink-0">
-                    <UploadSlot
-                      label="Shipping Particular"
-                      state={uploadStates['draftBL:shipping'] ?? 'idle'}
-                      onUpload={(file) => handleUpload('draftBL:shipping', file)}
-                    />
-                    <UploadSlot
-                      label="Draft B/L"
-                      state={uploadStates['draftBL:draft'] ?? 'idle'}
-                      onUpload={(file) => handleUpload('draftBL:draft', file)}
-                    />
+                  <div className="border-b border-gray-100 shrink-0">
+                    <div className="px-6 pt-4 flex justify-end items-center">
+
+                      {isReUploading && (
+                        <button
+                          onClick={handleCancelReUpload}
+                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                          title="Cancel upload"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+
+                    </div>
+                    <div className="flex items-stretch gap-4 p-6 pt-2">
+                      <UploadSlot
+                        label="Shipping Particular"
+                        state={uploadStates['draftBL:shipping'] ?? 'idle'}
+                        onUpload={(file) => handleUpload('draftBL:shipping', file)}
+                      />
+                      <UploadSlot
+                        label="Draft B/L"
+                        state={uploadStates['draftBL:draft'] ?? 'idle'}
+                        onUpload={(file) => handleUpload('draftBL:draft', file)}
+                      />
+                    </div>
                   </div>
                 )}
+
                 {(isDraftBLDone || isReUploading) && (
                   <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
                 )}

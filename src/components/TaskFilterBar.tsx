@@ -67,8 +67,6 @@ interface TaskFilterBarProps {
   onTabFilterChange: (key: VerificationType, value: VerificationStatus | 'All') => void;
   onlyMyTasks: boolean;
   onOnlyMyTasksChange: (v: boolean) => void;
-  autoApprove: boolean;
-  onAutoApproveChange: (v: boolean) => void;
   dateFrom: string;
   dateTo: string;
   minDate: string;
@@ -79,7 +77,7 @@ interface TaskFilterBarProps {
   onUploadCF?: () => void;
 }
 
-export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, autoApprove, onAutoApproveChange, dateFrom, dateTo, minDate, maxDate, onDateFromChange, onDateToChange, onReset, onUploadCF }: TaskFilterBarProps) {
+export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, dateFrom, dateTo, minDate, maxDate, onDateFromChange, onDateToChange, onReset, onUploadCF }: TaskFilterBarProps) {
   const dateFromRef = useRef<HTMLInputElement>(null);
   const dateToRef = useRef<HTMLInputElement>(null);
 
@@ -205,7 +203,6 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide invisible select-none">Options</label>
           <div className="flex items-center gap-4 py-2">
             <Toggle checked={onlyMyTasks} onChange={onOnlyMyTasksChange} label="Only My Tasks" />
-            <Toggle checked={autoApprove} onChange={onAutoApproveChange} label="Auto Approve" />
           </div>
         </div>
 

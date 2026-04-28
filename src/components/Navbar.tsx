@@ -3,11 +3,13 @@ import gcLogo from '../assets/gc-logo.png';
 
 interface NavbarProps {
   currentUser: string;
+  autoApprove: boolean;
+  onAutoApproveChange: (value: boolean) => void;
   onNavigateHome: () => void;
   onLogout: () => void;
 }
 
-export default function Navbar({ currentUser, onNavigateHome, onLogout }: NavbarProps) {
+export default function Navbar({ currentUser, autoApprove, onAutoApproveChange, onNavigateHome, onLogout }: NavbarProps) {
 
   const [profileOpen, setProfileOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -75,6 +77,26 @@ export default function Navbar({ currentUser, onNavigateHome, onLogout }: Navbar
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-gray-800 truncate">{currentUser}</p>
+                  </div>
+                </div>
+
+                <div className="py-1 border-b border-gray-100">
+                  <div className="px-4 py-2.5 flex items-center justify-between">
+                    <span className="text-sm text-gray-700">Auto Approve</span>
+                    <button
+                      role="switch"
+                      aria-checked={autoApprove}
+                      onClick={() => onAutoApproveChange(!autoApprove)}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${
+                        autoApprove ? 'bg-[#0056b8]' : 'bg-gray-300'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition-transform duration-200 mt-0.5 ${
+                          autoApprove ? 'translate-x-4 ml-0.5' : 'translate-x-0 ml-0.5'
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
 

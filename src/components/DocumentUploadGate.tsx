@@ -45,7 +45,7 @@ export default function DocumentUploadGate({ docLabel, uploadState, onUpload, ch
   // idle
   return (
     <div className="flex items-center justify-center py-12 px-6">
-      <input ref={inputRef} type="file" accept=".pdf,.png,.jpg,.jpeg,.tiff" className="hidden" onChange={onFileChange} />
+      <input ref={inputRef} type="file" accept="*" className="hidden" onChange={onFileChange} />
       <div
         onDragOver={e => e.preventDefault()}
         onDrop={onDrop}
