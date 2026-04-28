@@ -37,8 +37,8 @@ const TABS: TabDef[] = [
   },
   {
     type: 'blDate',
-    label: 'B/L Date Verification',
-    shortLabel: 'B/L Date',
+    label: 'Original B/L Verification',
+    shortLabel: 'Original B/L',
     documents: ['Original B/L', 'DocXPort → GI Date / ETD Date / Manual Billing Date'],
   },
 ];
@@ -215,7 +215,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       documents: historical.documents,
       correctValues: historical.correctValues,
       verifications: historical.verifications,
-      fieldStatusOverrides: historical.fieldStatusOverrides
+      fieldStatusOverrides: historical.fieldStatusOverrides,
+      cellStatusOverrides: historical.cellStatusOverrides
     };
   }, [task, activeTab, activeRevision, latestRevision, revisionHistory]);
 
@@ -289,9 +290,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
           // Second file: must match the first file's revision
           const firstFileRev = partialRevisionStates[`${activeTab}:first`];
           if (firstFileRev !== undefined && revNum !== firstFileRev) {
-            alert(`Revision number (${revNum}) is not the same as the first document (${firstFileRev}). Both documents in ${activeTab === 'insurance' ? 'Draft Insurance' : 'Draft B/L'} must have the same revision number.`);
-            return;
+            // Non-blocking warning instead of error
+            console.warn(`Revision number (${revNum}) is not the same as the first document (${firstFileRev}).`);
           }
+
         } else {
           // First file: set the expected revision for the second file
           setPartialRevisionStates(prev => ({ ...prev, [`${activeTab}:first`]: revNum! }));
@@ -506,7 +508,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         </button>
                       )}
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap transition-colors ${activeRevision !== latestRevision ? 'bg-[#fff2f0] text-[#c2410c] border-[#ffdfd6]' : 'bg-[#e8f0fb] text-[#0056b8] border-[#c5d9f5]'}`}>
-                        Rev. {String(activeRevision).padStart(2, '0')} · {formatRevDate(activeRevision === latestRevision ? revisionStates[activeTab].date : (revisionHistory[activeTab]?.[activeRevision]?.date ?? revisionStates[activeTab].date))}
+                        Rev. {String(activeRevision).padStart(2, '0')} · {formatRevDate(activeRevision === latestRevision ? (revisionStates[activeTab]?.date ?? new Date().toISOString()) : (revisionHistory[activeTab]?.[activeRevision]?.date ?? revisionStates[activeTab]?.date ?? new Date().toISOString()))}
                         {activeRevision !== latestRevision && <span className="ml-1">(past revision)</span>}
                       </span>
                       {latestRevision > 0 && (
@@ -758,7 +760,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 )}
 
                 {(isInsuranceDone || isReUploading) && (
-                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
+                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
                 )}
               </>
             ) : activeTab === 'draftBL' ? (
@@ -796,7 +798,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 )}
 
                 {(isDraftBLDone || isReUploading) && (
-                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
+                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
                 )}
               </>
             ) : activeTab === 'blDate' ? (
@@ -812,7 +814,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 </div>
               )
             ) : (
-              <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
+              <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
             )}
           </div>
         </div>

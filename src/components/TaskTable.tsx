@@ -24,7 +24,7 @@ const TAB_COLS: { key: VerificationType; label: string }[] = [
   { key: 'customFormality', label: 'Custom Formality' },
   { key: 'insurance', label: 'Draft Insurance' },
   { key: 'draftBL', label: 'Draft B/L' },
-  { key: 'blDate', label: 'B/L Date' },
+  { key: 'blDate', label: 'Original B/L' },
 ];
 
 

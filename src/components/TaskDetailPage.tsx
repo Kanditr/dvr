@@ -8,7 +8,7 @@ const VERIFICATION_LABELS: Record<VerificationType, string> = {
   customFormality: 'Custom Formality Verification',
   insurance:       'Insurance Verification',
   draftBL:         'Draft B/L Verification',
-  blDate:          'B/L Date Verification',
+  blDate:          'Original B/L Verification',
 };
 
 interface TaskDetailPageProps {

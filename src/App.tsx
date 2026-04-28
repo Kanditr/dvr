@@ -73,7 +73,7 @@ const CF_CLONE_TYPES = new Set(['Shipping Advice', 'Custom Invoice', 'Packing Li
 
 function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, fileName?: string): Task {
   let newInvoiceNo: string;
-  
+
   // New format: PREFIX_INVOICENORevREVISION.pdf
   const fileMatch = fileName?.match(/^[A-Z_]+_(.+)Rev\d+\.pdf$/i);
   if (fileMatch) {
@@ -163,7 +163,7 @@ export default function App() {
     'dvr:uploadStates', {}
   );
 
-  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string; documents?: any[]; correctValues?: Record<string, string> }[]>('dvr:taskOverrides', []);
+  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string; documents?: any[]; correctValues?: Record<string, string>; fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>; cellStatusOverrides?: Record<string, boolean> }>('dvr:taskOverrides', []);
 
   const [actionLogs, setActionLogs] = useLocalStorage<Record<string, Record<string, ActionLog>>>('dvr:actionLogs', {});
 
@@ -192,6 +192,7 @@ export default function App() {
         documents: o?.documents ?? t.documents,
         correctValues: o?.correctValues ?? t.correctValues,
         fieldStatusOverrides: o?.fieldStatusOverrides ?? t.fieldStatusOverrides,
+        cellStatusOverrides: o?.cellStatusOverrides ?? t.cellStatusOverrides,
         lastUpdate: o?.lastUpdate ?? t.lastUpdate
       };
 
@@ -264,7 +265,7 @@ export default function App() {
       }
 
       const currentRevNum = current?.count ?? 0;
-      
+
       setRevisionHistory(h => ({
         ...h,
         [taskId]: {
@@ -276,6 +277,7 @@ export default function App() {
               correctValues: task.correctValues,
               verifications: task.verifications,
               fieldStatusOverrides: task.fieldStatusOverrides,
+              cellStatusOverrides: task.cellStatusOverrides,
               date: current?.date ?? new Date().toISOString()
             }
           }
@@ -332,11 +334,11 @@ export default function App() {
     setTaskOverrides(prev => {
       const idx = prev.findIndex(o => o.id === taskId);
       const existing = idx >= 0 ? prev[idx] : {};
-      const nextOverride = { 
-        ...existing, 
-        id: taskId, 
-        ...partial, 
-        lastUpdate: new Date().toISOString() 
+      const nextOverride = {
+        ...existing,
+        id: taskId,
+        ...partial,
+        lastUpdate: new Date().toISOString()
       };
       if (idx >= 0) {
         const next = [...prev];
@@ -375,14 +377,14 @@ export default function App() {
 
     e.target.value = '';
     const url = URL.createObjectURL(file);
-    
+
     // Capture current task list before async delay
     setProcessingUpload(true);
     setTimeout(() => {
       setProcessingUpload(false);
       const snapshot = [...uploadedTaskDefs, ...tasks]; // tasks is already derived
       const newTask = generateUploadedTask(snapshot, '', file.name); // Keep unassigned initially
-      
+
       setFileUrls(prev => ({
         ...prev,
         [newTask.id]: { ...(prev[newTask.id] ?? {}), customFormality: url }
@@ -429,10 +431,10 @@ export default function App() {
       .map(t => t.submittedDate.split('T')[0])
       .filter(Boolean)
       .sort();
-    
+
     const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
     const latestDate = dates[dates.length - 1] ?? '';
-    
+
     return {
       minDate: dates[0] ?? '',
       maxDate: latestDate > today ? latestDate : today,
@@ -485,7 +487,7 @@ export default function App() {
     const verifications = { ...t.verifications, [verificationType]: 'Approved' as VerificationStatus };
     const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
     updateTaskOverride(taskId, { verifications, status: deriveOverallStatus(effective) });
-    
+
     setActionLogs(prev => ({
       ...prev,
       [taskId]: { ...prev[taskId], [verificationType]: { action: 'approve', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark } },
@@ -530,16 +532,31 @@ export default function App() {
           const otherTab = tab === 'insurance:detail' ? 'insurance:draft' : 'insurance:detail';
           const otherDone = cur[otherTab] === 'done';
           if (otherDone) {
-            incrementRevision(taskId, 'insurance', revNum, false);
-            
-            // Generate mock documents for insurance, injecting mismatch if it's a revision
-            const isRevision = revNum !== undefined && revNum > 0;
-            const mismatch = isRevision ? { 'AMOUNT INSURED HEREUNDER': `USD ${((Math.random() * 100000) + 100000).toFixed(2)}` } : undefined;
+            const currentRevCount = revisionStates[taskId]?.['insurance']?.count;
+            incrementRevision(taskId, 'insurance', undefined, false);
+
+            // Determine if this is the first time we are replacing mock/empty data with uploaded data
+            const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft Insurance' || d.type === 'Detail for Insurance Purpose'));
+            const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
+            const isRevision = !isFirstManualUpload;
+
+            // Swap logic: First manual upload (not isRevision) gets the mismatch, subsequent revisions get the match
+            const mismatch = !isRevision ? { 'AMOUNT INSURED HEREUNDER': `USD ${((Math.random() * 500000) + 100000).toFixed(2)}` } : undefined;
             const newInsDocs = insDocs(taskId, t.correctValues, mismatch);
-            
+
             // Filter out old insurance documents and append new ones
             const filteredDocs = t.documents.filter(d => d.type !== 'Draft Insurance' && d.type !== 'Detail for Insurance Purpose');
-            updateTaskOverride(taskId, { documents: [...filteredDocs, ...newInsDocs] });
+            
+            const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
+            const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
+            Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('insurance:')) delete newFieldOverrides[k]; });
+            Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('insurance:')) delete newCellOverrides[k]; });
+
+            updateTaskOverride(taskId, { 
+              documents: [...filteredDocs, ...newInsDocs],
+              fieldStatusOverrides: newFieldOverrides,
+              cellStatusOverrides: newCellOverrides
+            });
             applyAutoApprovePersistent(taskId, 'insurance');
           }
         } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
@@ -547,24 +564,56 @@ export default function App() {
           const otherTab = tab === 'draftBL:shipping' ? 'draftBL:draft' : 'draftBL:shipping';
           const otherDone = cur[otherTab] === 'done';
           if (otherDone) {
-            incrementRevision(taskId, 'draftBL', revNum, false);
-            
-            // Generate mock documents for draftBL, injecting mismatch if it's a revision
-            const isRevision = revNum !== undefined && revNum > 0;
-            const mismatch = isRevision ? { 'Gross Weight': `${(Math.random() * 500000 + 100000).toFixed(0)} KG` } : undefined;
-            const newDblDocs = dblDocs(taskId, t.correctValues, mismatch);
-            
+            const currentRevCount = revisionStates[taskId]?.['draftBL']?.count;
+            incrementRevision(taskId, 'draftBL', undefined, false);
+
+            // Determine if this is the first time we are replacing mock/empty data with uploaded data
+            const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft B/L' || d.type === 'Shipping Particular'));
+            const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
+            const isRevision = !isFirstManualUpload;
+
+            // Use different values for the two documents to highlight the mismatch between them
+            const mismatch = !isRevision ? { 'Gross Weight': '999,999 KG' } : undefined;
+            const mismatch2 = !isRevision ? { 'Gross Weight': '888,888 KG' } : undefined;
+            const newDblDocs = dblDocs(taskId, t.correctValues, mismatch, mismatch2);
+
             // Filter out old draftBL documents and append new ones
             const filteredDocs = t.documents.filter(d => d.type !== 'Draft B/L' && d.type !== 'Shipping Particular');
-            updateTaskOverride(taskId, { documents: [...filteredDocs, ...newDblDocs] });
+
+            const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
+            const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
+            Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('draftBL:')) delete newFieldOverrides[k]; });
+            Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('draftBL:')) delete newCellOverrides[k]; });
+
+            updateTaskOverride(taskId, { 
+              documents: [...filteredDocs, ...newDblDocs],
+              fieldStatusOverrides: newFieldOverrides,
+              cellStatusOverrides: newCellOverrides
+            });
             applyAutoApprovePersistent(taskId, 'draftBL');
           }
         } else if (tab === 'blDate') {
-           incrementRevision(taskId, tab, revNum, false);
-           applyAutoApprovePersistent(taskId, 'blDate');
+          incrementRevision(taskId, tab, undefined, false);
+          const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
+          const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
+          Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('blDate:')) delete newFieldOverrides[k]; });
+          Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('blDate:')) delete newCellOverrides[k]; });
+          updateTaskOverride(taskId, {
+            fieldStatusOverrides: newFieldOverrides,
+            cellStatusOverrides: newCellOverrides
+          });
+          applyAutoApprovePersistent(taskId, 'blDate');
         } else {
-           incrementRevision(taskId, tab, revNum, false);
-           applyAutoApprovePersistent(taskId, tab as VerificationType);
+          incrementRevision(taskId, tab, undefined, false);
+          const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
+          const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
+          Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith(`${tab}:`)) delete newFieldOverrides[k]; });
+          Object.keys(newCellOverrides).forEach(k => { if (k.startsWith(`${tab}:`)) delete newCellOverrides[k]; });
+          updateTaskOverride(taskId, {
+            fieldStatusOverrides: newFieldOverrides,
+            cellStatusOverrides: newCellOverrides
+          });
+          applyAutoApprovePersistent(taskId, tab as VerificationType);
         }
       }
     }
@@ -622,7 +671,8 @@ export default function App() {
       correctValues: updatedTask.correctValues,
       verifications: updatedTask.verifications,
       status: updatedTask.status,
-      fieldStatusOverrides: updatedTask.fieldStatusOverrides
+      fieldStatusOverrides: updatedTask.fieldStatusOverrides,
+      cellStatusOverrides: updatedTask.cellStatusOverrides
     });
     if (uploadedTaskIds.has(updatedTask.id)) {
       setUploadedTaskDefs(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));

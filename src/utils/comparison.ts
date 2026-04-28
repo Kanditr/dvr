@@ -1,4 +1,4 @@
-import type { Task } from '../data/mockData';
+import type { Task, ShipDoc } from '../data/mockData';
 
 export interface ComparisonCell {
   originalFieldName: string;

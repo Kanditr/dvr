@@ -38,6 +38,7 @@ export interface Task {
   canonicalFields: string[];
   correctValues: Record<string, string>;
   fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>;
+  cellStatusOverrides?: Record<string, boolean>;
   status: TaskStatus;
   verifications: Verifications;
 }
@@ -311,7 +312,7 @@ export function insDocs(id: string, vals: Record<string, string>, mismatch?: Rec
   ];
 }
 
-export function dblDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>): ShipDoc[] {
+export function dblDocs(id: string, vals: Record<string, string>, mismatch?: Record<string, string>, mismatch2?: Record<string, string>): ShipDoc[] {
   const dbl: ShipDoc = {
     id: `${id}-dbl`,
     type: 'Draft B/L',
@@ -328,10 +329,10 @@ export function dblDocs(id: string, vals: Record<string, string>, mismatch?: Rec
     type: 'Shipping Particular',
     fieldMapping: { 'Shipper': 'SHIPPER', 'Consignee': 'CONSIGNEE', 'Vessel Name': 'VESSEL/VOYAGE', 'Gross Weight': 'TOTAL GROSS WEIGHT' },
     values: {
-      'SHIPPER':            mismatch?.['Shipper']      ?? vals['Shipper'],
-      'CONSIGNEE':          mismatch?.['Consignee']    ?? vals['Consignee'],
-      'VESSEL/VOYAGE':      mismatch?.['Vessel Name']  ?? vals['Vessel Name'],
-      'TOTAL GROSS WEIGHT': mismatch?.['Gross Weight'] ?? vals['Gross Weight'],
+      'SHIPPER':            mismatch2?.['Shipper']      ?? mismatch?.['Shipper']      ?? vals['Shipper'],
+      'CONSIGNEE':          mismatch2?.['Consignee']    ?? mismatch?.['Consignee']    ?? vals['Consignee'],
+      'VESSEL/VOYAGE':      mismatch2?.['Vessel Name']  ?? mismatch?.['Vessel Name']  ?? vals['Vessel Name'],
+      'TOTAL GROSS WEIGHT': mismatch2?.['Gross Weight'] ?? mismatch?.['Gross Weight'] ?? vals['Gross Weight'],
     },
   };
   return [dbl, sp];

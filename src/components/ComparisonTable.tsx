@@ -101,6 +101,7 @@ interface ComparisonTableProps {
   verificationType: VerificationType;
   onUpdateTask: (task: Task) => void;
   isReadOnly?: boolean;
+  activeRevision?: number;
 }
 
 const STATUS_OPTIONS = ['Match', 'Mismatch'];
@@ -109,14 +110,20 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
   const [editing, setEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value);
   const initialValueRef = useRef(value);
-  const [originalValue] = useState(value);
+  const originalValueRef = useRef(value);
 
-  // Keep tempValue in sync with prop if not editing
+  // If value changes from outside (not from our own editing), update the original baseline
   useEffect(() => {
-    if (!editing) setTempValue(value);
+    if (!editing) {
+      setTempValue(value);
+      originalValueRef.current = value;
+    }
   }, [value, editing]);
 
   if (!isApplicable) return <span className="text-gray-300">—</span>;
+
+  const originalValue = originalValueRef.current;
+  const isEdited = value !== originalValue;
 
   if (editing) {
     return (
@@ -148,8 +155,6 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
       />
     );
   }
-
-  const isEdited = value !== originalValue;
 
   return (
     <div className="flex items-center gap-1 group/edit">
@@ -206,9 +211,9 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
 
   if (status === 'match') {
     return (
-      <button 
-        onClick={() => !isReadOnly && setIsEditing(true)} 
-        disabled={isReadOnly} 
+      <button
+        onClick={() => !isReadOnly && setIsEditing(true)}
+        disabled={isReadOnly}
         className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}
       >
         Match
@@ -216,9 +221,9 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
     );
   }
   return (
-    <button 
-      onClick={() => !isReadOnly && setIsEditing(true)} 
-      disabled={isReadOnly} 
+    <button
+      onClick={() => !isReadOnly && setIsEditing(true)}
+      disabled={isReadOnly}
       className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}
     >
       Mismatch
@@ -226,7 +231,7 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
   );
 }
 
-export default function ComparisonTable({ task, verificationType, onUpdateTask, isReadOnly }: ComparisonTableProps) {
+export default function ComparisonTable({ task, verificationType, onUpdateTask, isReadOnly, activeRevision }: ComparisonTableProps) {
   const [fieldFilter, setFieldFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
@@ -238,14 +243,15 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
     const matches: Record<string, boolean> = {};
     allRows.forEach(row => {
       row.cells.forEach((cell, ci) => {
-        const key = `${row.canonicalField}:${ci}`;
-        matches[key] = cell.isMatch;
+        const cDocId = docs[ci].id;
+        const key = `${verificationType}:${row.canonicalField}:${cDocId}`;
+        matches[key] = task.cellStatusOverrides?.[key] ?? cell.isMatch;
       });
     });
     return matches;
     // Only recalculate when the structure of documents changes (e.g. new revision/upload)
     // We use doc IDs to detect structural changes.
-  }, [task.id, verificationType, docs.map(d => d.id).join(',')]);
+  }, [task.id, verificationType, docs.map(d => d.id).join(','), task.cellStatusOverrides, activeRevision]);
 
   const uniqueFields = [...new Set(allRows.map(r => r.canonicalField))];
 
@@ -260,20 +266,32 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
 
   function handleSave(docId: string, docType: string, canonicalField: string, originalFieldName: string, newValue: string) {
     if (isReadOnly) return;
-    
+
     // Lock the current status so it doesn't change automatically when value updates
     const currentOverride = task.fieldStatusOverrides?.[`${verificationType}:${canonicalField}`];
     let nextOverrides = task.fieldStatusOverrides ?? {};
     if (!currentOverride) {
-       const row = rows.find(r => r.canonicalField === canonicalField);
-       if (row) {
-          nextOverrides = { ...nextOverrides, [`${verificationType}:${canonicalField}`]: row.rowStatus };
-       }
+      const row = rows.find(r => r.canonicalField === canonicalField);
+      if (row) {
+        nextOverrides = { ...nextOverrides, [`${verificationType}:${canonicalField}`]: row.rowStatus };
+      }
+    }
+
+    let nextCellOverrides = task.cellStatusOverrides ?? {};
+    const row = rows.find(r => r.canonicalField === canonicalField);
+    if (row) {
+      row.cells.forEach((cell, ci) => {
+        const cDocId = docs[ci].id;
+        const key = `${verificationType}:${canonicalField}:${cDocId}`;
+        if (nextCellOverrides[key] === undefined) {
+          nextCellOverrides[key] = cell.isMatch;
+        }
+      });
     }
 
     if (docType === 'DocXPort') {
       const nextCorrectValues = { ...task.correctValues, [canonicalField]: newValue };
-      onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides });
+      onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides, cellStatusOverrides: nextCellOverrides });
     } else {
       const nextDocs = task.documents.map(d => {
         if (d.id !== docId) return d;
@@ -282,7 +300,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
           values: { ...d.values, [originalFieldName]: newValue }
         };
       });
-      onUpdateTask({ ...task, documents: nextDocs, fieldStatusOverrides: nextOverrides });
+      onUpdateTask({ ...task, documents: nextDocs, fieldStatusOverrides: nextOverrides, cellStatusOverrides: nextCellOverrides });
     }
   }
 
@@ -351,7 +369,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
                   {row.cells.map((cell, ci) => {
                     const doc = docs[ci];
                     return (
-                      <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : frozenMatches[`${row.canonicalField}:${ci}`] ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
+                      <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : frozenMatches[`${verificationType}:${row.canonicalField}:${doc.id}`] ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
                         <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
                         <EditableValue
                           value={cell.value}
@@ -363,8 +381,8 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
                     );
                   })}
                   <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                    <StatusToggle 
-                      status={row.rowStatus} 
+                    <StatusToggle
+                      status={row.rowStatus}
                       onChange={(next) => handleToggleStatus(row.canonicalField, next)}
                       isReadOnly={isReadOnly}
                     />
