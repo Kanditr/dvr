@@ -43,15 +43,22 @@ function setHash(view: View) {
 }
 
 function getEffectiveVerifications(task: Task, taskUploadStates: Record<string, UploadState>): Verifications {
-  const customFormality = task.verifications.customFormality === 'Pending Verification'
-    ? 'Attention' as VerificationStatus
-    : task.verifications.customFormality;
+  const getTabStatus = (tabKey: VerificationType): VerificationStatus => {
+    if (tabKey === 'insurance' || tabKey === 'draftBL' || tabKey === 'blDate') {
+      if ((taskUploadStates[tabKey] ?? 'idle') !== 'done') return 'Pending Verification';
+    }
+    const status = task.verifications[tabKey];
+    if ((tabKey === 'customFormality' || tabKey === 'blDate') && status === 'Pending Verification') {
+      return 'Attention';
+    }
+    return status;
+  };
+
   return {
-    ...task.verifications,
-    customFormality,
-    insurance: (taskUploadStates['insurance'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.insurance,
-    draftBL: (taskUploadStates['draftBL'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
-    blDate: (taskUploadStates['blDate'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.blDate,
+    customFormality: getTabStatus('customFormality'),
+    insurance: getTabStatus('insurance'),
+    draftBL: getTabStatus('draftBL'),
+    blDate: getTabStatus('blDate'),
   };
 }
 
@@ -497,127 +504,123 @@ export default function App() {
   function handleUploadStateChange(taskId: string, tab: string, state: UploadState, revNum?: number) {
     setUploadStates(prev => {
       const taskStates = { ...(prev[taskId] ?? {}), [tab]: state };
+
       if (state === 'done') {
+        // Insurance completion check
         if (tab === 'insurance:detail' || tab === 'insurance:draft') {
-          if (taskStates['insurance:detail'] === 'done' && taskStates['insurance:draft'] === 'done') {
+          if (taskStates['insurance:detail'] === 'done' && taskStates['insurance:draft'] === 'done' && taskStates['insurance'] !== 'done') {
             taskStates['insurance'] = 'done';
+            setTimeout(() => finalizeInsuranceCompletion(taskId), 0);
           }
-        } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
-          if (taskStates['draftBL:shipping'] === 'done' && taskStates['draftBL:draft'] === 'done') {
+        }
+        // Draft B/L completion check
+        else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
+          if (taskStates['draftBL:shipping'] === 'done' && taskStates['draftBL:draft'] === 'done' && taskStates['draftBL'] !== 'done') {
             taskStates['draftBL'] = 'done';
+            setTimeout(() => finalizeDraftBLCompletion(taskId), 0);
           }
+        }
+        // B/L Date completion check
+        else if (tab === 'blDate') {
+          setTimeout(() => finalizeBLDateCompletion(taskId), 0);
+        }
+        // General re-upload completion (e.g. Custom Formality)
+        else if (!tab.includes(':')) {
+          setTimeout(() => incrementRevision(taskId, tab, revNum), 0);
         }
       }
       return { ...prev, [taskId]: taskStates };
     });
+  }
 
-    if (tab === 'blDate' && state === 'done') {
-      const t = tasks.find(x => x.id === taskId);
-      if (t && !t.documents.find(d => d.type === 'Original B/L')) {
-        const newDoc = {
-          id: `${taskId}-obl`,
-          type: 'Original B/L',
-          fieldMapping: { 'B/L Date': 'bl_date' },
-          values: { bl_date: t.correctValues['GI Date'] || '21 Mar 2026' }
-        };
-        updateTaskOverride(taskId, { documents: [...t.documents, newDoc] });
-      }
+  function finalizeInsuranceCompletion(taskId: string) {
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+
+    const currentRevCount = revisionStates[taskId]?.['insurance']?.count;
+    incrementRevision(taskId, 'insurance', undefined, false);
+
+    // Determine if this is the first time we are replacing mock/empty data with uploaded data
+    const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft Insurance' || d.type === 'Detail for Insurance Purpose'));
+    const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
+    const isRevision = !isFirstManualUpload;
+
+    const mismatch = !isRevision ? { 'AMOUNT INSURED HEREUNDER': `USD ${((Math.random() * 500000) + 100000).toFixed(2)}` } : undefined;
+    const newInsDocs = insDocs(taskId, t.correctValues, mismatch);
+
+    const filteredDocs = t.documents.filter(d => d.type !== 'Draft Insurance' && d.type !== 'Detail for Insurance Purpose');
+
+    const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
+    const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
+    Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('insurance:')) delete newFieldOverrides[k]; });
+    Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('insurance:')) delete newCellOverrides[k]; });
+
+    updateTaskOverride(taskId, {
+      documents: [...filteredDocs, ...newInsDocs],
+      fieldStatusOverrides: newFieldOverrides,
+      cellStatusOverrides: newCellOverrides
+    });
+    applyAutoApprovePersistent(taskId, 'insurance');
+  }
+
+  function finalizeDraftBLCompletion(taskId: string) {
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+
+    const currentRevCount = revisionStates[taskId]?.['draftBL']?.count;
+    incrementRevision(taskId, 'draftBL', undefined, false);
+
+    const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft B/L' || d.type === 'Shipping Particular'));
+    const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
+    const isRevision = !isFirstManualUpload;
+
+    const mismatch = !isRevision ? { 'Gross Weight': '999,999 KG' } : undefined;
+    const mismatch2 = !isRevision ? { 'Gross Weight': '888,888 KG' } : undefined;
+    const newDblDocs = dblDocs(taskId, t.correctValues, mismatch, mismatch2);
+
+    const filteredDocs = t.documents.filter(d => d.type !== 'Draft B/L' && d.type !== 'Shipping Particular');
+
+    const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
+    const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
+    Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('draftBL:')) delete newFieldOverrides[k]; });
+    Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('draftBL:')) delete newCellOverrides[k]; });
+
+    updateTaskOverride(taskId, {
+      documents: [...filteredDocs, ...newDblDocs],
+      fieldStatusOverrides: newFieldOverrides,
+      cellStatusOverrides: newCellOverrides
+    });
+    applyAutoApprovePersistent(taskId, 'draftBL');
+  }
+
+  function finalizeBLDateCompletion(taskId: string) {
+    const t = tasks.find(x => x.id === taskId);
+    if (!t) return;
+
+    incrementRevision(taskId, 'blDate', undefined, false);
+
+    let nextDocs = t.documents;
+    if (!t.documents.find(d => d.type === 'Original B/L')) {
+      const newDoc = {
+        id: `${taskId}-obl`,
+        type: 'Original B/L',
+        fieldMapping: { 'B/L Date': 'bl_date' },
+        values: { bl_date: t.correctValues['GI Date'] || '21 Mar 2026' }
+      };
+      nextDocs = [...t.documents, newDoc];
     }
 
-    if (state === 'done') {
-      const t = tasks.find(x => x.id === taskId);
-      if (t) {
-        if (tab === 'insurance:detail' || tab === 'insurance:draft') {
-          const cur = uploadStates[taskId] ?? {};
-          const otherTab = tab === 'insurance:detail' ? 'insurance:draft' : 'insurance:detail';
-          const otherDone = cur[otherTab] === 'done';
-          if (otherDone) {
-            const currentRevCount = revisionStates[taskId]?.['insurance']?.count;
-            incrementRevision(taskId, 'insurance', undefined, false);
+    const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
+    const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
+    Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('blDate:')) delete newFieldOverrides[k]; });
+    Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('blDate:')) delete newCellOverrides[k]; });
 
-            // Determine if this is the first time we are replacing mock/empty data with uploaded data
-            const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft Insurance' || d.type === 'Detail for Insurance Purpose'));
-            const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
-            const isRevision = !isFirstManualUpload;
-
-            // Swap logic: First manual upload (not isRevision) gets the mismatch, subsequent revisions get the match
-            const mismatch = !isRevision ? { 'AMOUNT INSURED HEREUNDER': `USD ${((Math.random() * 500000) + 100000).toFixed(2)}` } : undefined;
-            const newInsDocs = insDocs(taskId, t.correctValues, mismatch);
-
-            // Filter out old insurance documents and append new ones
-            const filteredDocs = t.documents.filter(d => d.type !== 'Draft Insurance' && d.type !== 'Detail for Insurance Purpose');
-            
-            const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
-            const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
-            Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('insurance:')) delete newFieldOverrides[k]; });
-            Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('insurance:')) delete newCellOverrides[k]; });
-
-            updateTaskOverride(taskId, { 
-              documents: [...filteredDocs, ...newInsDocs],
-              fieldStatusOverrides: newFieldOverrides,
-              cellStatusOverrides: newCellOverrides
-            });
-            applyAutoApprovePersistent(taskId, 'insurance');
-          }
-        } else if (tab === 'draftBL:shipping' || tab === 'draftBL:draft') {
-          const cur = uploadStates[taskId] ?? {};
-          const otherTab = tab === 'draftBL:shipping' ? 'draftBL:draft' : 'draftBL:shipping';
-          const otherDone = cur[otherTab] === 'done';
-          if (otherDone) {
-            const currentRevCount = revisionStates[taskId]?.['draftBL']?.count;
-            incrementRevision(taskId, 'draftBL', undefined, false);
-
-            // Determine if this is the first time we are replacing mock/empty data with uploaded data
-            const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft B/L' || d.type === 'Shipping Particular'));
-            const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
-            const isRevision = !isFirstManualUpload;
-
-            // Use different values for the two documents to highlight the mismatch between them
-            const mismatch = !isRevision ? { 'Gross Weight': '999,999 KG' } : undefined;
-            const mismatch2 = !isRevision ? { 'Gross Weight': '888,888 KG' } : undefined;
-            const newDblDocs = dblDocs(taskId, t.correctValues, mismatch, mismatch2);
-
-            // Filter out old draftBL documents and append new ones
-            const filteredDocs = t.documents.filter(d => d.type !== 'Draft B/L' && d.type !== 'Shipping Particular');
-
-            const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
-            const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
-            Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('draftBL:')) delete newFieldOverrides[k]; });
-            Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('draftBL:')) delete newCellOverrides[k]; });
-
-            updateTaskOverride(taskId, { 
-              documents: [...filteredDocs, ...newDblDocs],
-              fieldStatusOverrides: newFieldOverrides,
-              cellStatusOverrides: newCellOverrides
-            });
-            applyAutoApprovePersistent(taskId, 'draftBL');
-          }
-        } else if (tab === 'blDate') {
-          incrementRevision(taskId, tab, undefined, false);
-          const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
-          const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
-          Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith('blDate:')) delete newFieldOverrides[k]; });
-          Object.keys(newCellOverrides).forEach(k => { if (k.startsWith('blDate:')) delete newCellOverrides[k]; });
-          updateTaskOverride(taskId, {
-            fieldStatusOverrides: newFieldOverrides,
-            cellStatusOverrides: newCellOverrides
-          });
-          applyAutoApprovePersistent(taskId, 'blDate');
-        } else {
-          incrementRevision(taskId, tab, undefined, false);
-          const newFieldOverrides = { ...(t.fieldStatusOverrides || {}) };
-          const newCellOverrides = { ...(t.cellStatusOverrides || {}) };
-          Object.keys(newFieldOverrides).forEach(k => { if (k.startsWith(`${tab}:`)) delete newFieldOverrides[k]; });
-          Object.keys(newCellOverrides).forEach(k => { if (k.startsWith(`${tab}:`)) delete newCellOverrides[k]; });
-          updateTaskOverride(taskId, {
-            fieldStatusOverrides: newFieldOverrides,
-            cellStatusOverrides: newCellOverrides
-          });
-          applyAutoApprovePersistent(taskId, tab as VerificationType);
-        }
-      }
-    }
-    updateTaskOverride(taskId, {});
+    updateTaskOverride(taskId, {
+      documents: nextDocs,
+      fieldStatusOverrides: newFieldOverrides,
+      cellStatusOverrides: newCellOverrides
+    });
+    applyAutoApprovePersistent(taskId, 'blDate');
   }
 
   function handleRejectVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
@@ -711,8 +714,12 @@ export default function App() {
         );
       }
     })();
-    const overallStatus = deriveOverallStatus(getEffectiveVerifications(t, uploadStates[t.id] ?? {}));
-    const matchesStatus = statusFilter === 'All' || overallStatus === statusFilter;
+    const effectiveV = getEffectiveVerifications(t, uploadStates[t.id] ?? {});
+    const matchesStatus = statusFilter === 'All' || (() => {
+      const statuses = Object.values(effectiveV);
+      const target = statusFilter === 'Pending' ? 'Pending Verification' : statusFilter;
+      return statuses.includes(target);
+    })();
 
     // Everyone sees all tasks by default.
     // "Only My Tasks" toggle narrows to the current user for all roles.

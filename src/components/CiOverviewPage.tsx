@@ -610,7 +610,6 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       onClick={() => {
                         const isApproved = task.verifications[activeTab] === 'Approved';
                         const isRejected = task.verifications[activeTab] === 'Rejected';
-                        if (isApproved) return; // Disallow re-upload if already approved
 
                         setIsReUploading(true);
                         setViewingRevision(prev => ({ ...prev, [activeTab]: latestRevision })); // Jump back to latest on re-upload
@@ -626,10 +625,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         } else if (activeTab === 'blDate') {
                           onUploadStateChange('blDate', 'idle');
                         }
-                        if (isRejected) onResetForUpload(activeTab);
+                        onResetForUpload(activeTab);
                       }}
-                      disabled={activeTabStatus === 'Approved'}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${activeTabStatus === 'Approved' ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />
@@ -656,13 +654,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     <input ref={reUploadActionRef} type="file" accept="*" className="hidden" onChange={handleReUploadAfterAction} />
                     <button
                       onClick={() => {
-                        if (!reUploadPending && activeTabStatus !== 'Approved') {
+                        if (!reUploadPending) {
                           setViewingRevision(prev => ({ ...prev, [activeTab]: latestRevision })); // Jump back to latest
                           reUploadActionRef.current?.click();
                         }
                       }}
-                      disabled={reUploadPending || activeTabStatus === 'Approved'}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${reUploadPending || activeTabStatus === 'Approved' ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
+                      disabled={reUploadPending}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${reUploadPending ? 'text-gray-400 border-gray-200 bg-gray-100 cursor-not-allowed' : 'text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]'}`}
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />

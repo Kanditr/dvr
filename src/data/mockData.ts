@@ -371,7 +371,7 @@ export const mockTasks: Task[] = [
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
     submittedDate: '2026-03-01T08:00:00Z', lastUpdate: '2026-03-01T09:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
     status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050001', 'REF NO.': '3252010001', "BUYER'S ORDER NO.": '3252010001',
@@ -400,7 +400,7 @@ export const mockTasks: Task[] = [
       }),
       ...insDocs('doc-T01', IV01),
       ...dblDocs('doc-T01', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.', 'Vessel Name': 'MV PACIFIC EXPRESS', 'Gross Weight': '727,200 KG' }),
-      oblDoc('doc-T01', '01 Mar 2026'),
+      // oblDoc('doc-T01', '01 Mar 2026'),
     ],
   },
 
@@ -410,7 +410,7 @@ export const mockTasks: Task[] = [
     consignee: 'Sinopec Tianjin Chemicals Co., Ltd.',
     submittedDate: '2026-03-02T08:05:00Z', lastUpdate: '2026-03-02T10:30:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Attention', insurance: 'Match', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Attention', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050002', 'REF NO.': '3252010002', "BUYER'S ORDER NO.": '3252010002',
@@ -439,7 +439,7 @@ export const mockTasks: Task[] = [
       }, { "BUYER'S ORDER NO.": '3252019999' }, true),  // ← CI mismatch, L/C docs
       ...insDocs('doc-T02', IV02),
       ...dblDocs('doc-T02', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.', 'Vessel Name': 'MV ASIAN STAR', 'Gross Weight': '505,000 KG' }),
-      oblDoc('doc-T02', '02 Mar 2026'),
+      // oblDoc('doc-T02', '02 Mar 2026'),
     ],
   },
 
@@ -561,7 +561,7 @@ export const mockTasks: Task[] = [
     consignee: 'LG Chem Ltd.',
     submittedDate: '2026-03-06T08:25:00Z', lastUpdate: '2026-03-06T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Attention', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Attention', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050006', 'REF NO.': '3252010006', "BUYER'S ORDER NO.": '3252010006',
@@ -591,7 +591,7 @@ export const mockTasks: Task[] = [
       ...insDocs('doc-T06', IV06),
       ...dblDocs('doc-T06', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd.', 'Vessel Name': 'MV KOREA TRADER', 'Gross Weight': '484,800 KG' },
         { 'Vessel Name': 'MV KOREA EXPRESS' }),  // ← draftBL mismatch
-      oblDoc('doc-T06', '06 Mar 2026'),
+      // oblDoc('doc-T06', '06 Mar 2026'),
     ],
   },
 
@@ -636,7 +636,7 @@ export const mockTasks: Task[] = [
     consignee: 'Sinopec Tianjin Chemicals Co., Ltd.',
     submittedDate: '2026-03-08T08:35:00Z', lastUpdate: '2026-03-08T12:00:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050008', 'REF NO.': '3252010008', "BUYER'S ORDER NO.": '3252010008',
@@ -665,7 +665,7 @@ export const mockTasks: Task[] = [
       }, undefined, true),
       ...insDocs('doc-T08', IV08),
       ...dblDocs('doc-T08', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.', 'Vessel Name': 'MV NORTHERN LIGHT', 'Gross Weight': '555,500 KG' }),
-      oblDoc('doc-T08', '08 Mar 2026'),
+      // oblDoc('doc-T08', '08 Mar 2026'),
     ],
   },
 
@@ -713,7 +713,7 @@ export const mockTasks: Task[] = [
     consignee: 'Qingdao Jifa Group Co., Ltd.',
     submittedDate: '2026-03-10T08:45:00Z', lastUpdate: '2026-03-10T12:00:00Z', assignedTo: 'james.tan@pttgcgroup.com',
     status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050010', 'REF NO.': '3252010010', "BUYER'S ORDER NO.": '3252010010',
@@ -744,7 +744,7 @@ export const mockTasks: Task[] = [
       }),
       ...insDocs('doc-T10', IV10),
       ...dblDocs('doc-T10', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.', 'Vessel Name': 'MV DRAGON GATE', 'Gross Weight': '282,800 KG' }),
-      oblDoc('doc-T10', '10 Mar 2026'),
+      // oblDoc('doc-T10', '10 Mar 2026'),
     ],
   },
 
@@ -754,7 +754,7 @@ export const mockTasks: Task[] = [
     consignee: 'Petronas Chemicals Group Bhd',
     submittedDate: '2026-03-11T08:50:00Z', lastUpdate: '2026-03-11T12:00:00Z', assignedTo: 'sarah.lim@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Attention', insurance: 'Match', draftBL: 'Attention', blDate: 'Match' },
+    verifications: { customFormality: 'Attention', insurance: 'Match', draftBL: 'Attention', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050011', 'REF NO.': '3252010011', "BUYER'S ORDER NO.": '3252010011',
@@ -784,7 +784,7 @@ export const mockTasks: Task[] = [
       ...insDocs('doc-T11', IV11),
       ...dblDocs('doc-T11', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Petronas Chemicals Group Bhd', 'Vessel Name': 'MV MALAY EXPRESS', 'Gross Weight': '636,300 KG' },
         { 'Gross Weight': '630,000 KG' }),  // ← draftBL mismatch
-      oblDoc('doc-T11', '11 Mar 2026'),
+      // oblDoc('doc-T11', '11 Mar 2026'),
     ],
   },
 
@@ -794,7 +794,7 @@ export const mockTasks: Task[] = [
     consignee: 'LG Chem Ltd.',
     submittedDate: '2026-03-12T08:55:00Z', lastUpdate: '2026-03-12T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Pending',
-    verifications: { customFormality: 'Match', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050012', 'REF NO.': '3252010012', "BUYER'S ORDER NO.": '3252010012',
@@ -822,7 +822,7 @@ export const mockTasks: Task[] = [
         'TOTAL NET WEIGHT': '310,000', 'TOTAL GROSS WEIGHT': '313,100', 'MARKS & NOS': 'INNOPLUS',
         'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
       }),
-      oblDoc('doc-T12', '12 Mar 2026'),
+      // oblDoc('doc-T12', '12 Mar 2026'),
     ],
   },
 
@@ -871,7 +871,7 @@ export const mockTasks: Task[] = [
     consignee: 'PT. Chandra Asri Petrochemical Tbk',
     submittedDate: '2026-03-14T09:05:00Z', lastUpdate: '2026-03-14T12:00:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050014', 'REF NO.': '3252010014', "BUYER'S ORDER NO.": '3252010014',
@@ -900,7 +900,7 @@ export const mockTasks: Task[] = [
       }),
       ...insDocs('doc-T14', IV14),
       ...dblDocs('doc-T14', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'PT. Chandra Asri Petrochemical Tbk', 'Vessel Name': 'MV JAVA EXPRESS', 'Gross Weight': '393,900 KG' }),
-      oblDoc('doc-T14', '14 Mar 2026'),
+      // oblDoc('doc-T14', '14 Mar 2026'),
     ],
   },
 
@@ -985,7 +985,7 @@ export const mockTasks: Task[] = [
     consignee: 'Petronas Chemicals Group Bhd',
     submittedDate: '2026-03-17T09:20:00Z', lastUpdate: '2026-03-17T12:00:00Z', assignedTo: 'sarah.lim@pttgcgroup.com',
     status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050017', 'REF NO.': '3252010017', "BUYER'S ORDER NO.": '3252010017',
@@ -1014,7 +1014,7 @@ export const mockTasks: Task[] = [
       }, undefined, true),
       ...insDocs('doc-T17', IV17),
       ...dblDocs('doc-T17', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Petronas Chemicals Group Bhd', 'Vessel Name': 'MV STRAITS FORTUNE', 'Gross Weight': '444,400 KG' }),
-      oblDoc('doc-T17', '17 Mar 2026'),
+      // oblDoc('doc-T17', '17 Mar 2026'),
     ],
   },
 
@@ -1024,7 +1024,7 @@ export const mockTasks: Task[] = [
     consignee: 'Qingdao Jifa Group Co., Ltd.',
     submittedDate: '2026-03-18T09:25:00Z', lastUpdate: '2026-03-18T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Match', insurance: 'Attention', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Attention', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050018', 'REF NO.': '3252010018', "BUYER'S ORDER NO.": '3252010018',
@@ -1053,7 +1053,7 @@ export const mockTasks: Task[] = [
       }),
       ...insDocs('doc-T18', IV18, { 'TO': 'TIANJIN, CHINA' }),  // ← insurance mismatch
       ...dblDocs('doc-T18', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.', 'Vessel Name': 'MV PACIFIC JADE', 'Gross Weight': '292,900 KG' }),
-      oblDoc('doc-T18', '18 Mar 2026'),
+      // oblDoc('doc-T18', '18 Mar 2026'),
     ],
   },
 
@@ -1102,7 +1102,7 @@ export const mockTasks: Task[] = [
     consignee: 'Dow Chemical Singapore Pte. Ltd.',
     submittedDate: '2026-03-20T09:35:00Z', lastUpdate: '2026-03-20T12:00:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Attention', insurance: 'Attention', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Attention', insurance: 'Attention', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050020', 'REF NO.': '3252010020', "BUYER'S ORDER NO.": '3252010020',
@@ -1131,7 +1131,7 @@ export const mockTasks: Task[] = [
       }, { 'PRODUCT LINE ITEM#1': 'LLDPE InnoPlus LL6201F' }),  // ← CI mismatch
       ...insDocs('doc-T20', IV20, { 'AMOUNT INSURED HEREUNDER': 'USD 340,000.00' }),  // ← insurance mismatch
       ...dblDocs('doc-T20', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Dow Chemical Singapore Pte. Ltd.', 'Vessel Name': 'MV SINGAPORE TRADER', 'Gross Weight': '373,700 KG' }),
-      oblDoc('doc-T20', '20 Mar 2026'),
+      // oblDoc('doc-T20', '20 Mar 2026'),
     ],
   },
 
@@ -1141,7 +1141,7 @@ export const mockTasks: Task[] = [
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
     submittedDate: '2026-03-21T10:00:00Z', lastUpdate: '2026-03-21T11:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
     status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Match' },
+    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '0000000000', 'REF NO.': '3252010021', "BUYER'S ORDER NO.": '3252010021',
@@ -1170,7 +1170,7 @@ export const mockTasks: Task[] = [
       }),
       ...insDocs('doc-T21', buildInsVals({ invoiceNo: '0000000000', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'SHANGHAI, CHINA', vesselName: 'MV ORIENT PHOENIX', giDate: '21 Mar 2026', totalAmount: '465,000.00', totalQty: '500', products: ['HDPE InnoPlus HD2200JP'], qtys: ['500'] })),
       ...dblDocs('doc-T21', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.', 'Vessel Name': 'MV ORIENT PHOENIX', 'Gross Weight': '505,000 KG' }),
-      oblDoc('doc-T21', '21 Mar 2026'),
+      // oblDoc('doc-T21', '21 Mar 2026'),
     ],
   },
 
