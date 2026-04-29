@@ -400,6 +400,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   // Reset re-upload loading state when switching tabs
   useEffect(() => { setReUploadPending(false); }, [activeTab, task.id]);
 
+
   const effectiveVerifications: Verifications = {
     ...task.verifications,
     customFormality: task.verifications.customFormality === 'Pending Verification' ? 'Attention' : task.verifications.customFormality,
@@ -417,6 +418,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     return s;
   })();
   const isTabActioned = activeTabStatus === 'Approved' || activeTabStatus === 'Rejected';
+
+  useEffect(() => {
+    if (!autoApprove || (task.assignedTo && task.assignedTo !== currentUser)) return;
+    if (activeTabStatus === 'Match') {
+      onApproveVerification(activeTab, 'Auto Approved', 'Auto Approved is enabled in Settings');
+    }
+  }, [activeTab, activeTabStatus, autoApprove, task.assignedTo, currentUser, onApproveVerification]);
 
   // Resolve the actual SI or LC doc type present in this task
   return (

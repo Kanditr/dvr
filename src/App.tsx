@@ -609,7 +609,6 @@ export default function App() {
       fieldStatusOverrides: newFieldOverrides,
       cellStatusOverrides: newCellOverrides
     });
-    applyAutoApprovePersistent(taskId, 'insurance');
   }
 
   function finalizeDraftBLCompletion(taskId: string) {
@@ -635,7 +634,6 @@ export default function App() {
       fieldStatusOverrides: newFieldOverrides,
       cellStatusOverrides: newCellOverrides
     });
-    applyAutoApprovePersistent(taskId, 'draftBL');
   }
 
   function finalizeBLDateCompletion(taskId: string) {
@@ -663,7 +661,6 @@ export default function App() {
       fieldStatusOverrides: newFieldOverrides,
       cellStatusOverrides: newCellOverrides
     });
-    applyAutoApprovePersistent(taskId, 'blDate');
   }
 
   function handleRejectVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
@@ -726,6 +723,7 @@ export default function App() {
     if (uploadedTaskIds.has(updatedTask.id)) {
       setUploadedTaskDefs(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
     }
+
   }
 
   const currentTask =
