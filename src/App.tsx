@@ -784,9 +784,6 @@ export default function App() {
 
   function handleAutoApproveChange(value: boolean) {
     setAutoApprove(value);
-    if (value) {
-      setOnlyMyTasks(true);
-    }
   }
 
   function navigateToLlmCompare() {
