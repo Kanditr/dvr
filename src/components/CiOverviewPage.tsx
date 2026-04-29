@@ -307,16 +307,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       onUploadStateChange(tab, 'done', revNum);
       onFileUrlChange(tab, url);
 
-      // If this was the second file of a pair, close the re-upload slots
-      const otherTab = tab.endsWith(':detail') ? tab.replace(':detail', ':draft')
-        : tab.endsWith(':draft') ? tab.replace(':draft', tab.includes('insurance') ? ':detail' : ':shipping')
-          : tab.endsWith(':shipping') ? tab.replace(':shipping', ':draft')
-            : null;
-      if (otherTab && uploadStates[otherTab] === 'done') {
+      // Single-file tabs can close immediately; multi-file pairs are handled by useEffect
+      if (!tab.includes(':')) {
         setIsReUploading(false);
       }
     }, 2500);
   }
+
 
   function handleCancelReUpload() {
     setIsReUploading(false);
@@ -362,6 +359,17 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   const isInsuranceDone = (uploadStates['insurance:detail'] ?? 'idle') === 'done' && (uploadStates['insurance:draft'] ?? 'idle') === 'done';
   const isDraftBLDone = (uploadStates['draftBL:shipping'] ?? 'idle') === 'done' && (uploadStates['draftBL:draft'] ?? 'idle') === 'done';
   const isBLDateDone = (uploadStates['blDate'] ?? 'idle') === 'done';
+
+  // Automatically close re-upload slots when multi-file sections are done
+  useEffect(() => {
+    if (isReUploading) {
+      if (activeTab === 'insurance' && isInsuranceDone) {
+        setIsReUploading(false);
+      } else if (activeTab === 'draftBL' && isDraftBLDone) {
+        setIsReUploading(false);
+      }
+    }
+  }, [isInsuranceDone, isDraftBLDone, activeTab, isReUploading]);
 
   const currentUploadState: UploadState = isUploadTab
     ? (activeTab === 'insurance' ? (isInsuranceDone ? 'done' : 'idle')
