@@ -423,6 +423,61 @@ export default function App() {
   // taskOverrides is now the source of truth, handled by updateTaskOverride
   // (Removed redundant useEffect and baseTasks mapping)
 
+  function handleCancelResetForUpload(taskId: string, verificationType: VerificationType) {
+    const current = revisionStates[taskId]?.[verificationType];
+    if (!current || current.count === 0) return;
+
+    const prevRevNum = current.count - 1;
+    const historyEntry = revisionHistory[taskId]?.[verificationType]?.[prevRevNum];
+    if (!historyEntry) return;
+
+    // Restore state from history
+    updateTaskOverride(taskId, {
+      verifications: historyEntry.verifications,
+      documents: historyEntry.documents,
+      correctValues: historyEntry.correctValues,
+      fieldStatusOverrides: historyEntry.fieldStatusOverrides,
+      cellStatusOverrides: historyEntry.cellStatusOverrides,
+      status: deriveOverallStatus(historyEntry.verifications)
+    });
+
+    if (historyEntry.actionLog) {
+      setActionLogs(prev => ({
+        ...prev,
+        [taskId]: { ...(prev[taskId] ?? {}), [verificationType]: historyEntry.actionLog }
+      }));
+    }
+
+    // Revert revision count
+    setRevisionStates(prev => {
+      const taskRevs = { ...(prev[taskId] ?? {}) };
+      taskRevs[verificationType] = { ...taskRevs[verificationType], count: prevRevNum };
+      return { ...prev, [taskId]: taskRevs };
+    });
+
+    // Remove the history entry we just restored from
+    setRevisionHistory(prev => {
+      const taskHistory = { ...(prev[taskId] ?? {}) };
+      const typeHistory = { ...(taskHistory[verificationType] ?? {}) };
+      delete typeHistory[prevRevNum];
+      taskHistory[verificationType] = typeHistory;
+      return { ...prev, [taskId]: taskHistory };
+    });
+
+    // Restore upload states to 'done' without re-triggering completion logic
+    setUploadStates(prev => {
+      const taskStates = { ...(prev[taskId] ?? {}), [verificationType]: 'done' as UploadState };
+      if (verificationType === 'insurance') {
+        taskStates['insurance:detail'] = 'done';
+        taskStates['insurance:draft'] = 'done';
+      } else if (verificationType === 'draftBL') {
+        taskStates['draftBL:shipping'] = 'done';
+        taskStates['draftBL:draft'] = 'done';
+      }
+      return { ...prev, [taskId]: taskStates };
+    });
+  }
+
   const [search, setSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'All'>('All');
@@ -496,10 +551,12 @@ export default function App() {
     const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
     updateTaskOverride(taskId, { verifications, status: deriveOverallStatus(effective) });
 
-    setActionLogs(prev => ({
-      ...prev,
-      [taskId]: { ...prev[taskId], [verificationType]: { action: 'approve', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark } },
-    }));
+    setActionLogs(prev => {
+      const next = { ...prev };
+      if (!next[taskId]) next[taskId] = {};
+      next[taskId][verificationType] = { action: 'approve', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark };
+      return next;
+    });
   }
 
   function handleUploadStateChange(taskId: string, tab: string, state: UploadState, revNum?: number) {
@@ -535,11 +592,7 @@ export default function App() {
     if (!t) return;
 
     const currentRevCount = revisionStates[taskId]?.['insurance']?.count;
-
-    // Determine if this is the first time we are replacing mock/empty data with uploaded data
-    const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft Insurance' || d.type === 'Detail for Insurance Purpose'));
-    const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
-    const isRevision = !isFirstManualUpload;
+    const isRevision = currentRevCount !== undefined && currentRevCount > 0;
 
     const mismatch = !isRevision ? { 'AMOUNT INSURED HEREUNDER': `USD ${((Math.random() * 500000) + 100000).toFixed(2)}` } : undefined;
     const newInsDocs = insDocs(taskId, t.correctValues, mismatch);
@@ -564,10 +617,7 @@ export default function App() {
     if (!t) return;
 
     const currentRevCount = revisionStates[taskId]?.['draftBL']?.count;
-
-    const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft B/L' || d.type === 'Shipping Particular'));
-    const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
-    const isRevision = !isFirstManualUpload;
+    const isRevision = currentRevCount !== undefined && currentRevCount > 0;
 
     const mismatch = !isRevision ? { 'Gross Weight': '999,999 KG' } : undefined;
     const mismatch2 = !isRevision ? { 'Gross Weight': '888,888 KG' } : undefined;
@@ -871,6 +921,7 @@ export default function App() {
               actionLogs={actionLogs[currentTask.id] ?? {}}
               onLogVerified={(vt) => handleLogVerified(currentTask.id, vt)}
               onResetForUpload={(vt) => handleResetVerificationForUpload(currentTask.id, vt)}
+              onCancelResetForUpload={(vt) => handleCancelResetForUpload(currentTask.id, vt)}
               revisionStates={revisionStates[currentTask.id] ?? {}}
               onIncrementRevision={(vt, revNum, defaultToZero) => handleIncrementRevision(currentTask.id, vt, revNum, defaultToZero)}
               onUpdateTask={handleUpdateTask}

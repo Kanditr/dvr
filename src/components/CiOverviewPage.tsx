@@ -155,6 +155,7 @@ interface CiOverviewPageProps {
   actionLogs: Record<string, ActionLog>;
   onLogVerified: (vt: VerificationType) => void;
   onResetForUpload: (vt: VerificationType) => void;
+  onCancelResetForUpload: (vt: VerificationType) => void;
   revisionStates: Record<string, { count: number; date: string }>;
   onIncrementRevision: (vt: VerificationType, revNum?: number, defaultToZero?: boolean) => void;
   onUpdateTask: (task: Task) => void;
@@ -179,7 +180,7 @@ function formatRevDate(iso: string): string {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
-export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, currentUser, actionLogs, onLogVerified, onResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange, revisionHistory, fileUrlsHistory }: CiOverviewPageProps) {
+export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, currentUser, actionLogs, onLogVerified, onResetForUpload, onCancelResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange, revisionHistory, fileUrlsHistory }: CiOverviewPageProps) {
   const reUploadActionRef = useRef<HTMLInputElement>(null);
   const [reUploadPending, setReUploadPending] = useState(false);
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
@@ -322,15 +323,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
 
   function handleCancelReUpload() {
     setIsReUploading(false);
-    if (activeTab === 'insurance') {
-      onUploadStateChange('insurance:detail', 'done');
-      onUploadStateChange('insurance:draft', 'done');
-      onUploadStateChange('insurance', 'done');
-    } else if (activeTab === 'draftBL') {
-      onUploadStateChange('draftBL:shipping', 'done');
-      onUploadStateChange('draftBL:draft', 'done');
-      onUploadStateChange('draftBL', 'done');
-    }
+    onCancelResetForUpload(activeTab);
   }
 
   function handleReUploadAfterAction(e: React.ChangeEvent<HTMLInputElement>) {
