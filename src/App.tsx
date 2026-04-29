@@ -285,6 +285,7 @@ export default function App() {
               verifications: task.verifications,
               fieldStatusOverrides: task.fieldStatusOverrides,
               cellStatusOverrides: task.cellStatusOverrides,
+              actionLog: actionLogs[taskId]?.[tab],
               date: current?.date ?? new Date().toISOString()
             }
           }
@@ -524,10 +525,6 @@ export default function App() {
         else if (tab === 'blDate') {
           setTimeout(() => finalizeBLDateCompletion(taskId), 0);
         }
-        // General re-upload completion (e.g. Custom Formality)
-        else if (!tab.includes(':')) {
-          setTimeout(() => incrementRevision(taskId, tab, revNum), 0);
-        }
       }
       return { ...prev, [taskId]: taskStates };
     });
@@ -538,7 +535,6 @@ export default function App() {
     if (!t) return;
 
     const currentRevCount = revisionStates[taskId]?.['insurance']?.count;
-    incrementRevision(taskId, 'insurance', undefined, false);
 
     // Determine if this is the first time we are replacing mock/empty data with uploaded data
     const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft Insurance' || d.type === 'Detail for Insurance Purpose'));
@@ -568,7 +564,6 @@ export default function App() {
     if (!t) return;
 
     const currentRevCount = revisionStates[taskId]?.['draftBL']?.count;
-    incrementRevision(taskId, 'draftBL', undefined, false);
 
     const hasMockDocs = t.documents.some(d => d.id.startsWith('doc-') && (d.type === 'Draft B/L' || d.type === 'Shipping Particular'));
     const isFirstManualUpload = currentRevCount === undefined || (currentRevCount === 0 && hasMockDocs);
@@ -596,8 +591,6 @@ export default function App() {
   function finalizeBLDateCompletion(taskId: string) {
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
-
-    incrementRevision(taskId, 'blDate', undefined, false);
 
     let nextDocs = t.documents;
     if (!t.documents.find(d => d.type === 'Original B/L')) {
@@ -648,6 +641,9 @@ export default function App() {
   }
 
   function handleResetVerificationForUpload(taskId: string, verificationType: VerificationType) {
+    // Increment revision to capture current (approved/rejected) state in history
+    incrementRevision(taskId, verificationType, undefined, false);
+
     const original = mockTasks.find(t => t.id === taskId) || uploadedTaskDefs.find(t => t.id === taskId);
     if (!original) return;
     const originalStatus = original.verifications[verificationType];

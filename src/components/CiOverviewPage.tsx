@@ -226,6 +226,11 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     return historical ?? fileUrls;
   }, [fileUrls, activeTab, activeRevision, latestRevision, fileUrlsHistory]);
 
+  const displayActionLog = useMemo(() => {
+    if (activeRevision === latestRevision) return actionLogs[activeTab];
+    return revisionHistory[activeTab]?.[activeRevision]?.actionLog;
+  }, [actionLogs, activeTab, activeRevision, latestRevision, revisionHistory]);
+
   // Track the revision of the first file uploaded in a pair (insurance or draftBL)
   const [partialRevisionStates, setPartialRevisionStates] = useState<Record<string, number>>({});
   const [isReUploading, setIsReUploading] = useState(false);
@@ -413,7 +418,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   const activeTabDef = TABS.find(t => t.type === activeTab)!;
 
   const activeTabStatus: VerificationStatus = (() => {
-    let s: VerificationStatus = task.verifications[activeTab];
+    let s: VerificationStatus = displayTask.verifications[activeTab];
     if (activeTab === 'blDate' && (uploadStates['blDate'] ?? 'idle') !== 'done') s = 'Pending Verification';
     else if (activeTab === 'customFormality' && s === 'Pending Verification') s = 'Attention';
     return s;
@@ -469,7 +474,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               const isPendingDocument =
                 ((tab.type === 'insurance' || tab.type === 'draftBL') && (uploadStates[tab.type] ?? 'idle') !== 'done')
                 || (tab.type === 'blDate' && !blDateHasData);
-              let tabStatus: VerificationStatus = task.verifications[tab.type];
+              let tabStatus: VerificationStatus = isActive ? displayTask.verifications[tab.type] : task.verifications[tab.type];
               if (tab.type === 'blDate' && !blDateHasData) tabStatus = 'Pending Verification';
               else if ((tab.type === 'customFormality' || tab.type === 'blDate') && tabStatus === 'Pending Verification') tabStatus = 'Attention';
               return (
@@ -541,8 +546,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   Green cells indicate matching values. Orange cells indicate mismatches.
                 </p> */}
                 <div className="h-4 mt-0.5" />
-                {actionLogs[activeTab] && (() => {
-                  const log = actionLogs[activeTab];
+                {displayActionLog && (() => {
+                  const log = displayActionLog;
                   const label = log.action === 'approve' ? 'Last approved' : log.action === 'reject' ? 'Last rejected' : 'Last verified';
                   const color = log.action === 'approve' ? 'text-[#0056b8]' : log.action === 'reject' ? 'text-[#8c1d1d]' : 'text-gray-500';
                   return (
@@ -717,15 +722,15 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               </div>
             </div>
           </div>
-          {actionLogs[activeTab]?.reason && (
-            <div className={`px-6 py-3 border-b border-gray-200 shrink-0 text-xs ${actionLogs[activeTab].action === 'approve' ? 'bg-[#ebf7ed]' : 'bg-[#faeaea]'}`}>
+          {displayActionLog?.reason && (
+            <div className={`px-6 py-3 border-b border-gray-200 shrink-0 text-xs ${displayActionLog.action === 'approve' ? 'bg-[#ebf7ed]' : 'bg-[#faeaea]'}`}>
               <span className="font-semibold text-gray-700">Status: </span>
-              <span className={`font-medium ${actionLogs[activeTab].action === 'approve' ? 'text-[#267d36]' : 'text-[#8c1d1d]'}`}>
-                {actionLogs[activeTab].reason}
+              <span className={`font-medium ${displayActionLog.action === 'approve' ? 'text-[#267d36]' : 'text-[#8c1d1d]'}`}>
+                {displayActionLog.reason}
               </span>
-              {actionLogs[activeTab].remark && (
+              {displayActionLog.remark && (
                 <span className="text-gray-600">
-                  &nbsp;&nbsp;·&nbsp;&nbsp;<span className="font-semibold text-gray-700">Remark: </span>{actionLogs[activeTab].remark}
+                  &nbsp;&nbsp;·&nbsp;&nbsp;<span className="font-semibold text-gray-700">Remark: </span>{displayActionLog.remark}
                 </span>
               )}
             </div>
