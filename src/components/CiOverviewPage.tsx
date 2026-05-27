@@ -8,6 +8,7 @@ import BLDateTable from './BLDateTable';
 import type { UploadState } from './DocumentUploadGate';
 import ConfirmModal from './ConfirmModal';
 import { validateFileName } from '../utils/validation';
+import { saveFile, getFileUrl } from '../utils/fileStorage';
 
 interface TabDef {
   type: VerificationType;
@@ -156,8 +157,8 @@ interface CiOverviewPageProps {
   onLogVerified: (vt: VerificationType) => void;
   onResetForUpload: (vt: VerificationType) => void;
   onCancelResetForUpload: (vt: VerificationType) => void;
-  revisionStates: Record<string, { count: number; date: string }>;
-  onIncrementRevision: (vt: VerificationType, revNum?: number, defaultToZero?: boolean) => void;
+  revisionStates: Record<string, { count: number; date: string; receiveDate?: string }>;
+  onIncrementRevision: (vt: VerificationType, revNum?: number, defaultToZero?: boolean, receiveDate?: string) => void;
   onUpdateTask: (task: Task) => void;
   fileUrls: Record<string, string>;
   onFileUrlChange: (tab: string, url: string) => void;
@@ -231,6 +232,16 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     if (activeRevision === latestRevision) return actionLogs[activeTab];
     return revisionHistory[activeTab]?.[activeRevision]?.actionLog;
   }, [actionLogs, activeTab, activeRevision, latestRevision, revisionHistory]);
+
+  // Load persisted file URLs from IndexedDB on task change
+  useEffect(() => {
+    const tabs = ['customFormality', 'insurance:detail', 'insurance:draft', 'draftBL:shipping', 'draftBL:draft', 'blDate'];
+    tabs.forEach(tab => {
+      getFileUrl(`${task.id}:${tab}`).then(url => {
+        if (url) onFileUrlChange(tab, url);
+      });
+    });
+  }, [task.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track the revision of the first file uploaded in a pair (insurance or draftBL)
   const [partialRevisionStates, setPartialRevisionStates] = useState<Record<string, number>>({});
@@ -312,6 +323,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     setTimeout(() => {
       onUploadStateChange(tab, 'done', revNum);
       onFileUrlChange(tab, url);
+      saveFile(`${task.id}:${tab}`, file);
 
       // Single-file tabs can close immediately; multi-file pairs are handled by useEffect
       if (!tab.includes(':')) {
@@ -348,8 +360,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     setTimeout(() => {
       setReUploadPending(false);
       if (wasActioned) onResetForUpload(activeTab);
-      onIncrementRevision(activeTab, revNum);
+      const receiveDate = activeTab === 'customFormality'
+        ? (task.correctValues['CF Receive Date'] ?? task.submittedDate?.slice(0, 10))
+        : undefined;
+      onIncrementRevision(activeTab, revNum, undefined, receiveDate);
       onFileUrlChange(activeTab, url);
+      saveFile(`${task.id}:${activeTab}`, file);
     }, 2500);
   }
 
@@ -393,7 +409,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   // Auto-set Rev. 00 the first time a tab has data (before any manual upload)
   useEffect(() => {
     if (!isTabPending && !revisionStates[activeTab]) {
-      onIncrementRevision(activeTab, undefined, true);
+      const receiveDate = activeTab === 'customFormality'
+        ? (task.correctValues['CF Receive Date'] ?? task.submittedDate?.slice(0, 10))
+        : undefined;
+      onIncrementRevision(activeTab, undefined, true, receiveDate);
     }
   }, [activeTab, task.id, isTabPending]);
 

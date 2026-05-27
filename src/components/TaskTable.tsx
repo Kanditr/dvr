@@ -73,11 +73,12 @@ interface TaskTableProps {
   availableUsers?: string[];
   onAssignTask?: (taskId: string, email: string) => void;
   onRemoveTask?: (taskId: string) => void;
+  firstReceivedDates?: Record<string, string>;
 }
 
 const PAGE_SIZE = 10;
 
-export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, isAdmin, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask }: TaskTableProps) {
+export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, isAdmin, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask, firstReceivedDates = {} }: TaskTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
@@ -166,6 +167,12 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 Created Date
               </th>
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
+                Loading Date
+              </th>
+              <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
+                1st Received Date
+              </th>
+              <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
                 Last Update
               </th>
               {isAdmin && (
@@ -230,6 +237,12 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
                   {formatLastUpdate(task.submittedDate)}
                 </td>
+                <td className="px-4 py-4 text-gray-500 whitespace-nowrap">
+                  —
+                </td>
+                <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
+                  {firstReceivedDates[task.id] ? formatLastUpdate(firstReceivedDates[task.id]) : '—'}
+                </td>
                 <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
                   {formatLastUpdate(task.lastUpdate ?? task.submittedDate)}
                 </td>
@@ -248,7 +261,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
             ))}
             {processed.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-6 py-20 text-center text-gray-400 text-sm">
+                <td colSpan={12} className="px-6 py-20 text-center text-gray-400 text-sm">
                   <div className="flex flex-col items-center gap-2">
                     <svg className="w-8 h-8 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />

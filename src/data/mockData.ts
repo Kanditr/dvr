@@ -370,8 +370,8 @@ export const mockTasks: Task[] = [
     id: '2026030001', shipmentRef: 'SHP-2026-001', shipper: 'PTT Global Chemical PCL',
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
     submittedDate: '2026-03-01T08:00:00Z', lastUpdate: '2026-03-01T09:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
-    status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050001', 'REF NO.': '3252010001', "BUYER'S ORDER NO.": '3252010001',
@@ -410,7 +410,7 @@ export const mockTasks: Task[] = [
     consignee: 'Sinopec Tianjin Chemicals Co., Ltd.',
     submittedDate: '2026-03-02T08:05:00Z', lastUpdate: '2026-03-02T10:30:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Attention', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050002', 'REF NO.': '3252010002', "BUYER'S ORDER NO.": '3252010002',
@@ -449,8 +449,8 @@ export const mockTasks: Task[] = [
     id: '2026030003', shipmentRef: 'SHP-2026-003', shipper: 'PTT Global Chemical PCL',
     consignee: 'Qingdao Jifa Group Co., Ltd.',
     submittedDate: '2026-03-03T08:10:00Z', lastUpdate: '2026-03-03T11:15:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
-    status: 'Pending',
-    verifications: { customFormality: 'Match', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050003', 'REF NO.': '3252010003', "BUYER'S ORDER NO.": '3252010003',
@@ -485,7 +485,7 @@ export const mockTasks: Task[] = [
     consignee: 'BASF Trading (Shanghai) Co., Ltd.',
     submittedDate: '2026-03-04T08:15:00Z', lastUpdate: '2026-03-04T12:00:00Z', assignedTo: 'james.tan@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Match', insurance: 'Attention', draftBL: 'Match', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050004', 'REF NO.': '3252010004', "BUYER'S ORDER NO.": '3252010004',
@@ -522,8 +522,8 @@ export const mockTasks: Task[] = [
     id: '2026030005', shipmentRef: 'SHP-2026-005', shipper: 'PTT Global Chemical PCL',
     consignee: 'Dow Chemical Singapore Pte. Ltd.',
     submittedDate: '2026-03-05T08:20:00Z', lastUpdate: '2026-03-05T12:00:00Z', assignedTo: 'sarah.lim@pttgcgroup.com',
-    status: 'Pending',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050005', 'REF NO.': '3252010005', "BUYER'S ORDER NO.": '3252010005',
@@ -561,7 +561,7 @@ export const mockTasks: Task[] = [
     consignee: 'LG Chem Ltd.',
     submittedDate: '2026-03-06T08:25:00Z', lastUpdate: '2026-03-06T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Attention', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050006', 'REF NO.': '3252010006', "BUYER'S ORDER NO.": '3252010006',
@@ -601,7 +601,7 @@ export const mockTasks: Task[] = [
     consignee: 'PT. Chandra Asri Petrochemical Tbk',
     submittedDate: '2026-03-07T08:30:00Z', lastUpdate: '2026-03-07T12:00:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Attention', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050007', 'REF NO.': '3252010007', "BUYER'S ORDER NO.": '3252010007',
@@ -635,8 +635,8 @@ export const mockTasks: Task[] = [
     id: '2026030008', shipmentRef: 'SHP-2026-008', shipper: 'PTT Global Chemical PCL',
     consignee: 'Sinopec Tianjin Chemicals Co., Ltd.',
     submittedDate: '2026-03-08T08:35:00Z', lastUpdate: '2026-03-08T12:00:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
-    status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050008', 'REF NO.': '3252010008', "BUYER'S ORDER NO.": '3252010008',
@@ -674,8 +674,8 @@ export const mockTasks: Task[] = [
     id: '2026030009', shipmentRef: 'SHP-2026-009', shipper: 'PTT Global Chemical PCL',
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
     submittedDate: '2026-03-09T08:40:00Z', lastUpdate: '2026-03-09T12:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
-    status: 'Pending',
-    verifications: { customFormality: 'Match', insurance: 'Pending Verification', draftBL: 'Match', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050009', 'REF NO.': '3252010009', "BUYER'S ORDER NO.": '3252010009',
@@ -712,8 +712,8 @@ export const mockTasks: Task[] = [
     id: '2026030010', shipmentRef: 'SHP-2026-010', shipper: 'PTT Global Chemical PCL',
     consignee: 'Qingdao Jifa Group Co., Ltd.',
     submittedDate: '2026-03-10T08:45:00Z', lastUpdate: '2026-03-10T12:00:00Z', assignedTo: 'james.tan@pttgcgroup.com',
-    status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050010', 'REF NO.': '3252010010', "BUYER'S ORDER NO.": '3252010010',
@@ -754,7 +754,7 @@ export const mockTasks: Task[] = [
     consignee: 'Petronas Chemicals Group Bhd',
     submittedDate: '2026-03-11T08:50:00Z', lastUpdate: '2026-03-11T12:00:00Z', assignedTo: 'sarah.lim@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Attention', insurance: 'Match', draftBL: 'Attention', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050011', 'REF NO.': '3252010011', "BUYER'S ORDER NO.": '3252010011',
@@ -793,8 +793,8 @@ export const mockTasks: Task[] = [
     id: '2026030012', shipmentRef: 'SHP-2026-012', shipper: 'PTT Global Chemical PCL',
     consignee: 'LG Chem Ltd.',
     submittedDate: '2026-03-12T08:55:00Z', lastUpdate: '2026-03-12T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
-    status: 'Pending',
-    verifications: { customFormality: 'Match', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050012', 'REF NO.': '3252010012', "BUYER'S ORDER NO.": '3252010012',
@@ -832,7 +832,7 @@ export const mockTasks: Task[] = [
     consignee: 'BASF Trading (Shanghai) Co., Ltd.',
     submittedDate: '2026-03-13T09:00:00Z', lastUpdate: '2026-03-13T12:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Match', insurance: 'Attention', draftBL: 'Attention', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050013', 'REF NO.': '3252010013', "BUYER'S ORDER NO.": '3252010013',
@@ -870,8 +870,8 @@ export const mockTasks: Task[] = [
     id: '2026030014', shipmentRef: 'SHP-2026-014', shipper: 'PTT Global Chemical PCL',
     consignee: 'PT. Chandra Asri Petrochemical Tbk',
     submittedDate: '2026-03-14T09:05:00Z', lastUpdate: '2026-03-14T12:00:00Z', assignedTo: 'john.smith@pttgcgroup.com',
-    status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050014', 'REF NO.': '3252010014', "BUYER'S ORDER NO.": '3252010014',
@@ -910,7 +910,7 @@ export const mockTasks: Task[] = [
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
     submittedDate: '2026-03-15T09:10:00Z', lastUpdate: '2026-03-15T12:00:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Attention', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050015', 'REF NO.': '3252010015', "BUYER'S ORDER NO.": '3252010015',
@@ -947,8 +947,8 @@ export const mockTasks: Task[] = [
     id: '2026030016', shipmentRef: 'SHP-2026-016', shipper: 'PTT Global Chemical PCL',
     consignee: 'Sinopec Tianjin Chemicals Co., Ltd.',
     submittedDate: '2026-03-16T09:15:00Z', lastUpdate: '2026-03-16T12:00:00Z', assignedTo: 'james.tan@pttgcgroup.com',
-    status: 'Pending',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050016', 'REF NO.': '3252010016', "BUYER'S ORDER NO.": '3252010016',
@@ -984,8 +984,8 @@ export const mockTasks: Task[] = [
     id: '2026030017', shipmentRef: 'SHP-2026-017', shipper: 'PTT Global Chemical PCL',
     consignee: 'Petronas Chemicals Group Bhd',
     submittedDate: '2026-03-17T09:20:00Z', lastUpdate: '2026-03-17T12:00:00Z', assignedTo: 'sarah.lim@pttgcgroup.com',
-    status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050017', 'REF NO.': '3252010017', "BUYER'S ORDER NO.": '3252010017',
@@ -1024,7 +1024,7 @@ export const mockTasks: Task[] = [
     consignee: 'Qingdao Jifa Group Co., Ltd.',
     submittedDate: '2026-03-18T09:25:00Z', lastUpdate: '2026-03-18T12:00:00Z', assignedTo: 'alice.tan@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Match', insurance: 'Attention', draftBL: 'Match', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050018', 'REF NO.': '3252010018', "BUYER'S ORDER NO.": '3252010018',
@@ -1063,7 +1063,7 @@ export const mockTasks: Task[] = [
     consignee: 'LG Chem Ltd.',
     submittedDate: '2026-03-19T09:30:00Z', lastUpdate: '2026-03-19T12:00:00Z', assignedTo: 'john.smith@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Attention', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050019', 'REF NO.': '3252010019', "BUYER'S ORDER NO.": '3252010019',
@@ -1102,7 +1102,7 @@ export const mockTasks: Task[] = [
     consignee: 'Dow Chemical Singapore Pte. Ltd.',
     submittedDate: '2026-03-20T09:35:00Z', lastUpdate: '2026-03-20T12:00:00Z', assignedTo: 'aisha.patel@pttgcgroup.com',
     status: 'Attention',
-    verifications: { customFormality: 'Attention', insurance: 'Attention', draftBL: 'Match', blDate: 'Pending Verification' },
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '1015050020', 'REF NO.': '3252010020', "BUYER'S ORDER NO.": '3252010020',
@@ -1140,8 +1140,8 @@ export const mockTasks: Task[] = [
     id: '0000000000', shipmentRef: 'SHP-2026-021', shipper: 'PTT Global Chemical PCL',
     consignee: 'GC Marketing Solutions (Shanghai) Co., Ltd.',
     submittedDate: '2026-03-21T10:00:00Z', lastUpdate: '2026-03-21T11:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
-    status: 'Match',
-    verifications: { customFormality: 'Match', insurance: 'Match', draftBL: 'Match', blDate: 'Pending Verification' },
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
     canonicalFields: ALL_CANONICAL,
     correctValues: {
       'INVOICE NO.': '0000000000', 'REF NO.': '3252010021', "BUYER'S ORDER NO.": '3252010021',

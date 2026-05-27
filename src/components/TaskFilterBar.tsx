@@ -42,22 +42,6 @@ const TAB_FILTER_DEFS: { key: VerificationType; label: string }[] = [
   { key: 'blDate', label: 'Original B/L' },
 ];
 
-function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
-  return (
-    <button
-      role="switch"
-      aria-checked={checked}
-      onClick={() => onChange(!checked)}
-      className="flex items-center gap-2 group"
-    >
-      <span className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ${checked ? 'bg-[#0056b8]' : 'bg-gray-300'}`}>
-        <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform duration-200 mt-0.5 ml-0.5 ${checked ? 'translate-x-4' : 'translate-x-0'}`} />
-      </span>
-      <span className={`text-sm ${checked ? 'text-[#0056b8]' : 'text-gray-500'} group-hover:text-gray-700`}>{label}</span>
-    </button>
-  );
-}
-
 interface TaskFilterBarProps {
   search: string;
   onSearchChange: (v: string) => void;
@@ -65,19 +49,15 @@ interface TaskFilterBarProps {
   onStatusChange: (v: TaskStatus | 'All') => void;
   tabFilters: Record<VerificationType, VerificationStatus | 'All'>;
   onTabFilterChange: (key: VerificationType, value: VerificationStatus | 'All') => void;
-  onlyMyTasks: boolean;
-  onOnlyMyTasksChange: (v: boolean) => void;
   dateFrom: string;
   dateTo: string;
-  minDate: string;
-  maxDate: string;
   onDateFromChange: (v: string) => void;
   onDateToChange: (v: string) => void;
   onReset: () => void;
   onUploadCF?: () => void;
 }
 
-export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, onlyMyTasks, onOnlyMyTasksChange, dateFrom, dateTo, minDate, maxDate, onDateFromChange, onDateToChange, onReset, onUploadCF }: TaskFilterBarProps) {
+export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, dateFrom, dateTo, onDateFromChange, onDateToChange, onReset, onUploadCF }: TaskFilterBarProps) {
   const dateFromRef = useRef<HTMLInputElement>(null);
   const dateToRef = useRef<HTMLInputElement>(null);
 
@@ -160,8 +140,7 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
                   ref={dateFromRef}
                   type="date"
                   value={dateFrom}
-                  min={minDate}
-                  max={dateTo || maxDate}
+                  max={dateTo || undefined}
                   onChange={e => onDateFromChange(e.target.value)}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full"
                 />
@@ -190,8 +169,7 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
                   ref={dateToRef}
                   type="date"
                   value={dateTo}
-                  min={dateFrom || minDate}
-                  max={maxDate}
+                  min={dateFrom || undefined}
                   onChange={e => onDateToChange(e.target.value)}
                   className="absolute inset-0 opacity-0 cursor-pointer w-full"
                 />
@@ -199,13 +177,6 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             </div>
           </div>
         </div>
-        <div className="flex flex-col gap-0.5 pb-[2px]">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide invisible select-none">Options</label>
-          <div className="flex items-center gap-4 py-2">
-            <Toggle checked={onlyMyTasks} onChange={onOnlyMyTasksChange} label="Only My Tasks" />
-          </div>
-        </div>
-
         <button
           onClick={onReset}
           className="text-sm text-[#0056b8] hover:underline pb-[9px]"

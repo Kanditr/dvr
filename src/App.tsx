@@ -11,7 +11,8 @@ import { mockTasks, deriveOverallStatus, insDocs, dblDocs } from './data/mockDat
 import type { Task, TaskStatus, VerificationStatus, Verifications } from './data/mockData';
 import type { UploadState } from './components/DocumentUploadGate';
 import { computeVerificationStatus } from './utils/comparison';
-import { validateFileName } from './utils/validation';
+import { validateFileName, validateCFFileName } from './utils/validation';
+import { saveFile, deleteFilesForTask } from './utils/fileStorage';
 
 export type VerificationType = 'customFormality' | 'insurance' | 'draftBL' | 'blDate';
 export type ActionLog = { action: 'verified' | 'approve' | 'reject'; timestamp: string; by: string; reason?: string; remark?: string };
@@ -62,31 +63,22 @@ function getEffectiveVerifications(task: Task, taskUploadStates: Record<string, 
   };
 }
 
-// Auto Approve logic moved to useEffect to ensure permanence
-
-const DATA_VERSION = 'v2026-04i';
-
-function clearStaleStorage() {
-  const stored = localStorage.getItem('dvr:dataVersion');
-  if (stored !== DATA_VERSION) {
-    ['dvr:taskOverrides', 'dvr:uploadStates', 'dvr:actionLogs', 'dvr:uploadedTasks', 'dvr:revisionStates', 'dvr:touchedUploads', 'dvr:deletedTasks', 'dvr:revisionHistory'].forEach(k => localStorage.removeItem(k));
-    localStorage.setItem('dvr:dataVersion', DATA_VERSION);
-  }
-}
-clearStaleStorage();
-
 // ─── Generate a fully-populated task from an uploaded CF document ─────────────
 const CF_CLONE_TYPES = new Set(['Shipping Advice', 'Custom Invoice', 'Packing List', 'Letter of Credit', 'Shipping Instruction']);
+
+function formatDateDMY(date: Date): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${String(date.getDate()).padStart(2, '0')} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
 
 function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, fileName?: string): Task {
   let newInvoiceNo: string;
 
-  // New format: PREFIX_INVOICENORevREVISION.pdf
-  const fileMatch = fileName?.match(/^[A-Z_]+_(.+)Rev\d+\.pdf$/i);
+  // Format: CustomsFormality_<CI no>_<yyyymmdd>.pdf
+  const fileMatch = fileName?.match(/^CustomsFormality_(.+)_\d{8}\.pdf$/i);
   if (fileMatch) {
     newInvoiceNo = fileMatch[1];
   } else {
-    // Fallback
     const maxNum = allCurrentTasks
       .map(t => parseInt(t.correctValues['INVOICE NO.'] ?? '0', 10))
       .filter(n => n > 1000000000)
@@ -96,15 +88,18 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, 
 
   const newRefNo = `325201${newInvoiceNo.slice(-4)}`;
 
-  // Pick a random CF-all-matches task as the data template
+  // Fall back to any task if no Match ones exist
   const cfTasks = mockTasks.filter(t => t.verifications.customFormality === 'Match');
-  const template = cfTasks[Math.floor(Math.random() * cfTasks.length)];
+  const templatePool = cfTasks.length > 0 ? cfTasks : mockTasks;
+  const template = templatePool[Math.floor(Math.random() * templatePool.length)];
 
   const oldInvoice = template.correctValues['INVOICE NO.'];
   const oldRef = template.correctValues['REF NO.'];
   const newId = `upload-${Date.now()}`;
 
-  // Clone correctValues, replacing invoice / ref numbers globally
+  const todayDMY = formatDateDMY(new Date());
+  const todayISO = new Date().toLocaleDateString('en-CA');
+
   const correctValues: Record<string, string> = { ...template.correctValues };
   for (const [key, val] of Object.entries(correctValues)) {
     if (typeof val === 'string') {
@@ -113,17 +108,23 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, 
         .replace(new RegExp(oldRef, 'g'), newRefNo);
     }
   }
+  correctValues['GI Date'] = todayDMY;
+  correctValues['Manual Billing Date'] = todayDMY;
+  correctValues['CF Receive Date'] = todayISO;
+  delete correctValues['ETD Date'];
 
-  // Clone ONLY Custom Formality documents, replacing invoice / ref wherever they appear
+  const DATE_FIELD_KEYS = new Set(['etd_date', 'gi_date', 'billing_date', 'date', 'loading_date', 'issue_date', 'bl_date']);
   const documents = template.documents
     .filter(doc => CF_CLONE_TYPES.has(doc.type))
     .map(doc => {
       const values = { ...doc.values };
       for (const [key, val] of Object.entries(values)) {
         if (typeof val === 'string') {
-          values[key] = val
+          let v = val
             .replace(new RegExp(oldInvoice, 'g'), newInvoiceNo)
             .replace(new RegExp(oldRef, 'g'), newRefNo);
+          if (DATE_FIELD_KEYS.has(key.toLowerCase())) v = todayDMY;
+          values[key] = v;
         }
       }
       return {
@@ -174,7 +175,7 @@ export default function App() {
 
   const [actionLogs, setActionLogs] = useLocalStorage<Record<string, Record<string, ActionLog>>>('dvr:actionLogs', {});
 
-  const [revisionStates, setRevisionStates] = useLocalStorage<Record<string, Record<string, { count: number; date: string }>>>('dvr:revisionStates', {});
+  const [revisionStates, setRevisionStates] = useLocalStorage<Record<string, Record<string, { count: number; date: string; receiveDate?: string }>>>('dvr:revisionStates', {});
 
   const [revisionHistory, setRevisionHistory] = useLocalStorage<Record<string, Record<string, Record<number, any>>>>('dvr:revisionHistory', {});
   const [fileUrlsHistory, setFileUrlsHistory] = useState<Record<string, Record<string, Record<number, Record<string, string>>>>>({});
@@ -183,6 +184,19 @@ export default function App() {
   const [touchedUploadedIds, setTouchedUploadedIds] = useLocalStorage<string[]>('dvr:touchedUploads', []);
 
   const [deletedTaskIds, setDeletedTaskIds] = useLocalStorage<string[]>('dvr:deletedTasks', []);
+
+  // Seed demo data for CI 1015055190
+  useEffect(() => {
+    const T = '2026050190';
+    setRevisionStates(prev => {
+      if (prev[T]?.['customFormality']) return prev;
+      return { ...prev, [T]: { ...(prev[T] ?? {}), customFormality: { count: 0, date: '2026-01-15T08:00:00.000Z', receiveDate: '2026-01-15' } } };
+    });
+    setActionLogs(prev => {
+      if (prev[T]?.['customFormality']) return prev;
+      return { ...prev, [T]: { ...(prev[T] ?? {}), customFormality: { action: 'approve', timestamp: '2026-01-15T10:30:00.000Z', by: 'ice.ktpl@gmail.com', reason: 'Document fields matched correctly', remark: '' } } };
+    });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Temporary storage for ObjectURLs (not persistent across refreshes)
   const [fileUrls, setFileUrls] = useState<Record<string, Record<string, string>>>({});
@@ -223,6 +237,25 @@ export default function App() {
     return merged;
   }, [uploadedTaskDefs, mockTasks, deletedTaskIds, taskOverrides, uploadStates]);
 
+  // Pre-populate revisionStates so landing page dates are correct before clicking into each task
+  useEffect(() => {
+    setRevisionStates(prev => {
+      let changed = false;
+      const updated = { ...prev };
+      for (const task of tasks) {
+        if (!updated[task.id]?.['customFormality']) {
+          changed = true;
+          const receiveDate = task.correctValues['CF Receive Date'] ?? task.submittedDate?.slice(0, 10);
+          updated[task.id] = {
+            ...(updated[task.id] ?? {}),
+            customFormality: { count: 0, date: task.submittedDate ?? new Date().toISOString(), receiveDate },
+          };
+        }
+      }
+      return changed ? updated : prev;
+    });
+  }, [tasks]);
+
   const pendingAutoApproveRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -259,7 +292,7 @@ export default function App() {
     pendingAutoApproveRef.current.add(`${taskId}|${tab}`);
   }
 
-  function incrementRevision(taskId: string, tab: string, specificRev?: number, defaultToZero?: boolean) {
+  function incrementRevision(taskId: string, tab: string, specificRev?: number, defaultToZero?: boolean, receiveDate?: string) {
     const task = tasks.find(t => t.id === taskId);
     if (task) {
       const current = revisionStates[taskId]?.[tab];
@@ -286,6 +319,7 @@ export default function App() {
               fieldStatusOverrides: task.fieldStatusOverrides,
               cellStatusOverrides: task.cellStatusOverrides,
               actionLog: actionLogs[taskId]?.[tab],
+              receiveDate: current?.receiveDate,
               date: current?.date ?? new Date().toISOString()
             }
           }
@@ -309,7 +343,7 @@ export default function App() {
         ...prev,
         [taskId]: {
           ...(prev[taskId] ?? {}),
-          [tab]: { count: nextCount, date: new Date().toISOString() },
+          [tab]: { count: nextCount, date: new Date().toISOString(), receiveDate },
         },
       }));
     }
@@ -361,15 +395,9 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const { error, invoiceNo, revNum } = validateFileName(file.name, 'CustomsFormality');
+    const { error, invoiceNo } = validateCFFileName(file.name);
     if (error) {
       alert(error);
-      e.target.value = '';
-      return;
-    }
-
-    if (revNum !== 0) {
-      alert('Only the first version (Rev0) can be uploaded from the main page. For revised versions, please upload them directly within the specific task page.');
       e.target.value = '';
       return;
     }
@@ -386,13 +414,13 @@ export default function App() {
     e.target.value = '';
     const url = URL.createObjectURL(file);
 
-    // Capture current task list before async delay
     setProcessingUpload(true);
     setTimeout(() => {
       setProcessingUpload(false);
-      const snapshot = [...uploadedTaskDefs, ...tasks]; // tasks is already derived
-      const newTask = generateUploadedTask(snapshot, '', file.name); // Keep unassigned initially
+      const snapshot = [...uploadedTaskDefs, ...tasks];
+      const newTask = generateUploadedTask(snapshot, CURRENT_USER, file.name);
 
+      saveFile(`${newTask.id}:customFormality`, file);
       setFileUrls(prev => ({
         ...prev,
         [newTask.id]: { ...(prev[newTask.id] ?? {}), customFormality: url }
@@ -411,6 +439,7 @@ export default function App() {
   }
 
   function handleRemoveTask(taskId: string) {
+    deleteFilesForTask(taskId);
     setDeletedTaskIds(prev => [...prev, taskId]);
     setUploadedTaskDefs(prev => prev.filter(t => t.id !== taskId));
     setTaskOverrides(prev => prev.filter(o => o.id !== taskId));
@@ -488,22 +517,6 @@ export default function App() {
     blDate: 'All',
   });
 
-  // Compute min/max dates across all tasks for date range defaults
-  const { minDate, maxDate } = useMemo(() => {
-    const dates = tasks
-      .map(t => t.submittedDate.split('T')[0])
-      .filter(Boolean)
-      .sort();
-
-    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
-    const latestDate = dates[dates.length - 1] ?? '';
-
-    return {
-      minDate: dates[0] ?? '',
-      maxDate: latestDate > today ? latestDate : today,
-    };
-  }, [tasks]);
-
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
@@ -551,12 +564,10 @@ export default function App() {
     const effective = getEffectiveVerifications({ ...t, verifications }, uploadStates[taskId] ?? {});
     updateTaskOverride(taskId, { verifications, status: deriveOverallStatus(effective) });
 
-    setActionLogs(prev => {
-      const next = { ...prev };
-      if (!next[taskId]) next[taskId] = {};
-      next[taskId][verificationType] = { action: 'approve', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark };
-      return next;
-    });
+    setActionLogs(prev => ({
+      ...prev,
+      [taskId]: { ...(prev[taskId] ?? {}), [verificationType]: { action: 'approve', timestamp: new Date().toISOString(), by: CURRENT_USER, reason, remark } },
+    }));
   }
 
   function handleUploadStateChange(taskId: string, tab: string, state: UploadState, revNum?: number) {
@@ -707,8 +718,8 @@ export default function App() {
     });
   }
 
-  function handleIncrementRevision(taskId: string, vt: VerificationType, revNum?: number, defaultToZero?: boolean) {
-    incrementRevision(taskId, vt, revNum, defaultToZero);
+  function handleIncrementRevision(taskId: string, vt: VerificationType, revNum?: number, defaultToZero?: boolean, receiveDate?: string) {
+    incrementRevision(taskId, vt, revNum, defaultToZero, receiveDate);
   }
 
   function handleUpdateTask(updatedTask: Task) {
@@ -765,17 +776,10 @@ export default function App() {
       return statuses.includes(target);
     })();
 
-    // Everyone sees all tasks by default.
-    // "Only My Tasks" toggle narrows to the current user for all roles.
-    const matchesUser = isAdmin
-      ? (!onlyMyTasks || t.assignedTo === CURRENT_USER)
-      : (!onlyMyTasks || t.assignedTo === CURRENT_USER);
+    const matchesUser = !onlyMyTasks || t.assignedTo === CURRENT_USER;
 
-    // Date range filter on submittedDate (extracting date part for comparison)
-    const taskDate = (t.submittedDate ?? '').split('T')[0];
-    const effectiveFrom = dateFrom || minDate;
-    const effectiveTo = dateTo || maxDate;
-    const matchesDate = (!effectiveFrom || taskDate >= effectiveFrom) && (!effectiveTo || taskDate <= effectiveTo);
+    // No task has a loading date in this phase — any date range selection yields no results
+    const matchesDate = !dateFrom && !dateTo;
 
     return matchesSearch && matchesStatus && matchesUser && matchesDate;
   });
@@ -818,7 +822,14 @@ export default function App() {
 
   return (
     <div className="h-screen bg-[#f3f6f8] flex flex-col overflow-hidden">
-      <Navbar currentUser={effectiveUser} autoApprove={autoApprove} onAutoApproveChange={handleAutoApproveChange} onNavigateHome={navigateHome} onLogout={handleLogout} />
+      <Navbar currentUser={effectiveUser} autoApprove={autoApprove} onAutoApproveChange={handleAutoApproveChange} onlyMyTasks={onlyMyTasks} onOnlyMyTasksChange={v => {
+            setOnlyMyTasks(v);
+            setTaskPage(1);
+            if (v && view.page === 'ci-overview') {
+              const task = tasks.find(t => t.id === (view as any).taskId);
+              if (!task || task.assignedTo !== CURRENT_USER) navigateHome();
+            }
+          }} onNavigateHome={navigateHome} onLogout={handleLogout} />
 
       <div className="flex-1 min-h-0 pt-14 flex flex-col overflow-hidden">
         {view.page === 'home' && (
@@ -837,14 +848,8 @@ export default function App() {
                 onStatusChange={v => { setStatusFilter(v); setTaskPage(1); }}
                 tabFilters={tabFilters}
                 onTabFilterChange={(key, value) => { setTabFilters(prev => ({ ...prev, [key]: value })); setTaskPage(1); }}
-                onlyMyTasks={onlyMyTasks}
-                onOnlyMyTasksChange={v => { setOnlyMyTasks(v); setTaskPage(1); }}
-                autoApprove={autoApprove}
-                onAutoApproveChange={handleAutoApproveChange}
                 dateFrom={dateFrom}
                 dateTo={dateTo}
-                minDate={minDate}
-                maxDate={maxDate}
                 onDateFromChange={v => { setDateFrom(v); setTaskPage(1); }}
                 onDateToChange={v => { setDateTo(v); setTaskPage(1); }}
                 onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setTaskPage(1); }}
@@ -865,6 +870,16 @@ export default function App() {
                   availableUsers={availableUsers}
                   onAssignTask={handleAssignTask}
                   onRemoveTask={handleRemoveTask}
+                  firstReceivedDates={Object.fromEntries(
+                    filteredTasks.map(task => {
+                      const revState = revisionStates[task.id]?.['customFormality'];
+                      const rev0 = revisionHistory[task.id]?.['customFormality']?.[0];
+                      const firstDate = revState && revState.count > 0
+                        ? (rev0?.receiveDate ?? rev0?.date ?? task.correctValues['CF Receive Date'] ?? task.submittedDate)
+                        : (revState?.receiveDate ?? revState?.date ?? task.correctValues['CF Receive Date'] ?? task.submittedDate);
+                      return [task.id, firstDate ?? ''];
+                    })
+                  )}
                 />
               </div>
             </div>
@@ -918,7 +933,7 @@ export default function App() {
               onResetForUpload={(vt) => handleResetVerificationForUpload(currentTask.id, vt)}
               onCancelResetForUpload={(vt) => handleCancelResetForUpload(currentTask.id, vt)}
               revisionStates={revisionStates[currentTask.id] ?? {}}
-              onIncrementRevision={(vt, revNum, defaultToZero) => handleIncrementRevision(currentTask.id, vt, revNum, defaultToZero)}
+              onIncrementRevision={(vt, revNum, defaultToZero, receiveDate) => handleIncrementRevision(currentTask.id, vt, revNum, defaultToZero, receiveDate)}
               onUpdateTask={handleUpdateTask}
               fileUrls={fileUrls[currentTask.id] ?? {}}
               onFileUrlChange={(tab, url) => setFileUrls(prev => ({
