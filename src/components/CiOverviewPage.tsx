@@ -150,6 +150,7 @@ interface CiOverviewPageProps {
   onApproveVerification: (vt: VerificationType, reason?: string, remark?: string) => void;
   onRejectVerification: (vt: VerificationType, reason?: string, remark?: string) => void;
   autoApprove: boolean;
+  autoApproveExcluded: Set<string>;
   currentUser: string;
   uploadStates: Record<string, UploadState>;
   onUploadStateChange: (tab: string, state: UploadState, revNum?: number) => void;
@@ -181,7 +182,7 @@ function formatRevDate(iso: string): string {
   return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
 }
 
-export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, currentUser, actionLogs, onLogVerified, onResetForUpload, onCancelResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange, revisionHistory, fileUrlsHistory }: CiOverviewPageProps) {
+export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, autoApproveExcluded, currentUser, actionLogs, onLogVerified, onResetForUpload, onCancelResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange, revisionHistory, fileUrlsHistory }: CiOverviewPageProps) {
   const reUploadActionRef = useRef<HTMLInputElement>(null);
   const [reUploadPending, setReUploadPending] = useState(false);
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
@@ -257,6 +258,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     setPartialRevisionStates({});
     setIsReUploading(false);
   }, [activeTab, task.id]);
+
 
   useEffect(() => {
     const prev = prevTabRef.current;
@@ -458,12 +460,25 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   })();
   const isTabActioned = activeTabStatus === 'Approved' || activeTabStatus === 'Rejected';
 
+  // Auto-approve any tab whose effective status is Match (not just the active one)
   useEffect(() => {
-    if (!autoApprove || (task.assignedTo && task.assignedTo !== currentUser)) return;
-    if (activeTabStatus === 'Match') {
-      onApproveVerification(activeTab, 'Auto Approved', 'Auto Approved is enabled in Settings');
+    if (!autoApprove) return;
+    const tabs: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
+    for (const tab of tabs) {
+      if (effectiveVerifications[tab] !== 'Match') continue;
+      if (autoApproveExcluded.has(`${task.id}:${tab}`)) continue;
+      onApproveVerification(tab, 'Auto Approved', 'Auto Approved is enabled in Settings');
     }
-  }, [activeTab, activeTabStatus, autoApprove, task.assignedTo, currentUser, onApproveVerification]);
+  }, [
+    autoApprove,
+    autoApproveExcluded,
+    task.id,
+    effectiveVerifications.customFormality,
+    effectiveVerifications.insurance,
+    effectiveVerifications.draftBL,
+    effectiveVerifications.blDate,
+    onApproveVerification,
+  ]);
 
   // Resolve the actual SI or LC doc type present in this task
   return (

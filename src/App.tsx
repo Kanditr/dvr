@@ -163,6 +163,8 @@ export default function App() {
 
   const [autoApprove, setAutoApprove] = useLocalStorage<boolean>('dvr:autoApprove', false);
   const [onlyMyTasks, setOnlyMyTasks] = useLocalStorage<boolean>('dvr:onlyMyTasks', false);
+  // Snapshot of task:tab combos that were already Match when auto-approve was turned ON — excluded from auto-approve
+  const [autoApproveExcluded, setAutoApproveExcluded] = useState<Set<string>>(new Set());
 
   const CURRENT_USER = effectiveUser ?? 'jane.doe@pttgcgroup.com';
   const isAdmin = CURRENT_USER === 'admin.admin@pttgcgroup.com';
@@ -786,6 +788,20 @@ export default function App() {
 
   function handleAutoApproveChange(value: boolean) {
     setAutoApprove(value);
+    if (value) {
+      // Snapshot every task+tab that is currently Match — these won't be auto-approved
+      const excluded = new Set<string>();
+      tasks.forEach(task => {
+        VALID_TABS.forEach(tab => {
+          if (task.verifications[tab] === 'Match') {
+            excluded.add(`${task.id}:${tab}`);
+          }
+        });
+      });
+      setAutoApproveExcluded(excluded);
+    } else {
+      setAutoApproveExcluded(new Set());
+    }
   }
 
   function navigateToLlmCompare() {
@@ -927,6 +943,7 @@ export default function App() {
               uploadStates={uploadStates[currentTask.id] ?? {}}
               onUploadStateChange={(tab, state, revNum) => handleUploadStateChange(currentTask.id, tab, state, revNum)}
               autoApprove={autoApprove}
+              autoApproveExcluded={autoApproveExcluded}
               currentUser={CURRENT_USER}
               actionLogs={actionLogs[currentTask.id] ?? {}}
               onLogVerified={(vt) => handleLogVerified(currentTask.id, vt)}
