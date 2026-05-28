@@ -69,23 +69,12 @@ function VerificationBadge({ status }: { status: VerificationStatus }) {
   );
 }
 
-function UploadSlot({ label, state, onUpload, onRemove }: { label: string; state: UploadState; onUpload: (file: File) => void; onRemove?: () => void }) {
+function UploadSlot({ label, state, onUpload }: { label: string; state: UploadState; onUpload: (file: File) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   if (state === 'done') {
     return (
-      <div className="relative flex-1 border-2 border-dashed border-green-300 rounded-xl p-8 flex flex-col items-center gap-3 bg-green-50">
-        {onRemove && (
-          <button
-            onClick={onRemove}
-            className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-            title="Remove file"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        )}
+      <div className="flex-1 border-2 border-dashed border-green-300 rounded-xl p-8 flex flex-col items-center gap-3 bg-green-50">
         <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
           <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -349,12 +338,14 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     onCancelResetForUpload(activeTab);
   }
 
-  function handleRemovePartialUpload(tab: string) {
-    onUploadStateChange(tab, 'idle');
-    onFileUrlChange(tab, '');
+  function handleClearPartialUploads(tab: 'insurance' | 'draftBL') {
+    const slots = tab === 'insurance'
+      ? ['insurance:detail', 'insurance:draft']
+      : ['draftBL:shipping', 'draftBL:draft'];
+    slots.forEach(s => { onUploadStateChange(s, 'idle'); onFileUrlChange(s, ''); });
     setPartialRevisionStates(prev => {
       const next = { ...prev };
-      delete next[`${activeTab}:first`];
+      delete next[`${tab}:first`];
       return next;
     });
   }
@@ -394,6 +385,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   const isInsuranceDone = (uploadStates['insurance:detail'] ?? 'idle') === 'done' && (uploadStates['insurance:draft'] ?? 'idle') === 'done';
   const isDraftBLDone = (uploadStates['draftBL:shipping'] ?? 'idle') === 'done' && (uploadStates['draftBL:draft'] ?? 'idle') === 'done';
   const isBLDateDone = (uploadStates['blDate'] ?? 'idle') === 'done';
+  const isPartialInsurance = !isInsuranceDone && (
+    (uploadStates['insurance:detail'] ?? 'idle') === 'done' || (uploadStates['insurance:draft'] ?? 'idle') === 'done'
+  );
+  const isPartialDraftBL = !isDraftBLDone && (
+    (uploadStates['draftBL:shipping'] ?? 'idle') === 'done' || (uploadStates['draftBL:draft'] ?? 'idle') === 'done'
+  );
 
   // Automatically close re-upload slots when multi-file sections are done
   useEffect(() => {
@@ -784,10 +781,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 {(isReUploading || !isInsuranceDone) && (
                   <div className="border-b border-gray-100 shrink-0">
                     <div className="px-6 pt-4 flex justify-end items-center">
-
-                      {isReUploading && (
+                      {(isReUploading || isPartialInsurance) && (
                         <button
-                          onClick={handleCancelReUpload}
+                          onClick={isReUploading ? handleCancelReUpload : () => handleClearPartialUploads('insurance')}
                           className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
                           title="Cancel upload"
                         >
@@ -796,20 +792,17 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                           </svg>
                         </button>
                       )}
-
                     </div>
                     <div className="flex items-stretch gap-4 p-6 pt-2">
                       <UploadSlot
                         label="Detail for Insurance Purpose"
                         state={uploadStates['insurance:detail'] ?? 'idle'}
                         onUpload={(file) => handleUpload('insurance:detail', file)}
-                        onRemove={(uploadStates['insurance:detail'] ?? 'idle') === 'done' && (uploadStates['insurance:draft'] ?? 'idle') !== 'done' ? () => handleRemovePartialUpload('insurance:detail') : undefined}
                       />
                       <UploadSlot
                         label="Draft Insurance"
                         state={uploadStates['insurance:draft'] ?? 'idle'}
                         onUpload={(file) => handleUpload('insurance:draft', file)}
-                        onRemove={(uploadStates['insurance:draft'] ?? 'idle') === 'done' && (uploadStates['insurance:detail'] ?? 'idle') !== 'done' ? () => handleRemovePartialUpload('insurance:draft') : undefined}
                       />
                     </div>
                   </div>
@@ -824,10 +817,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 {(isReUploading || !isDraftBLDone) && (
                   <div className="border-b border-gray-100 shrink-0">
                     <div className="px-6 pt-4 flex justify-end items-center">
-
-                      {isReUploading && (
+                      {(isReUploading || isPartialDraftBL) && (
                         <button
-                          onClick={handleCancelReUpload}
+                          onClick={isReUploading ? handleCancelReUpload : () => handleClearPartialUploads('draftBL')}
                           className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
                           title="Cancel upload"
                         >
@@ -836,20 +828,17 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                           </svg>
                         </button>
                       )}
-
                     </div>
                     <div className="flex items-stretch gap-4 p-6 pt-2">
                       <UploadSlot
                         label="Shipping Particular"
                         state={uploadStates['draftBL:shipping'] ?? 'idle'}
                         onUpload={(file) => handleUpload('draftBL:shipping', file)}
-                        onRemove={(uploadStates['draftBL:shipping'] ?? 'idle') === 'done' && (uploadStates['draftBL:draft'] ?? 'idle') !== 'done' ? () => handleRemovePartialUpload('draftBL:shipping') : undefined}
                       />
                       <UploadSlot
                         label="Draft B/L"
                         state={uploadStates['draftBL:draft'] ?? 'idle'}
                         onUpload={(file) => handleUpload('draftBL:draft', file)}
-                        onRemove={(uploadStates['draftBL:draft'] ?? 'idle') === 'done' && (uploadStates['draftBL:shipping'] ?? 'idle') !== 'done' ? () => handleRemovePartialUpload('draftBL:draft') : undefined}
                       />
                     </div>
                   </div>
