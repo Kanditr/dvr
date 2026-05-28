@@ -113,9 +113,9 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           </div>
         ))}
 
-        {/* Created Date range */}
+        {/* Loading Date range */}
         <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Created Date</label>
+          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Loading Date</label>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">From</span>

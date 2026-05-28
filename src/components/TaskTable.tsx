@@ -82,7 +82,6 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
-  const [editingAssigneeId, setEditingAssigneeId] = useState<string | null>(null);
 
   function formatLastUpdate(raw: string | undefined): string {
     if (!raw) return '—';
@@ -155,29 +154,17 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
               <th className={`${thBase} px-6 cursor-pointer select-none`} onClick={() => handleSort('assignedTo')}>
                 <span className="flex items-center">Assignee <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>
               </th>
-              <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
-                Edit Assignee
-              </th>
               {TAB_COLS.map(({ key, label }) => (
                 <th key={key} className={`${thBase} min-w-[140px] whitespace-nowrap`}>
                   {label}
                 </th>
               ))}
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
-                Created Date
-              </th>
-              <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
                 Loading Date
               </th>
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
                 1st Received Date
               </th>
-              <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
-                Last Update
-              </th>
-              {isAdmin && (
-                <th className="px-4 py-2 text-center text-xs font-semibold text-gray-700 w-10 sticky top-0 z-20 bg-[#d9ecf3] shadow-[0_1px_0_rgba(0,0,0,0.05)]">Delete</th>
-              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
@@ -190,35 +177,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                   {task.correctValues['INVOICE NO.'] ?? task.id}
                 </td>
                 <td className="px-6 py-4 text-gray-700 whitespace-nowrap">
-                  {editingAssigneeId === task.id ? (
-                    <select
-                      autoFocus
-                      value={task.assignedTo}
-                      onChange={e => {
-                        onAssignTask?.(task.id, e.target.value);
-                        setEditingAssigneeId(null);
-                      }}
-                      onBlur={() => setEditingAssigneeId(null)}
-                      className="text-xs border border-gray-300 rounded px-2 py-1.5 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 w-full max-w-[180px] cursor-pointer"
-                    >
-                      {availableUsers.map(u => (
-                        <option key={u || '__blank__'} value={u}>{u || '— unassigned —'}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span>{task.assignedTo || '— unassigned —'}</span>
-                  )}
-                </td>
-                <td className="px-4 py-4 text-gray-700">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setEditingAssigneeId(task.id);
-                    }}
-                    className="text-xs text-[#0056b8] hover:underline font-medium"
-                  >
-                    Edit
-                  </button>
+                  {task.assignedTo || '— unassigned —'}
                 </td>
                 {TAB_COLS.map(({ key }) => {
                   const status = getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {});
@@ -234,34 +193,17 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                     </td>
                   );
                 })}
-                <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
-                  {formatLastUpdate(task.submittedDate)}
-                </td>
                 <td className="px-4 py-4 text-gray-500 whitespace-nowrap">
                   —
                 </td>
                 <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
                   {firstReceivedDates[task.id] ? formatLastUpdate(firstReceivedDates[task.id]) : '—'}
                 </td>
-                <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
-                  {formatLastUpdate(task.lastUpdate ?? task.submittedDate)}
-                </td>
-                {isAdmin && (
-                  <td
-                    className="px-4 py-4 text-center cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); setTaskToDelete(task.id); }}
-                    title="Delete this record"
-                  >
-                    <svg className="w-4 h-4 text-gray-400 hover:text-red-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </td>
-                )}
               </tr>
             ))}
             {processed.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-6 py-20 text-center text-gray-400 text-sm">
+                <td colSpan={8} className="px-6 py-20 text-center text-gray-400 text-sm">
                   <div className="flex flex-col items-center gap-2">
                     <svg className="w-8 h-8 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
