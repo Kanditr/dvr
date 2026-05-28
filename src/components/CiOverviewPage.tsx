@@ -541,7 +541,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         </button>
                       )}
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap transition-colors ${activeRevision !== latestRevision ? 'bg-[#fff2f0] text-[#c2410c] border-[#ffdfd6]' : 'bg-[#e8f0fb] text-[#0056b8] border-[#c5d9f5]'}`}>
-                        Rev. {String(activeRevision).padStart(2, '0')} · {formatRevDate(activeRevision === latestRevision ? (revisionStates[activeTab]?.date ?? new Date().toISOString()) : (revisionHistory[activeTab]?.[activeRevision]?.date ?? revisionStates[activeTab]?.date ?? new Date().toISOString()))}
+                        {formatRevDate(activeRevision === latestRevision ? (revisionStates[activeTab]?.date ?? new Date().toISOString()) : (revisionHistory[activeTab]?.[activeRevision]?.date ?? revisionStates[activeTab]?.date ?? new Date().toISOString()))}
                         {activeRevision !== latestRevision && <span className="ml-1">(past revision)</span>}
                       </span>
                       {latestRevision > 0 && (
