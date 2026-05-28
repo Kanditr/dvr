@@ -44,3 +44,15 @@ export function validateFileName(
   return { invoiceNo, revNum };
 }
 
+/**
+ * Validates a CF upload filename against the format: CustomsFormality_<CI no>_<yyyymmdd>.pdf
+ * Returns { error } if invalid, or { invoiceNo } if valid.
+ */
+export function validateCFFileName(fileName: string): { error?: string; invoiceNo?: string } {
+  const match = fileName.match(/^CustomsFormality_(.+)_(\d{8})\.pdf$/i);
+  if (!match) {
+    return { error: `Invalid filename format. Expected: CustomsFormality_<CI No.>_<YYYYMMDD>.pdf\n\nGot: ${fileName}` };
+  }
+  return { invoiceNo: match[1] };
+}
+
