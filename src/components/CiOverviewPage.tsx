@@ -69,12 +69,23 @@ function VerificationBadge({ status }: { status: VerificationStatus }) {
   );
 }
 
-function UploadSlot({ label, state, onUpload }: { label: string; state: UploadState; onUpload: (file: File) => void }) {
+function UploadSlot({ label, state, onUpload, onRemove }: { label: string; state: UploadState; onUpload: (file: File) => void; onRemove?: () => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   if (state === 'done') {
     return (
-      <div className="flex-1 border-2 border-dashed border-green-300 rounded-xl p-8 flex flex-col items-center gap-3 bg-green-50">
+      <div className="relative flex-1 border-2 border-dashed border-green-300 rounded-xl p-8 flex flex-col items-center gap-3 bg-green-50">
+        {onRemove && (
+          <button
+            onClick={onRemove}
+            className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+            title="Remove file"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
           <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -338,6 +349,16 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     onCancelResetForUpload(activeTab);
   }
 
+  function handleRemovePartialUpload(tab: string) {
+    onUploadStateChange(tab, 'idle');
+    onFileUrlChange(tab, '');
+    setPartialRevisionStates(prev => {
+      const next = { ...prev };
+      delete next[`${activeTab}:first`];
+      return next;
+    });
+  }
+
   function handleReUploadAfterAction(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -399,12 +420,14 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     || (activeTab === 'draftBL' && !isDraftBLDone)
     || (activeTab === 'blDate' && !isBLDateDone);
 
-  // Auto-log "verified" the first time a tab is viewed with a non-pending status
+  // Auto-log "verified" the first time a tab is viewed with a non-pending status,
+  // and re-log when the action log is cleared (e.g. after a re-upload resets it).
+  const currentActionLog = actionLogs[activeTab];
   useEffect(() => {
-    if (!isTabPending && !actionLogs[activeTab]) {
+    if (!isTabPending && !currentActionLog) {
       onLogVerified(activeTab);
     }
-  }, [activeTab, task.id, isTabPending]);
+  }, [activeTab, task.id, isTabPending, currentActionLog]);
 
   // Auto-set Rev. 00 the first time a tab has data (before any manual upload)
   useEffect(() => {
@@ -780,11 +803,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         label="Detail for Insurance Purpose"
                         state={uploadStates['insurance:detail'] ?? 'idle'}
                         onUpload={(file) => handleUpload('insurance:detail', file)}
+                        onRemove={(uploadStates['insurance:detail'] ?? 'idle') === 'done' && (uploadStates['insurance:draft'] ?? 'idle') !== 'done' ? () => handleRemovePartialUpload('insurance:detail') : undefined}
                       />
                       <UploadSlot
                         label="Draft Insurance"
                         state={uploadStates['insurance:draft'] ?? 'idle'}
                         onUpload={(file) => handleUpload('insurance:draft', file)}
+                        onRemove={(uploadStates['insurance:draft'] ?? 'idle') === 'done' && (uploadStates['insurance:detail'] ?? 'idle') !== 'done' ? () => handleRemovePartialUpload('insurance:draft') : undefined}
                       />
                     </div>
                   </div>
@@ -818,11 +843,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         label="Shipping Particular"
                         state={uploadStates['draftBL:shipping'] ?? 'idle'}
                         onUpload={(file) => handleUpload('draftBL:shipping', file)}
+                        onRemove={(uploadStates['draftBL:shipping'] ?? 'idle') === 'done' && (uploadStates['draftBL:draft'] ?? 'idle') !== 'done' ? () => handleRemovePartialUpload('draftBL:shipping') : undefined}
                       />
                       <UploadSlot
                         label="Draft B/L"
                         state={uploadStates['draftBL:draft'] ?? 'idle'}
                         onUpload={(file) => handleUpload('draftBL:draft', file)}
+                        onRemove={(uploadStates['draftBL:draft'] ?? 'idle') === 'done' && (uploadStates['draftBL:shipping'] ?? 'idle') !== 'done' ? () => handleRemovePartialUpload('draftBL:draft') : undefined}
                       />
                     </div>
                   </div>
