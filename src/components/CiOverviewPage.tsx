@@ -460,9 +460,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   })();
   const isTabActioned = activeTabStatus === 'Approved' || activeTabStatus === 'Rejected';
 
-  // Auto-approve any tab whose effective status is Match (not just the active one)
+  // Auto-approve only applies to tasks assigned to the current user
   useEffect(() => {
-    if (!autoApprove) return;
+    if (!autoApprove || task.assignedTo !== currentUser) return;
     const tabs: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
     for (const tab of tabs) {
       if (effectiveVerifications[tab] !== 'Match') continue;
@@ -473,6 +473,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     autoApprove,
     autoApproveExcluded,
     task.id,
+    task.assignedTo,
+    currentUser,
     effectiveVerifications.customFormality,
     effectiveVerifications.insurance,
     effectiveVerifications.draftBL,

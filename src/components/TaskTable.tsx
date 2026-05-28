@@ -63,7 +63,7 @@ function getEffectiveTabStatus(
 interface TaskTableProps {
   tasks: Task[];
   uploadStates: Record<string, Record<string, UploadState>>;
-  tabFilters: Record<VerificationType, VerificationStatus | 'All'>;
+  tabFilters: Record<VerificationType, VerificationStatus[] | 'All'>;
   onSelectTask: (taskId: string, tab: VerificationType) => void;
   page: number;
   onPageChange: (page: number) => void;
@@ -107,7 +107,8 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
     .filter(task =>
       TAB_COLS.every(({ key }) => {
         const f = tabFilters[key];
-        return f === 'All' || getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {}) === f;
+        if (f === 'All' || f.length === 0) return true;
+        return f.includes(getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {}));
       })
     )
     .sort((a, b) => {

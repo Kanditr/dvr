@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { TaskStatus, VerificationStatus } from '../data/mockData';
 import type { VerificationType } from '../App';
 
@@ -42,13 +42,100 @@ const TAB_FILTER_DEFS: { key: VerificationType; label: string }[] = [
   { key: 'blDate', label: 'Original B/L' },
 ];
 
+function MultiSelectDropdown({
+  options,
+  value,
+  onChange,
+  labelMap,
+}: {
+  options: VerificationStatus[];
+  value: VerificationStatus[] | 'All';
+  onChange: (v: VerificationStatus[] | 'All') => void;
+  labelMap: Record<VerificationStatus, string>;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener('mousedown', onOutside);
+    return () => document.removeEventListener('mousedown', onOutside);
+  }, []);
+
+  const selected = value === 'All' ? [] : value;
+  const isAll = value === 'All' || selected.length === 0;
+  const label = isAll
+    ? 'All'
+    : selected.length === 1
+    ? labelMap[selected[0]]
+    : `${selected.length} selected`;
+
+  function toggle(status: VerificationStatus) {
+    const next = selected.includes(status)
+      ? selected.filter(s => s !== status)
+      : [...selected, status];
+    onChange(next.length === 0 ? 'All' : next);
+  }
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`px-3 py-2 text-sm border rounded focus:outline-none bg-white min-w-[140px] flex items-center justify-between gap-2 transition-colors ${
+          !isAll ? 'border-[#0056b8] text-[#0056b8]' : 'border-gray-300 text-gray-700'
+        }`}
+      >
+        <span className="truncate text-left">{label}</span>
+        <svg
+          className={`w-3.5 h-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 top-full mt-1 left-0 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[160px] py-1">
+          <label className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 select-none">
+            <input
+              type="checkbox"
+              checked={isAll}
+              onChange={() => onChange('All')}
+              className="w-3.5 h-3.5 rounded accent-[#0056b8]"
+            />
+            All
+          </label>
+          <div className="border-t border-gray-100 my-1" />
+          {options.map(status => (
+            <label
+              key={status}
+              className="flex items-center gap-2.5 px-3 py-2 hover:bg-gray-50 cursor-pointer text-sm text-gray-700 select-none"
+            >
+              <input
+                type="checkbox"
+                checked={!isAll && selected.includes(status)}
+                onChange={() => toggle(status)}
+                className="w-3.5 h-3.5 rounded accent-[#0056b8]"
+              />
+              {labelMap[status]}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface TaskFilterBarProps {
   search: string;
   onSearchChange: (v: string) => void;
   statusFilter: TaskStatus | 'All';
   onStatusChange: (v: TaskStatus | 'All') => void;
-  tabFilters: Record<VerificationType, VerificationStatus | 'All'>;
-  onTabFilterChange: (key: VerificationType, value: VerificationStatus | 'All') => void;
+  tabFilters: Record<VerificationType, VerificationStatus[] | 'All'>;
+  onTabFilterChange: (key: VerificationType, value: VerificationStatus[] | 'All') => void;
   dateFrom: string;
   dateTo: string;
   onDateFromChange: (v: string) => void;
@@ -96,20 +183,16 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           </select>
         </div>
 
-        {/* Tab status filters */}
+        {/* Tab status filters — multi-select */}
         {TAB_FILTER_DEFS.map(({ key, label }) => (
           <div key={key} className="flex flex-col gap-0.5">
             <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">{label}</label>
-            <select
+            <MultiSelectDropdown
+              options={TAB_STATUSES[key]}
               value={tabFilters[key]}
-              onChange={e => onTabFilterChange(key, e.target.value as VerificationStatus | 'All')}
-              className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white min-w-[140px]"
-            >
-              <option value="All">All</option>
-              {TAB_STATUSES[key].map(s => (
-                <option key={s} value={s}>{VERIFICATION_STATUS_LABEL[s]}</option>
-              ))}
-            </select>
+              onChange={v => onTabFilterChange(key, v)}
+              labelMap={VERIFICATION_STATUS_LABEL}
+            />
           </div>
         ))}
 
@@ -119,14 +202,10 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">From</span>
-              <div 
+              <div
                 className="relative cursor-pointer"
                 onClick={() => {
-                  try {
-                    dateFromRef.current?.showPicker();
-                  } catch (e) {
-                    dateFromRef.current?.focus();
-                  }
+                  try { dateFromRef.current?.showPicker(); } catch { dateFromRef.current?.focus(); }
                 }}
               >
                 <input
@@ -148,14 +227,10 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">To</span>
-              <div 
+              <div
                 className="relative cursor-pointer"
                 onClick={() => {
-                  try {
-                    dateToRef.current?.showPicker();
-                  } catch (e) {
-                    dateToRef.current?.focus();
-                  }
+                  try { dateToRef.current?.showPicker(); } catch { dateToRef.current?.focus(); }
                 }}
               >
                 <input
@@ -177,12 +252,11 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             </div>
           </div>
         </div>
-        <button
-          onClick={onReset}
-          className="text-sm text-[#0056b8] hover:underline pb-[9px]"
-        >
+
+        <button onClick={onReset} className="text-sm text-[#0056b8] hover:underline pb-[9px]">
           Reset Filter
         </button>
+
         {onUploadCF && (
           <button
             onClick={onUploadCF}

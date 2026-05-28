@@ -134,6 +134,17 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, 
       };
     });
 
+  // For CIs starting with "99", simulate missing documents (1–3 doc types removed)
+  const finalDocuments = newInvoiceNo.startsWith('99')
+    ? (() => {
+        const allTypes = Array.from(CF_CLONE_TYPES);
+        const numToRemove = Math.floor(Math.random() * 3) + 1;
+        const shuffled = [...allTypes].sort(() => Math.random() - 0.5);
+        const toRemove = new Set(shuffled.slice(0, numToRemove));
+        return documents.filter(d => !toRemove.has(d.type));
+      })()
+    : documents;
+
   return {
     ...template,
     id: newId,
@@ -147,7 +158,7 @@ function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, 
       blDate: 'Pending Verification',
     },
     correctValues,
-    documents,
+    documents: finalDocuments,
     lastUpdate: new Date().toISOString(),
   };
 }
@@ -429,6 +440,15 @@ export default function App() {
       }));
 
       setUploadedTaskDefs(prev => [newTask, ...prev]);
+
+      // Alert if any required CF doc types are missing
+      const missingTypes = Array.from(CF_CLONE_TYPES).filter(
+        type => !newTask.documents.some((d: any) => d.type === type)
+      );
+      if (missingTypes.length > 0) {
+        const invoiceNo = newTask.correctValues['INVOICE NO.'] ?? newTask.id;
+        alert(`Warning: CI No. ${invoiceNo} is missing the following Custom Formality documents:\n\n${missingTypes.map(t => `• ${t}`).join('\n')}`);
+      }
     }, 3000);
   }
 
@@ -512,7 +532,7 @@ export default function App() {
   const [search, setSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<TaskStatus | 'All'>('All');
-  const [tabFilters, setTabFilters] = useState<Record<VerificationType, VerificationStatus | 'All'>>({
+  const [tabFilters, setTabFilters] = useState<Record<VerificationType, VerificationStatus[] | 'All'>>({
     customFormality: 'All',
     insurance: 'All',
     draftBL: 'All',
