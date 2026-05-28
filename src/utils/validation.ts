@@ -15,8 +15,8 @@ export function validateFileName(
   const match = fileName.match(nameRegex);
 
   if (!match) {
-    // If it doesn't match the pattern, we still allow it but return a default revision
-    return { revNum: latestRevision };
+    // No RevNN in filename — let caller auto-increment
+    return { revNum: undefined };
   }
 
   const [, prefix, invoiceNo, revStr] = match;
