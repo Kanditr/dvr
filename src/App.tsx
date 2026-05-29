@@ -168,23 +168,28 @@ export default function App() {
 
   // Clear stale non-email values stored before the email migration
   const effectiveUser = currentUser && currentUser.includes('@') ? currentUser : null;
+  // Derived early so it can be used as keys in per-user storage below
+  const CURRENT_USER = effectiveUser ?? 'jane.doe@pttgcgroup.com';
+  const isAdmin = CURRENT_USER === 'admin.admin@pttgcgroup.com';
 
   const [view, setView] = useState<View>(parseHash);
   const [prevView, setPrevView] = useState<View>({ page: 'home' });
 
-  const [autoApprove, setAutoApprove] = useLocalStorage<boolean>('dvr:autoApprove', false);
-  const [onlyMyTasks, setOnlyMyTasks] = useLocalStorage<boolean>('dvr:onlyMyTasks', false);
-  // Snapshot of task:tab combos that were already Match when auto-approve was turned ON — excluded from auto-approve
-  const [autoApproveExcluded, setAutoApproveExcluded] = useState<Set<string>>(new Set());
+  // Per-user auto-approve toggle — stored as {email: boolean} so the hook key stays stable
+  const [autoApprovePerUser, setAutoApprovePerUser] = useLocalStorage<Record<string, boolean>>('dvr:autoApprovePerUser', {});
+  const autoApprove = autoApprovePerUser[CURRENT_USER] ?? false;
 
-  const CURRENT_USER = effectiveUser ?? 'jane.doe@pttgcgroup.com';
-  const isAdmin = CURRENT_USER === 'admin.admin@pttgcgroup.com';
+  const [onlyMyTasks, setOnlyMyTasks] = useLocalStorage<boolean>('dvr:onlyMyTasks', false);
+
+  // Persisted per-user excluded set — tasks already Match at toggle-ON time, must not be auto-approved
+  const [autoApproveExcludedData, setAutoApproveExcludedData] = useLocalStorage<Record<string, string[]>>('dvr:autoApproveExcluded', {});
+  const autoApproveExcluded = useMemo(() => new Set(autoApproveExcludedData[CURRENT_USER] ?? []), [autoApproveExcludedData, CURRENT_USER]);
 
   const [uploadStates, setUploadStates] = useLocalStorage<Record<string, Record<string, UploadState>>>(
     'dvr:uploadStates', {}
   );
 
-  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string; documents?: any[]; correctValues?: Record<string, string>; fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>; cellStatusOverrides?: Record<string, boolean> }>('dvr:taskOverrides', []);
+  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string; documents?: any[]; correctValues?: Record<string, string>; fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>; cellStatusOverrides?: Record<string, boolean>; manuallyEditedCells?: Record<string, true>; fieldEditHistory?: Record<string, Array<{ value: string; timestamp: string }>> }>('dvr:taskOverrides', []);
 
   const [actionLogs, setActionLogs] = useLocalStorage<Record<string, Record<string, ActionLog>>>('dvr:actionLogs', {});
 
@@ -227,6 +232,8 @@ export default function App() {
         correctValues: o?.correctValues ?? t.correctValues,
         fieldStatusOverrides: o?.fieldStatusOverrides ?? t.fieldStatusOverrides,
         cellStatusOverrides: o?.cellStatusOverrides ?? t.cellStatusOverrides,
+        manuallyEditedCells: o?.manuallyEditedCells ?? t.manuallyEditedCells,
+        fieldEditHistory: o?.fieldEditHistory ?? t.fieldEditHistory,
         lastUpdate: o?.lastUpdate ?? t.lastUpdate
       };
 
@@ -751,7 +758,9 @@ export default function App() {
       verifications: updatedTask.verifications,
       status: updatedTask.status,
       fieldStatusOverrides: updatedTask.fieldStatusOverrides,
-      cellStatusOverrides: updatedTask.cellStatusOverrides
+      cellStatusOverrides: updatedTask.cellStatusOverrides,
+      manuallyEditedCells: updatedTask.manuallyEditedCells,
+      fieldEditHistory: updatedTask.fieldEditHistory,
     });
     if (uploadedTaskIds.has(updatedTask.id)) {
       setUploadedTaskDefs(prev => prev.map(t => t.id === updatedTask.id ? updatedTask : t));
@@ -807,20 +816,19 @@ export default function App() {
   });
 
   function handleAutoApproveChange(value: boolean) {
-    setAutoApprove(value);
+    setAutoApprovePerUser(prev => ({ ...prev, [CURRENT_USER]: value }));
     if (value) {
-      // Snapshot every task+tab that is currently Match — these won't be auto-approved
-      const excluded = new Set<string>();
+      // Snapshot every task+tab whose EFFECTIVE status is Match — these won't be auto-approved (Pt 5)
+      const excluded: string[] = [];
       tasks.forEach(task => {
+        const effectiveV = getEffectiveVerifications(task, uploadStates[task.id] ?? {});
         VALID_TABS.forEach(tab => {
-          if (task.verifications[tab] === 'Match') {
-            excluded.add(`${task.id}:${tab}`);
-          }
+          if (effectiveV[tab] === 'Match') excluded.push(`${task.id}:${tab}`);
         });
       });
-      setAutoApproveExcluded(excluded);
+      setAutoApproveExcludedData(prev => ({ ...prev, [CURRENT_USER]: excluded }));
     } else {
-      setAutoApproveExcluded(new Set());
+      setAutoApproveExcludedData(prev => ({ ...prev, [CURRENT_USER]: [] }));
     }
   }
 

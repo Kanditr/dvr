@@ -56,34 +56,13 @@ function MultiSelectDropdown({ label, options, selected, onChange, placeholder =
         {open && (
           <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 overflow-y-auto"
             style={{ minWidth, maxHeight: '260px' }}>
-            {/* Select all / clear row */}
             <div className="px-3 py-1.5 border-b border-gray-100 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => onChange(options)}
-                className="text-[10px] text-[#0056b8] hover:underline"
-              >
-                Select all
-              </button>
-              <button
-                type="button"
-                onClick={() => onChange([])}
-                className="text-[10px] text-gray-400 hover:text-gray-600 hover:underline"
-              >
-                Clear
-              </button>
+              <button type="button" onClick={() => onChange(options)} className="text-[10px] text-[#0056b8] hover:underline">Select all</button>
+              <button type="button" onClick={() => onChange([])} className="text-[10px] text-gray-400 hover:text-gray-600 hover:underline">Clear</button>
             </div>
             {options.map(opt => (
-              <label
-                key={opt}
-                className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-blue-50 cursor-pointer"
-              >
-                <input
-                  type="checkbox"
-                  checked={selected.includes(opt)}
-                  onChange={() => toggle(opt)}
-                  className="accent-[#0056b8] w-3 h-3 shrink-0"
-                />
+              <label key={opt} className="flex items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-blue-50 cursor-pointer">
+                <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} className="accent-[#0056b8] w-3 h-3 shrink-0" />
                 <span className="truncate">{opt}</span>
               </label>
             ))}
@@ -91,6 +70,93 @@ function MultiSelectDropdown({ label, options, selected, onChange, placeholder =
         )}
       </div>
     </div>
+  );
+}
+
+// ── Field edit history (inline navigation) ────────────────────────────────
+
+
+function HistoryCellContent({
+  history,
+  currentValue,
+  isEdited,
+  isReadOnly,
+  isApplicable,
+  originalFieldName,
+  onSave,
+  isMatch,
+}: {
+  history: Array<{ value: string; timestamp: string }>;
+  currentValue: string;
+  isEdited: boolean;
+  isReadOnly?: boolean;
+  isApplicable: boolean;
+  originalFieldName: string;
+  onSave: (val: string) => void;
+  isMatch: boolean;
+}) {
+  // null = viewing current value; number = index into history (0 = system-original snapshot)
+  const [viewIdx, setViewIdx] = useState<number | null>(null);
+
+  const isAtCurrent = viewIdx === null;
+  const isViewingSystemOriginal = viewIdx === 0; // v1 = pre-first-edit value from system
+  const canGoOlder = isAtCurrent ? history.length > 0 : viewIdx > 0;
+  const canGoNewer = !isAtCurrent;
+  const total = history.length + 1;
+
+  function goOlder() {
+    if (isAtCurrent) setViewIdx(history.length - 1);
+    else setViewIdx(i => Math.max(0, (i ?? 0) - 1));
+  }
+
+  function goNewer() {
+    if (viewIdx === history.length - 1) setViewIdx(null);
+    else setViewIdx(i => (i ?? 0) + 1);
+  }
+
+  // Purple only for manually-edited states; revert to green/yellow when viewing system original
+  const cellBg = !isApplicable
+    ? 'bg-gray-50'
+    : isEdited && !isViewingSystemOriginal
+      ? 'bg-[#ede9fe]'
+      : isMatch
+        ? 'bg-[#ebf7ed]'
+        : 'bg-[#fef5e5]';
+
+  const navCls = (enabled: boolean) =>
+    `text-sm font-bold leading-none px-0.5 transition-colors ${enabled
+      ? 'text-violet-500 hover:text-violet-700 cursor-pointer'
+      : 'text-violet-300 cursor-not-allowed'}`;
+
+  const versionNum = isAtCurrent ? total : viewIdx! + 1;
+
+  return (
+    <td className={`px-4 py-3 align-top ${cellBg}`}>
+      <div className="flex items-center gap-1 mb-0.5 flex-wrap">
+        <span className="text-xs text-gray-500">{originalFieldName}</span>
+        {isEdited && (
+          <span className="inline-flex items-center gap-0.5 ml-1">
+            <span className="text-[10px] font-medium text-violet-500">edited</span>
+            <button type="button" onClick={goOlder} disabled={!canGoOlder} className={navCls(canGoOlder)}>&lt;</button>
+            <span className="text-[10px] text-violet-400 tabular-nums">v{versionNum}/{total}</span>
+            <button type="button" onClick={goNewer} disabled={!canGoNewer} className={navCls(canGoNewer)}>&gt;</button>
+          </span>
+        )}
+      </div>
+
+      {!isAtCurrent && history[viewIdx!] ? (
+        <p className="text-sm font-medium text-gray-900 break-words">
+          {history[viewIdx!].value || <span className="italic text-gray-400 text-xs">empty</span>}
+        </p>
+      ) : (
+        <EditableValue
+          value={currentValue}
+          isApplicable={isApplicable}
+          isReadOnly={isReadOnly}
+          onSave={onSave}
+        />
+      )}
+    </td>
   );
 }
 
@@ -110,20 +176,12 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
   const [editing, setEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value);
   const initialValueRef = useRef(value);
-  const originalValueRef = useRef(value);
 
-  // If value changes from outside (not from our own editing), update the original baseline
   useEffect(() => {
-    if (!editing) {
-      setTempValue(value);
-      originalValueRef.current = value;
-    }
+    if (!editing) setTempValue(value);
   }, [value, editing]);
 
   if (!isApplicable) return <span className="text-gray-300">—</span>;
-
-  const originalValue = originalValueRef.current;
-  const isEdited = value !== originalValue;
 
   if (editing) {
     return (
@@ -131,60 +189,30 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
         autoFocus
         className="w-full text-sm font-medium text-gray-900 border border-[#0056b8] rounded px-1 py-0.5 focus:outline-none bg-white"
         value={tempValue}
-        onChange={e => {
-          setTempValue(e.target.value);
-        }}
+        onChange={e => setTempValue(e.target.value)}
         onBlur={() => {
           setEditing(false);
-          if (tempValue !== initialValueRef.current) {
-            onSave(tempValue);
-          }
+          if (tempValue !== initialValueRef.current) onSave(tempValue);
         }}
         onKeyDown={e => {
-          if (e.key === 'Enter') {
-            setEditing(false);
-            if (tempValue !== initialValueRef.current) {
-              onSave(tempValue);
-            }
-          }
-          if (e.key === 'Escape') {
-            setEditing(false);
-            setTempValue(initialValueRef.current);
-          }
+          if (e.key === 'Enter') { setEditing(false); if (tempValue !== initialValueRef.current) onSave(tempValue); }
+          if (e.key === 'Escape') { setEditing(false); setTempValue(initialValueRef.current); }
         }}
       />
     );
   }
 
   return (
-    <div className="flex items-center gap-1 group/edit">
-      <span
-        className={`block text-sm font-medium text-gray-900 ${isReadOnly ? '' : 'cursor-text hover:bg-black/5'} rounded px-1 -ml-1 transition-colors min-h-[1.25rem] flex-1`}
-        onClick={() => {
-          if (isReadOnly) return;
-          initialValueRef.current = value;
-          setEditing(true);
-        }}
-      >
-        {value || ' '}
-      </span>
-      {isEdited && !isReadOnly && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setTempValue(originalValue);
-            onSave(originalValue);
-          }}
-          className="shrink-0 p-1 rounded-full text-gray-400 hover:text-[#0056b8] hover:bg-blue-50 transition-colors opacity-0 group-hover/edit:opacity-100"
-          title="Undo edit"
-        >
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
-          </svg>
-        </button>
-      )}
-    </div>
+    <span
+      className={`block text-sm font-medium text-gray-900 ${isReadOnly ? '' : 'cursor-text hover:bg-black/5'} rounded px-1 -ml-1 transition-colors min-h-[1.25rem]`}
+      onClick={() => {
+        if (isReadOnly) return;
+        initialValueRef.current = value;
+        setEditing(true);
+      }}
+    >
+      {value || ' '}
+    </span>
   );
 }
 
@@ -196,10 +224,7 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
       <select
         autoFocus
         value={status}
-        onChange={(e) => {
-          onChange(e.target.value as 'match' | 'mismatch');
-          setIsEditing(false);
-        }}
+        onChange={(e) => { onChange(e.target.value as 'match' | 'mismatch'); setIsEditing(false); }}
         onBlur={() => setIsEditing(false)}
         className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 cursor-pointer"
       >
@@ -211,21 +236,15 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
 
   if (status === 'match') {
     return (
-      <button
-        onClick={() => !isReadOnly && setIsEditing(true)}
-        disabled={isReadOnly}
-        className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}
-      >
+      <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
+        className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}>
         Match
       </button>
     );
   }
   return (
-    <button
-      onClick={() => !isReadOnly && setIsEditing(true)}
-      disabled={isReadOnly}
-      className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}
-    >
+    <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
+      className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}>
       Mismatch
     </button>
   );
@@ -238,7 +257,6 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
   const docs = getDocsForVerification(task, verificationType);
   const allRows = buildComparisonRows({ ...task, documents: docs }, verificationType);
 
-  // Freeze the match status so it doesn't change when values are edited locally
   const frozenMatches = useMemo(() => {
     const matches: Record<string, boolean> = {};
     allRows.forEach(row => {
@@ -249,8 +267,6 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
       });
     });
     return matches;
-    // Only recalculate when the structure of documents changes (e.g. new revision/upload)
-    // We use doc IDs to detect structural changes.
   }, [task.id, verificationType, docs.map(d => d.id).join(','), task.cellStatusOverrides, activeRevision]);
 
   const uniqueFields = [...new Set(allRows.map(r => r.canonicalField))];
@@ -267,14 +283,35 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
   function handleSave(docId: string, docType: string, canonicalField: string, originalFieldName: string, newValue: string) {
     if (isReadOnly) return;
 
-    // Lock the current status so it doesn't change automatically when value updates
+    // Capture old value before update
+    const oldRowIdx = allRows.findIndex(r => r.canonicalField === canonicalField);
+    const oldCellIdx = docs.findIndex(d => d.id === docId);
+    const oldValue = oldRowIdx >= 0 && oldCellIdx >= 0 ? (allRows[oldRowIdx].cells[oldCellIdx]?.value ?? '') : '';
+
+    const editKey = `${verificationType}:${canonicalField}:${docId}`;
+    const now = new Date().toISOString();
+
+    const prevHistory = task.fieldEditHistory?.[editKey] ?? [];
+    // The "original" value is whatever was in the cell before the very first edit
+    const originalValue = prevHistory.length > 0 ? prevHistory[0].value : oldValue;
+
+    const nextEditedCells: Record<string, true> = { ...(task.manuallyEditedCells ?? {}) };
+    const nextFieldEditHistory: Record<string, Array<{ value: string; timestamp: string }>> = { ...(task.fieldEditHistory ?? {}) };
+
+    if (newValue === originalValue) {
+      // Restored back to original — clear edited marker and full history for this cell
+      delete nextEditedCells[editKey];
+      delete nextFieldEditHistory[editKey];
+    } else {
+      nextEditedCells[editKey] = true;
+      nextFieldEditHistory[editKey] = [...prevHistory, { value: oldValue, timestamp: now }];
+    }
+
     const currentOverride = task.fieldStatusOverrides?.[`${verificationType}:${canonicalField}`];
     let nextOverrides = task.fieldStatusOverrides ?? {};
     if (!currentOverride) {
       const row = rows.find(r => r.canonicalField === canonicalField);
-      if (row) {
-        nextOverrides = { ...nextOverrides, [`${verificationType}:${canonicalField}`]: row.rowStatus };
-      }
+      if (row) nextOverrides = { ...nextOverrides, [`${verificationType}:${canonicalField}`]: row.rowStatus };
     }
 
     let nextCellOverrides = task.cellStatusOverrides ?? {};
@@ -283,24 +320,19 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
       row.cells.forEach((cell, ci) => {
         const cDocId = docs[ci].id;
         const key = `${verificationType}:${canonicalField}:${cDocId}`;
-        if (nextCellOverrides[key] === undefined) {
-          nextCellOverrides[key] = cell.isMatch;
-        }
+        if (nextCellOverrides[key] === undefined) nextCellOverrides[key] = cell.isMatch;
       });
     }
 
     if (docType === 'DocXPort') {
       const nextCorrectValues = { ...task.correctValues, [canonicalField]: newValue };
-      onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides, cellStatusOverrides: nextCellOverrides });
+      onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides, cellStatusOverrides: nextCellOverrides, manuallyEditedCells: nextEditedCells, fieldEditHistory: nextFieldEditHistory });
     } else {
       const nextDocs = task.documents.map(d => {
         if (d.id !== docId) return d;
-        return {
-          ...d,
-          values: { ...d.values, [originalFieldName]: newValue }
-        };
+        return { ...d, values: { ...d.values, [originalFieldName]: newValue } };
       });
-      onUpdateTask({ ...task, documents: nextDocs, fieldStatusOverrides: nextOverrides, cellStatusOverrides: nextCellOverrides });
+      onUpdateTask({ ...task, documents: nextDocs, fieldStatusOverrides: nextOverrides, cellStatusOverrides: nextCellOverrides, manuallyEditedCells: nextEditedCells, fieldEditHistory: nextFieldEditHistory });
     }
   }
 
@@ -314,46 +346,21 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
 
   return (
     <div className="flex flex-col h-full min-h-0">
-      {/* Filter bar — fixed, never scrolls */}
       <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 flex-wrap bg-white shrink-0">
-        <MultiSelectDropdown
-          label="Field"
-          options={uniqueFields}
-          selected={fieldFilter}
-          onChange={setFieldFilter}
-          placeholder="All"
-          minWidth="180px"
-        />
-
-        <MultiSelectDropdown
-          label="Status"
-          options={STATUS_OPTIONS}
-          selected={statusFilter}
-          onChange={setStatusFilter}
-          placeholder="All"
-          minWidth="130px"
-        />
-
+        <MultiSelectDropdown label="Field" options={uniqueFields} selected={fieldFilter} onChange={setFieldFilter} placeholder="All" minWidth="180px" />
+        <MultiSelectDropdown label="Status" options={STATUS_OPTIONS} selected={statusFilter} onChange={setStatusFilter} placeholder="All" minWidth="130px" />
         {hasActiveFilter && (
-          <button
-            onClick={() => { setFieldFilter([]); setStatusFilter([]); }}
-            className="self-end text-xs text-[#0056b8] hover:underline pb-[3px]"
-          >
-            Reset
-          </button>
+          <button onClick={() => { setFieldFilter([]); setStatusFilter([]); }} className="self-end text-xs text-[#0056b8] hover:underline pb-[3px]">Reset</button>
         )}
       </div>
 
-      {/* Scrollable table container — only this area scrolls */}
       <div className="overflow-auto flex-1">
         <table className="text-sm w-full border-collapse">
           <thead>
             <tr className="bg-[#d9ecf3] border-b border-gray-200">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 sticky top-0 left-0 z-30 bg-[#d9ecf3]">Field</th>
               {docs.map((doc) => (
-                <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700 sticky top-0 z-10 bg-[#d9ecf3]">
-                  {doc.type}
-                </th>
+                <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700 sticky top-0 z-10 bg-[#d9ecf3]">{doc.type}</th>
               ))}
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 sticky top-0 z-10 bg-[#d9ecf3]">Status</th>
             </tr>
@@ -368,33 +375,33 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
                   </td>
                   {row.cells.map((cell, ci) => {
                     const doc = docs[ci];
+                    const editKey = `${verificationType}:${row.canonicalField}:${doc.id}`;
+                    const isEdited = !!task.manuallyEditedCells?.[editKey];
+                    const history = task.fieldEditHistory?.[editKey] ?? [];
+                    const isMatch = frozenMatches[`${verificationType}:${row.canonicalField}:${doc.id}`] ?? false;
                     return (
-                      <td key={ci} className={`px-4 py-3 align-top ${!cell.isApplicable ? 'bg-gray-50' : frozenMatches[`${verificationType}:${row.canonicalField}:${doc.id}`] ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
-                        <span className="block text-xs text-gray-500 mb-0.5">{cell.originalFieldName}</span>
-                        <EditableValue
-                          value={cell.value}
-                          isApplicable={cell.isApplicable}
-                          isReadOnly={isReadOnly}
-                          onSave={(val) => handleSave(doc.id, doc.type, row.canonicalField, cell.originalFieldName, val)}
-                        />
-                      </td>
+                      <HistoryCellContent
+                        key={ci}
+                        history={history}
+                        currentValue={cell.value}
+                        isEdited={isEdited}
+                        isReadOnly={isReadOnly}
+                        isApplicable={cell.isApplicable}
+                        originalFieldName={cell.originalFieldName}
+                        onSave={(val) => handleSave(doc.id, doc.type, row.canonicalField, cell.originalFieldName, val)}
+                        isMatch={isMatch}
+                      />
                     );
                   })}
                   <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                    <StatusToggle
-                      status={row.rowStatus}
-                      onChange={(next) => handleToggleStatus(row.canonicalField, next)}
-                      isReadOnly={isReadOnly}
-                    />
+                    <StatusToggle status={row.rowStatus} onChange={(next) => handleToggleStatus(row.canonicalField, next)} isReadOnly={isReadOnly} />
                   </td>
                 </tr>
               );
             })}
             {rows.length === 0 && (
               <tr>
-                <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">
-                  No rows match the current filter.
-                </td>
+                <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">No rows match the current filter.</td>
               </tr>
             )}
           </tbody>

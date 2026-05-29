@@ -188,6 +188,19 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
+  // Track tabs where the user manually edited a field — auto-approve won't fire for these
+  const [manuallyEditedTabs, setManuallyEditedTabs] = useState<Set<VerificationType>>(new Set());
+
+  function handleManualUpdate(updatedTask: Task) {
+    setManuallyEditedTabs(prev => new Set(prev).add(activeTab));
+    onUpdateTask(updatedTask);
+  }
+
+  function handleResetForUpload(vt: VerificationType) {
+    setManuallyEditedTabs(prev => { const next = new Set(prev); next.delete(vt); return next; });
+    onResetForUpload(vt);
+  }
+
   const [viewingRevision, setViewingRevision] = useState<Record<string, number>>({});
   const latestRevision = revisionStates[activeTab]?.count ?? 0;
   const activeRevision = viewingRevision[activeTab] ?? latestRevision;
@@ -373,7 +386,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     const url = URL.createObjectURL(file);
     setTimeout(() => {
       setReUploadPending(false);
-      if (wasActioned) onResetForUpload(activeTab);
+      if (wasActioned) handleResetForUpload(activeTab);
       const receiveDate = activeTab === 'customFormality'
         ? (task.correctValues['CF Receive Date'] ?? task.submittedDate?.slice(0, 10))
         : undefined;
@@ -460,18 +473,20 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   })();
   const isTabActioned = activeTabStatus === 'Approved' || activeTabStatus === 'Rejected';
 
-  // Auto-approve only applies to tasks assigned to the current user
+  // Auto-approve only applies to tasks assigned to the current user, and not to manually edited tabs
   useEffect(() => {
     if (!autoApprove || task.assignedTo !== currentUser) return;
     const tabs: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
     for (const tab of tabs) {
       if (effectiveVerifications[tab] !== 'Match') continue;
       if (autoApproveExcluded.has(`${task.id}:${tab}`)) continue;
+      if (manuallyEditedTabs.has(tab)) continue;
       onApproveVerification(tab, 'Auto Approved', 'Auto Approved is enabled in Settings');
     }
   }, [
     autoApprove,
     autoApproveExcluded,
+    manuallyEditedTabs,
     task.id,
     task.assignedTo,
     currentUser,
@@ -695,7 +710,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                         } else if (activeTab === 'blDate') {
                           onUploadStateChange('blDate', 'idle');
                         }
-                        onResetForUpload(activeTab);
+                        handleResetForUpload(activeTab);
                       }}
                       className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 text-[#0056b8] border-[#0056b8] hover:bg-[#e8f0fb]"
                     >
@@ -826,7 +841,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 )}
 
                 {(isInsuranceDone || isReUploading) && (
-                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
+                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
                 )}
               </>
             ) : activeTab === 'draftBL' ? (
@@ -862,12 +877,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 )}
 
                 {(isDraftBLDone || isReUploading) && (
-                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
+                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
                 )}
               </>
             ) : activeTab === 'blDate' ? (
               isBLDateDone ? (
-                <BLDateTable task={displayTask} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
+                <BLDateTable task={displayTask} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
               ) : (
                 <div className="flex items-stretch gap-4 p-6">
                   <UploadSlot
@@ -878,7 +893,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 </div>
               )
             ) : (
-              <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={onUpdateTask} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
+              <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
             )}
           </div>
         </div>

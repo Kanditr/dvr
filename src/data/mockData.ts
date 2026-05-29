@@ -39,6 +39,8 @@ export interface Task {
   correctValues: Record<string, string>;
   fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>;
   cellStatusOverrides?: Record<string, boolean>;
+  manuallyEditedCells?: Record<string, true>;
+  fieldEditHistory?: Record<string, Array<{ value: string; timestamp: string }>>;
   status: TaskStatus;
   verifications: Verifications;
 }
