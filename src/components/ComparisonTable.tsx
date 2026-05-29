@@ -176,6 +176,8 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
   const [editing, setEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value);
   const initialValueRef = useRef(value);
+  // Prevents onBlur double-firing a save after Enter already committed it
+  const committedRef = useRef(false);
 
   useEffect(() => {
     if (!editing) setTempValue(value);
@@ -191,11 +193,18 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
         value={tempValue}
         onChange={e => setTempValue(e.target.value)}
         onBlur={() => {
-          setEditing(false);
-          if (tempValue !== initialValueRef.current) onSave(tempValue);
+          if (!committedRef.current) {
+            setEditing(false);
+            if (tempValue !== initialValueRef.current) onSave(tempValue);
+          }
+          committedRef.current = false;
         }}
         onKeyDown={e => {
-          if (e.key === 'Enter') { setEditing(false); if (tempValue !== initialValueRef.current) onSave(tempValue); }
+          if (e.key === 'Enter') {
+            committedRef.current = true;
+            setEditing(false);
+            if (tempValue !== initialValueRef.current) onSave(tempValue);
+          }
           if (e.key === 'Escape') { setEditing(false); setTempValue(initialValueRef.current); }
         }}
       />
@@ -207,6 +216,7 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
       className={`block text-sm font-medium text-gray-900 ${isReadOnly ? '' : 'cursor-text hover:bg-black/5'} rounded px-1 -ml-1 transition-colors min-h-[1.25rem]`}
       onClick={() => {
         if (isReadOnly) return;
+        committedRef.current = false;
         initialValueRef.current = value;
         setEditing(true);
       }}

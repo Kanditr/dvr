@@ -538,7 +538,7 @@ export default function App() {
 
   const [search, setSearch] = useState('');
   const [taskPage, setTaskPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<TaskStatus | 'All'>('All');
+  const [showAllApproved, setShowAllApproved] = useState(false);
   const [tabFilters, setTabFilters] = useState<Record<VerificationType, VerificationStatus[] | 'All'>>({
     customFormality: 'All',
     insurance: 'All',
@@ -780,7 +780,7 @@ export default function App() {
     }
   }, [view.page, currentTask, tasks.length]);
 
-  const filteredTasks = tasks.filter(t => {
+  const baseFilteredTasks = tasks.filter(t => {
     const invoiceNo = t.correctValues['INVOICE NO.'] ?? t.id;
     const matchesSearch = (() => {
       if (search === '') return true;
@@ -801,19 +801,21 @@ export default function App() {
       }
     })();
     const effectiveV = getEffectiveVerifications(t, uploadStates[t.id] ?? {});
-    const matchesStatus = statusFilter === 'All' || (() => {
-      const statuses = Object.values(effectiveV);
-      const target = statusFilter === 'Pending' ? 'Pending Verification' : statusFilter;
-      return statuses.includes(target);
-    })();
-
     const matchesUser = !onlyMyTasks || t.assignedTo === CURRENT_USER;
 
     // No task has a loading date in this phase — any date range selection yields no results
     const matchesDate = !dateFrom && !dateTo;
 
-    return matchesSearch && matchesStatus && matchesUser && matchesDate;
+    return matchesSearch && matchesUser && matchesDate;
   });
+
+  const allApprovedHidden = baseFilteredTasks.filter(t => {
+    const ev = getEffectiveVerifications(t, uploadStates[t.id] ?? {});
+    return VALID_TABS.every(tab => ev[tab] === 'Approved');
+  });
+  const filteredTasks = showAllApproved
+    ? baseFilteredTasks
+    : baseFilteredTasks.filter(t => !allApprovedHidden.includes(t));
 
   function handleAutoApproveChange(value: boolean) {
     setAutoApprovePerUser(prev => ({ ...prev, [CURRENT_USER]: value }));
@@ -888,18 +890,29 @@ export default function App() {
               <TaskFilterBar
                 search={search}
                 onSearchChange={v => { setSearch(v); setTaskPage(1); }}
-                statusFilter={statusFilter}
-                onStatusChange={v => { setStatusFilter(v); setTaskPage(1); }}
                 tabFilters={tabFilters}
                 onTabFilterChange={(key, value) => { setTabFilters(prev => ({ ...prev, [key]: value })); setTaskPage(1); }}
                 dateFrom={dateFrom}
                 dateTo={dateTo}
                 onDateFromChange={v => { setDateFrom(v); setTaskPage(1); }}
                 onDateToChange={v => { setDateTo(v); setTaskPage(1); }}
-                onReset={() => { setSearch(''); setStatusFilter('All'); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setTaskPage(1); }}
-                onUploadCF={() => uploadCFRef.current?.click()}
+                showAllApproved={showAllApproved}
+                onToggleShowAllApproved={() => { setShowAllApproved(v => !v); setTaskPage(1); }}
+                allApprovedCount={allApprovedHidden.length}
+                onReset={() => { setSearch(''); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setShowAllApproved(false); setTaskPage(1); }}
               />
               <input ref={uploadCFRef} type="file" accept="*" className="hidden" onChange={handleCFUploadChange} />
+              <div className="flex justify-end px-6 py-2 border-b border-gray-100">
+                <button
+                  onClick={() => uploadCFRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-[#0056b8] px-3 py-1.5 rounded-md hover:bg-[#004a9f] transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />
+                  </svg>
+                  Upload Custom Formality
+                </button>
+              </div>
               <div className="flex-1 min-h-0 overflow-hidden">
                 <TaskTable
                   tasks={filteredTasks}

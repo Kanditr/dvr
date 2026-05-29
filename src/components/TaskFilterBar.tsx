@@ -1,16 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import type { TaskStatus, VerificationStatus } from '../data/mockData';
+import type { VerificationStatus } from '../data/mockData';
 import type { VerificationType } from '../App';
-
-const ALL_STATUSES: TaskStatus[] = ['Pending', 'Attention', 'Match', 'Approved', 'Rejected'];
-
-const TASK_STATUS_LABEL: Record<TaskStatus, string> = {
-  'Pending': 'Pending',
-  'Attention': 'Attention',
-  'Match': 'Match',
-  'Approved': 'Approved',
-  'Rejected': 'Rejected',
-};
 
 const VERIFICATION_STATUSES: VerificationStatus[] = [
   'Pending Verification', 'Attention', 'Match', 'Approved', 'Rejected',
@@ -132,8 +122,6 @@ function MultiSelectDropdown({
 interface TaskFilterBarProps {
   search: string;
   onSearchChange: (v: string) => void;
-  statusFilter: TaskStatus | 'All';
-  onStatusChange: (v: TaskStatus | 'All') => void;
   tabFilters: Record<VerificationType, VerificationStatus[] | 'All'>;
   onTabFilterChange: (key: VerificationType, value: VerificationStatus[] | 'All') => void;
   dateFrom: string;
@@ -141,10 +129,12 @@ interface TaskFilterBarProps {
   onDateFromChange: (v: string) => void;
   onDateToChange: (v: string) => void;
   onReset: () => void;
-  onUploadCF?: () => void;
+  showAllApproved: boolean;
+  onToggleShowAllApproved: () => void;
+  allApprovedCount: number;
 }
 
-export default function TaskFilterBar({ search, onSearchChange, statusFilter, onStatusChange, tabFilters, onTabFilterChange, dateFrom, dateTo, onDateFromChange, onDateToChange, onReset, onUploadCF }: TaskFilterBarProps) {
+export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTabFilterChange, dateFrom, dateTo, onDateFromChange, onDateToChange, onReset, showAllApproved, onToggleShowAllApproved, allApprovedCount }: TaskFilterBarProps) {
   const dateFromRef = useRef<HTMLInputElement>(null);
   const dateToRef = useRef<HTMLInputElement>(null);
 
@@ -168,21 +158,6 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           </div>
         </div>
 
-        {/* Overall Status */}
-        <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Overall Status</label>
-          <select
-            value={statusFilter}
-            onChange={e => onStatusChange(e.target.value as TaskStatus | 'All')}
-            className="px-3 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white min-w-[140px]"
-          >
-            <option value="All">All</option>
-            {ALL_STATUSES.map(s => (
-              <option key={s} value={s}>{TASK_STATUS_LABEL[s]}</option>
-            ))}
-          </select>
-        </div>
-
         {/* Tab status filters — multi-select */}
         {TAB_FILTER_DEFS.map(({ key, label }) => (
           <div key={key} className="flex flex-col gap-0.5">
@@ -196,7 +171,31 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
           </div>
         ))}
 
-        {/* Loading Date range */}
+        {/* All Approved toggle */}
+        <div className="flex flex-col gap-0.5">
+          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">All Approved</label>
+          <button
+            type="button"
+            onClick={onToggleShowAllApproved}
+            className={`px-3 py-2 text-sm border rounded focus:outline-none transition-colors flex items-center gap-2 ${
+              showAllApproved
+                ? 'border-[#0056b8] bg-[#0056b8] text-white'
+                : 'border-gray-300 text-gray-500 bg-white hover:border-gray-400'
+            }`}
+          >
+            {showAllApproved ? 'Showing' : 'Hidden'}
+            {!showAllApproved && allApprovedCount > 0 && (
+              <span className="bg-gray-200 text-gray-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                {allApprovedCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+      </div>
+
+      {/* Loading Date range + Reset — second row */}
+      <div className="flex items-end gap-4">
         <div className="flex flex-col gap-0.5">
           <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Loading Date</label>
           <div className="flex items-center gap-2">
@@ -252,22 +251,9 @@ export default function TaskFilterBar({ search, onSearchChange, statusFilter, on
             </div>
           </div>
         </div>
-
         <button onClick={onReset} className="text-sm text-[#0056b8] hover:underline pb-[9px]">
           Reset Filter
         </button>
-
-        {onUploadCF && (
-          <button
-            onClick={onUploadCF}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-[#0056b8] px-3 py-1.5 rounded-md hover:bg-[#004a9f] transition-colors ml-auto pb-[9px]"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />
-            </svg>
-            Upload Custom Formality
-          </button>
-        )}
       </div>
     </div>
   );
