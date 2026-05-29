@@ -76,7 +76,7 @@ interface TaskTableProps {
   firstReceivedDates?: Record<string, string>;
 }
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 20;
 
 export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, isAdmin, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask, firstReceivedDates = {} }: TaskTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
