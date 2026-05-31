@@ -83,18 +83,22 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
-  function formatLastUpdate(raw: string | undefined): string {
+  function formatLastModified(raw: string | undefined): string {
     if (!raw) return '—';
-    // If it's an ISO datetime (e.g. from new Date().toISOString()), extract date + HH:MM:SS
     if (raw.includes('T')) {
       const d = new Date(raw);
       if (!isNaN(d.getTime())) {
         const date = d.toLocaleDateString('en-CA'); // YYYY-MM-DD
-        const time = d.toTimeString().slice(0, 8);  // HH:MM:SS
+        const time = d.toTimeString().slice(0, 5);  // HH:MM
         return `${date} ${time}`;
       }
     }
-    return raw; // plain date string — return as-is
+    return raw;
+  }
+
+  function formatFirstReceivedDate(raw: string | undefined): string {
+    if (!raw) return '—';
+    return raw.slice(0, 10); // YYYY-MM-DD
   }
 
   function handleSort(key: SortKey) {
@@ -161,10 +165,10 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 </th>
               ))}
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
-                Loading Date
+                1st Received Date
               </th>
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
-                1st Received Date
+                Last Modified
               </th>
             </tr>
           </thead>
@@ -194,11 +198,11 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                     </td>
                   );
                 })}
-                <td className="px-4 py-4 text-gray-500 whitespace-nowrap">
-                  —
-                </td>
                 <td className="px-4 py-4 text-gray-700 whitespace-nowrap">
-                  {firstReceivedDates[task.id] ? formatLastUpdate(firstReceivedDates[task.id]) : '—'}
+                  {formatFirstReceivedDate(firstReceivedDates[task.id])}
+                </td>
+                <td className="px-4 py-4 text-gray-500 whitespace-nowrap">
+                  {formatLastModified(task.lastUpdate)}
                 </td>
               </tr>
             ))}

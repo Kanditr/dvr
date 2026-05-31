@@ -132,9 +132,10 @@ interface TaskFilterBarProps {
   showAllApproved: boolean;
   onToggleShowAllApproved: () => void;
   allApprovedCount: number;
+  onUploadClick?: () => void;
 }
 
-export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTabFilterChange, dateFrom, dateTo, onDateFromChange, onDateToChange, onReset, showAllApproved, onToggleShowAllApproved, allApprovedCount }: TaskFilterBarProps) {
+export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTabFilterChange, dateFrom, dateTo, onDateFromChange, onDateToChange, onReset, showAllApproved, onToggleShowAllApproved, allApprovedCount, onUploadClick }: TaskFilterBarProps) {
   const dateFromRef = useRef<HTMLInputElement>(null);
   const dateToRef = useRef<HTMLInputElement>(null);
 
@@ -177,27 +178,42 @@ export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTa
           <button
             type="button"
             onClick={onToggleShowAllApproved}
-            className={`px-3 py-2 text-sm border rounded focus:outline-none transition-colors flex items-center gap-2 ${
+            className={`px-3 text-sm border rounded focus:outline-none transition-colors flex items-center gap-2 w-[130px] h-[38px] ${
               showAllApproved
-                ? 'border-[#0056b8] bg-[#0056b8] text-white'
+                ? 'border-[#0056b8] text-[#0056b8] bg-white hover:bg-blue-50'
                 : 'border-gray-300 text-gray-500 bg-white hover:border-gray-400'
             }`}
           >
-            {showAllApproved ? 'Showing' : 'Hidden'}
-            {!showAllApproved && allApprovedCount > 0 && (
-              <span className="bg-gray-200 text-gray-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
-                {allApprovedCount}
-              </span>
+            {showAllApproved ? (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                Showing
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                </svg>
+                Hidden
+                {allApprovedCount > 0 && (
+                  <span className="bg-gray-200 text-gray-600 text-[10px] font-semibold px-1.5 py-0.5 rounded-full">
+                    {allApprovedCount}
+                  </span>
+                )}
+              </>
             )}
           </button>
         </div>
 
       </div>
 
-      {/* Loading Date range + Reset — second row */}
+      {/* 1st Received Date range + Reset — second row */}
       <div className="flex items-end gap-4">
         <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Loading Date</label>
+          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">1st Received Date</label>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">From</span>
@@ -254,6 +270,17 @@ export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTa
         <button onClick={onReset} className="text-sm text-[#0056b8] hover:underline pb-[9px]">
           Reset Filter
         </button>
+        {onUploadClick && (
+          <button
+            onClick={onUploadClick}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-[#0056b8] px-3 py-1.5 rounded-md hover:bg-[#004a9f] transition-colors pb-[9px] ml-auto"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />
+            </svg>
+            Upload Custom Formality
+          </button>
+        )}
       </div>
     </div>
   );

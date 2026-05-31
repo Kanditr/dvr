@@ -803,8 +803,18 @@ export default function App() {
     const effectiveV = getEffectiveVerifications(t, uploadStates[t.id] ?? {});
     const matchesUser = !onlyMyTasks || t.assignedTo === CURRENT_USER;
 
-    // No task has a loading date in this phase — any date range selection yields no results
-    const matchesDate = !dateFrom && !dateTo;
+    const matchesDate = (() => {
+      if (!dateFrom && !dateTo) return true;
+      const revState = revisionStates[t.id]?.['customFormality'];
+      const rev0 = revisionHistory[t.id]?.['customFormality']?.[0];
+      const firstDate = revState && revState.count > 0
+        ? (rev0?.receiveDate ?? rev0?.date ?? t.correctValues['CF Receive Date'] ?? t.submittedDate)
+        : (revState?.receiveDate ?? revState?.date ?? t.correctValues['CF Receive Date'] ?? t.submittedDate);
+      const dateStr = (firstDate ?? '').slice(0, 10);
+      if (dateFrom && dateStr < dateFrom) return false;
+      if (dateTo && dateStr > dateTo) return false;
+      return true;
+    })();
 
     return matchesSearch && matchesUser && matchesDate;
   });
@@ -900,19 +910,9 @@ export default function App() {
                 onToggleShowAllApproved={() => { setShowAllApproved(v => !v); setTaskPage(1); }}
                 allApprovedCount={allApprovedHidden.length}
                 onReset={() => { setSearch(''); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setShowAllApproved(false); setTaskPage(1); }}
+                onUploadClick={() => uploadCFRef.current?.click()}
               />
               <input ref={uploadCFRef} type="file" accept="*" className="hidden" onChange={handleCFUploadChange} />
-              <div className="flex justify-end px-6 py-2 border-b border-gray-100">
-                <button
-                  onClick={() => uploadCFRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-[#0056b8] px-3 py-1.5 rounded-md hover:bg-[#004a9f] transition-colors"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />
-                  </svg>
-                  Upload Custom Formality
-                </button>
-              </div>
               <div className="flex-1 min-h-0 overflow-hidden">
                 <TaskTable
                   tasks={filteredTasks}
