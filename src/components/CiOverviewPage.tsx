@@ -523,7 +523,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
         <div className="bg-white rounded-lg border border-gray-200 p-4 mb-4 shrink-0">
           <div className="flex items-center gap-6 flex-wrap">
             <div>
-              <p className="text-xs text-gray-500 mb-0.5">Invoice No.</p>
+              <p className="text-xs text-gray-500 mb-0.5">CI No.</p>
               <p className="text-sm font-medium text-gray-800">{task.correctValues['INVOICE NO.'] ?? task.id}</p>
             </div>
             <div>

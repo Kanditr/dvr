@@ -154,7 +154,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
           <thead>
             <tr className="bg-[#d9ecf3]">
               <th className={`${thBase} px-6 cursor-pointer select-none whitespace-nowrap`} onClick={() => handleSort('id')}>
-                <span className="flex items-center">Invoice No. <SortIcon col="id" sortKey={sortKey} sortDir={sortDir} /></span>
+                <span className="flex items-center">CI No. <SortIcon col="id" sortKey={sortKey} sortDir={sortDir} /></span>
               </th>
               <th className={`${thBase} px-6 cursor-pointer select-none`} onClick={() => handleSort('assignedTo')}>
                 <span className="flex items-center">Assignee <SortIcon col="assignedTo" sortKey={sortKey} sortDir={sortDir} /></span>

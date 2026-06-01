@@ -425,7 +425,7 @@ export default function App() {
     if (invoiceNo) {
       const existingTask = tasks.find(t => (t.correctValues['INVOICE NO.'] || t.id) === invoiceNo);
       if (existingTask) {
-        alert(`Invoice No. ${invoiceNo} already exists. Please upload the revised document in the Custom Formality page instead.`);
+        alert(`CI No. ${invoiceNo} already exists. Please upload the revised document in the Custom Formality page instead.`);
         e.target.value = '';
         return;
       }
