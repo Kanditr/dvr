@@ -19,70 +19,64 @@ interface BLDateTableProps {
   isReadOnly?: boolean;
 }
 
-function EditableValue({ value, onSave, isReadOnly }: { value: string, onSave: (v: string) => void, isReadOnly?: boolean }) {
+function EditableValue({ value, onSave, isReadOnly, emptyDisplay = '' }: { value: string, onSave: (v: string) => void, isReadOnly?: boolean, emptyDisplay?: string }) {
   const [editing, setEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value);
   const initialValueRef = useRef(value);
   const [originalValue] = useState(value);
+  const committedRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!editing) setTempValue(value);
   }, [value, editing]);
 
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        className="w-full text-sm font-medium text-gray-900 border border-[#0056b8] rounded px-1 py-0.5 focus:outline-none bg-white"
-        value={tempValue}
-        onChange={e => {
-          setTempValue(e.target.value);
-        }}
-        onBlur={() => {
-          setEditing(false);
-          if (tempValue !== initialValueRef.current) {
-            onSave(tempValue);
-          }
-        }}
-        onKeyDown={e => {
-          if (e.key === 'Enter') {
-            setEditing(false);
-            if (tempValue !== initialValueRef.current) {
-              onSave(tempValue);
-            }
-          }
-          if (e.key === 'Escape') {
-            setEditing(false);
-            setTempValue(initialValueRef.current);
-          }
-        }}
-      />
-    );
-  }
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      const len = inputRef.current.value.length;
+      inputRef.current.setSelectionRange(len, len);
+    }
+  }, [editing]);
 
   const isEdited = value !== originalValue;
 
   return (
-    <div className="flex items-center gap-1 group/edit">
-      <span
-        className={`block text-sm font-medium text-gray-900 ${isReadOnly ? '' : 'cursor-text hover:bg-black/5'} rounded px-1 -ml-1 transition-colors min-h-[1.25rem] flex-1`}
+    <div className="relative group/edit">
+      <input
+        ref={inputRef}
+        readOnly={isReadOnly || !editing}
+        value={editing ? tempValue : value}
+        placeholder={emptyDisplay}
+        onChange={e => setTempValue(e.target.value)}
         onClick={() => {
-          if (isReadOnly) return;
+          if (isReadOnly || editing) return;
           initialValueRef.current = value;
           setEditing(true);
         }}
-      >
-        {value || ' '}
-      </span>
-      {isEdited && !isReadOnly && (
+        onBlur={() => {
+          if (!editing) return;
+          if (!committedRef.current) { setEditing(false); if (tempValue !== initialValueRef.current) onSave(tempValue); }
+          committedRef.current = false;
+        }}
+        onKeyDown={e => {
+          if (!editing) return;
+          if (e.key === 'Enter') { committedRef.current = true; setEditing(false); if (tempValue !== initialValueRef.current) onSave(tempValue); }
+          if (e.key === 'Escape') { setEditing(false); setTempValue(initialValueRef.current); }
+        }}
+        className={`block w-full text-sm font-medium rounded px-1 py-0.5 outline-none transition-colors placeholder:text-gray-300 ${
+          editing
+            ? 'border border-[#0056b8] bg-white text-gray-900 cursor-text'
+            : isReadOnly
+              ? 'border border-transparent bg-transparent text-gray-900 cursor-default'
+              : 'border border-transparent bg-transparent text-gray-900 cursor-text hover:bg-black/5'
+        }`}
+      />
+      {isEdited && !isReadOnly && !editing && (
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            setTempValue(originalValue);
-            onSave(originalValue);
-          }}
-          className="shrink-0 p-1 rounded-full text-gray-400 hover:text-[#0056b8] hover:bg-blue-50 transition-colors opacity-0 group-hover/edit:opacity-100"
+          onClick={(e) => { e.stopPropagation(); setTempValue(originalValue); onSave(originalValue); }}
+          className="absolute right-0 top-1/2 -translate-y-1/2 p-1 rounded-full text-gray-400 hover:text-[#0056b8] hover:bg-blue-50 transition-colors opacity-0 group-hover/edit:opacity-100"
           title="Undo edit"
         >
           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -91,6 +85,69 @@ function EditableValue({ value, onSave, isReadOnly }: { value: string, onSave: (
         </button>
       )}
     </div>
+  );
+}
+
+function DocXPortHistoryCell({
+  history,
+  currentValue,
+  isEdited,
+  isReadOnly,
+  fieldName,
+  onSave,
+}: {
+  history: Array<{ value: string; timestamp: string }>;
+  currentValue: string;
+  isEdited: boolean;
+  isReadOnly?: boolean;
+  fieldName: string;
+  onSave: (val: string) => void;
+}) {
+  const [viewIdx, setViewIdx] = useState<number | null>(null);
+  const isAtCurrent = viewIdx === null;
+  const isViewingSystemOriginal = viewIdx === 0;
+  const canGoOlder = isAtCurrent ? history.length > 0 : viewIdx > 0;
+  const canGoNewer = !isAtCurrent;
+  const total = history.length + 1;
+
+  function goOlder() {
+    if (isAtCurrent) setViewIdx(history.length - 1);
+    else setViewIdx(i => Math.max(0, (i ?? 0) - 1));
+  }
+  function goNewer() {
+    if (viewIdx === history.length - 1) setViewIdx(null);
+    else setViewIdx(i => (i ?? 0) + 1);
+  }
+
+  const cellBg = isEdited && !isViewingSystemOriginal ? 'bg-[#ede9fe]' : 'bg-gray-50';
+  const navCls = (enabled: boolean) =>
+    `text-sm font-bold leading-none px-0.5 transition-colors ${enabled
+      ? 'text-violet-500 hover:text-violet-700 cursor-pointer'
+      : 'text-violet-300 cursor-not-allowed'}`;
+  const versionNum = isAtCurrent ? total : viewIdx! + 1;
+
+  return (
+    <td className={`px-4 py-3 align-top ${cellBg}`}>
+      <div className="flex items-center gap-1 mb-0.5 flex-wrap">
+        <span className="text-xs text-gray-500">{fieldName}</span>
+        {isEdited && (
+          <span className="inline-flex items-center gap-0.5 ml-1">
+            <span className="text-[10px] font-medium text-violet-500">edited</span>
+            <button type="button" onClick={goOlder} disabled={!canGoOlder} className={navCls(canGoOlder)}>&lt;</button>
+            <span className="text-[10px] text-violet-400 tabular-nums">v{versionNum}/{total}</span>
+            <button type="button" onClick={goNewer} disabled={!canGoNewer} className={navCls(canGoNewer)}>&gt;</button>
+          </span>
+        )}
+      </div>
+      {!isAtCurrent && history[viewIdx!] ? (
+        <p className="text-sm font-medium text-gray-900 break-words">
+          {history[viewIdx!].value || <span className="text-gray-300">—</span>}
+        </p>
+      ) : (
+        <EditableValue value={currentValue} isReadOnly={isReadOnly} onSave={onSave} emptyDisplay="—" />
+
+      )}
+    </td>
   );
 }
 
@@ -137,6 +194,45 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
   );
 }
 
+function DashStatusToggle({ override, onChange, isReadOnly }: { override: 'match' | 'mismatch' | undefined, onChange: (s: 'match' | 'mismatch') => void, isReadOnly?: boolean }) {
+  const [isEditing, setIsEditing] = useState(false);
+
+  if (isEditing && !isReadOnly) {
+    return (
+      <select
+        autoFocus
+        value={override ?? ''}
+        onChange={e => { onChange(e.target.value as 'match' | 'mismatch'); setIsEditing(false); }}
+        onBlur={() => setIsEditing(false)}
+        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 cursor-pointer"
+      >
+        <option value="" disabled>Select...</option>
+        <option value="match">Match</option>
+        <option value="mismatch">Mismatch</option>
+      </select>
+    );
+  }
+
+  if (override === 'match') return (
+    <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
+      className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}>
+      Match
+    </button>
+  );
+  if (override === 'mismatch') return (
+    <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
+      className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}>
+      Mismatch
+    </button>
+  );
+  return (
+    <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
+      className={`text-gray-300 px-1 h-6 text-sm focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:text-gray-500 cursor-pointer'}`}>
+      —
+    </button>
+  );
+}
+
 export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTableProps) {
   const [fieldFilter, setFieldFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -151,8 +247,9 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
     { fieldName: 'Manual Billing Date', valueRaw: task.correctValues['Manual Billing Date'] ?? '' },
   ].map(row => {
     const computedStatus = blDateRaw === row.valueRaw ? 'match' : 'mismatch';
-    const isMatch = (task.fieldStatusOverrides?.[`blDate:${row.fieldName}`] ?? computedStatus) === 'match';
-    return { ...row, isMatch, computedStatus, overriddenStatus: task.fieldStatusOverrides?.[`blDate:${row.fieldName}`] ?? computedStatus };
+    const rawOverride = task.fieldStatusOverrides?.[`blDate:${row.fieldName}`] as 'match' | 'mismatch' | undefined;
+    const isMatch = (rawOverride ?? computedStatus) === 'match';
+    return { ...row, isMatch, computedStatus, overriddenStatus: rawOverride ?? computedStatus, rawOverride };
   });
 
   const uniqueFields = allRows.map(r => r.fieldName);
@@ -192,17 +289,53 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
   function handleSaveCorrectValue(fieldName: string, newValue: string) {
     if (isReadOnly) return;
 
-    // Lock all current statuses before modifying the date
-    let nextOverrides = task.fieldStatusOverrides ?? {};
+    const editKey = `blDate:${fieldName}`;
+    const now = new Date().toISOString();
+    const oldValue = task.correctValues[fieldName] ?? '';
+
+    const prevHistory = task.fieldEditHistory?.[editKey] ?? [];
+    const originalValue = prevHistory.length > 0 ? prevHistory[0].value : oldValue;
+
+    const nextEditedCells: Record<string, true> = { ...(task.manuallyEditedCells ?? {}) };
+    const nextFieldEditHistory: Record<string, Array<{ value: string; timestamp: string }>> = { ...(task.fieldEditHistory ?? {}) };
+
+    if (newValue === originalValue) {
+      delete nextEditedCells[editKey];
+      delete nextFieldEditHistory[editKey];
+    } else {
+      nextEditedCells[editKey] = true;
+      nextFieldEditHistory[editKey] = [...prevHistory, { value: oldValue, timestamp: now }];
+    }
+
+    let nextOverrides = { ...(task.fieldStatusOverrides ?? {}) };
     allRows.forEach(row => {
       const key = `blDate:${row.fieldName}`;
-      if (!nextOverrides[key]) {
-        nextOverrides[key] = row.overriddenStatus;
-      }
+      if (!nextOverrides[key]) nextOverrides[key] = row.overriddenStatus;
     });
 
     const nextCorrectValues = { ...task.correctValues, [fieldName]: newValue };
-    onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides });
+    onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides, manuallyEditedCells: nextEditedCells, fieldEditHistory: nextFieldEditHistory });
+  }
+
+  function handleSaveDocXPort(fieldName: string, newValue: string) {
+    if (isReadOnly) return;
+    const editKey = `blDate_docxport:${fieldName}`;
+    const now = new Date().toISOString();
+    const storageKey = `BLDXP_${fieldName}`;
+    const oldValue = task.correctValues[storageKey] ?? '';
+    const prevHistory = task.fieldEditHistory?.[editKey] ?? [];
+    const originalValue = prevHistory.length > 0 ? prevHistory[0].value : oldValue;
+    const nextEditedCells: Record<string, true> = { ...(task.manuallyEditedCells ?? {}) };
+    const nextFieldEditHistory: Record<string, Array<{ value: string; timestamp: string }>> = { ...(task.fieldEditHistory ?? {}) };
+    if (newValue === originalValue) {
+      delete nextEditedCells[editKey];
+      delete nextFieldEditHistory[editKey];
+    } else {
+      nextEditedCells[editKey] = true;
+      nextFieldEditHistory[editKey] = [...prevHistory, { value: oldValue, timestamp: now }];
+    }
+    const nextCorrectValues = { ...task.correctValues, [storageKey]: newValue };
+    onUpdateTask({ ...task, correctValues: nextCorrectValues, manuallyEditedCells: nextEditedCells, fieldEditHistory: nextFieldEditHistory });
   }
 
   function handleToggleStatus(fieldName: string, nextStatus: 'match' | 'mismatch') {
@@ -292,7 +425,7 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
                 <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4">
                   {row.fieldName}
                 </td>
-                <td className={`px-4 py-3 align-top ${row.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
+                <td className="px-4 py-3 align-top bg-[#ebf7ed]">
                   <span className="block text-xs text-gray-500 mb-0.5">B/L Date</span>
                   <EditableValue
                     value={blDateRaw}
@@ -301,12 +434,21 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
                   />
                 </td>
 
-                <td className="px-4 py-3 align-top bg-gray-50">
-                  <span className="text-gray-300">—</span>
-                </td>
+                <DocXPortHistoryCell
+                  history={task.fieldEditHistory?.[`blDate_docxport:${row.fieldName}`] ?? []}
+                  currentValue={task.correctValues[`BLDXP_${row.fieldName}`] ?? ''}
+                  isEdited={!!task.manuallyEditedCells?.[`blDate_docxport:${row.fieldName}`]}
+                  isReadOnly={isReadOnly}
+                  fieldName={row.fieldName}
+                  onSave={(val) => handleSaveDocXPort(row.fieldName, val)}
+                />
 
                 <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                  {/* Status value removed as per request */}
+                  <DashStatusToggle
+                    override={row.rawOverride}
+                    onChange={(next) => handleToggleStatus(row.fieldName, next)}
+                    isReadOnly={isReadOnly}
+                  />
                 </td>
               </tr>
             ))}

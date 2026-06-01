@@ -36,11 +36,12 @@ const DRAFT_BL_DOC_TYPES: ShipDoc['type'][] = [
 export function getDocsForVerification(task: Task, verificationType: string): ShipDoc[] {
   if (verificationType === 'customFormality') {
     const actualDocs = task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
+    const editedFields = task.canonicalFields.filter(f => task.correctValues[`DOCXPORT_${f}`]);
     const docXPort: ShipDoc = {
       id: 'docxport',
       type: 'DocXPort',
-      values: {}, 
-      fieldMapping: {} // Clear all mapping to show dashes for all fields
+      fieldMapping: Object.fromEntries(editedFields.map(f => [f, f])),
+      values: Object.fromEntries(editedFields.map(f => [f, task.correctValues[`DOCXPORT_${f}`]])),
     };
     return [...actualDocs, docXPort].sort((a, b) => CF_DOC_TYPES.indexOf(a.type) - CF_DOC_TYPES.indexOf(b.type));
   }

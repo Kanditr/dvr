@@ -115,10 +115,10 @@ function HistoryCellContent({
   }
 
   // Purple only for manually-edited states; revert to green/yellow when viewing system original
-  const cellBg = !isApplicable
-    ? 'bg-gray-50'
-    : isEdited && !isViewingSystemOriginal
-      ? 'bg-[#ede9fe]'
+  const cellBg = isEdited && !isViewingSystemOriginal
+    ? 'bg-[#ede9fe]'
+    : !isApplicable
+      ? 'bg-gray-50'
       : isMatch
         ? 'bg-[#ebf7ed]'
         : 'bg-[#fef5e5]';
@@ -146,7 +146,7 @@ function HistoryCellContent({
 
       {!isAtCurrent && history[viewIdx!] ? (
         <p className="text-sm font-medium text-gray-900 break-words">
-          {history[viewIdx!].value || <span className="italic text-gray-400 text-xs">empty</span>}
+          {history[viewIdx!].value || <span className="text-gray-300">—</span>}
         </p>
       ) : (
         <EditableValue
@@ -176,53 +176,54 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
   const [editing, setEditing] = useState(false);
   const [tempValue, setTempValue] = useState(value);
   const initialValueRef = useRef(value);
-  // Prevents onBlur double-firing a save after Enter already committed it
   const committedRef = useRef(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!editing) setTempValue(value);
   }, [value, editing]);
 
-  if (!isApplicable) return <span className="text-gray-300">—</span>;
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      const len = inputRef.current.value.length;
+      inputRef.current.setSelectionRange(len, len);
+    }
+  }, [editing]);
 
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        className="w-full text-sm font-medium text-gray-900 border border-[#0056b8] rounded px-1 py-0.5 focus:outline-none bg-white"
-        value={tempValue}
-        onChange={e => setTempValue(e.target.value)}
-        onBlur={() => {
-          if (!committedRef.current) {
-            setEditing(false);
-            if (tempValue !== initialValueRef.current) onSave(tempValue);
-          }
-          committedRef.current = false;
-        }}
-        onKeyDown={e => {
-          if (e.key === 'Enter') {
-            committedRef.current = true;
-            setEditing(false);
-            if (tempValue !== initialValueRef.current) onSave(tempValue);
-          }
-          if (e.key === 'Escape') { setEditing(false); setTempValue(initialValueRef.current); }
-        }}
-      />
-    );
-  }
+  if (!isApplicable && isReadOnly) return <span className="text-gray-300">—</span>;
 
   return (
-    <span
-      className={`block text-sm font-medium text-gray-900 ${isReadOnly ? '' : 'cursor-text hover:bg-black/5'} rounded px-1 -ml-1 transition-colors min-h-[1.25rem]`}
+    <input
+      ref={inputRef}
+      readOnly={isReadOnly || !editing}
+      value={editing ? tempValue : value}
+      placeholder={!isApplicable ? '—' : ''}
+      onChange={e => setTempValue(e.target.value)}
       onClick={() => {
-        if (isReadOnly) return;
+        if (isReadOnly || editing) return;
         committedRef.current = false;
         initialValueRef.current = value;
         setEditing(true);
       }}
-    >
-      {value || ' '}
-    </span>
+      onBlur={() => {
+        if (!editing) return;
+        if (!committedRef.current) { setEditing(false); if (tempValue !== initialValueRef.current) onSave(tempValue); }
+        committedRef.current = false;
+      }}
+      onKeyDown={e => {
+        if (!editing) return;
+        if (e.key === 'Enter') { committedRef.current = true; setEditing(false); if (tempValue !== initialValueRef.current) onSave(tempValue); }
+        if (e.key === 'Escape') { setEditing(false); setTempValue(initialValueRef.current); }
+      }}
+      className={`block w-full text-sm font-medium rounded px-1 py-0.5 outline-none transition-colors placeholder:text-gray-300 ${
+        editing
+          ? 'border border-[#0056b8] bg-white text-gray-900 cursor-text'
+          : isReadOnly
+            ? 'border border-transparent bg-transparent text-gray-900 cursor-default'
+            : 'border border-transparent bg-transparent text-gray-900 cursor-text hover:bg-black/5'
+      }`}
+    />
   );
 }
 
@@ -290,8 +291,9 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
     return true;
   });
 
-  function handleSave(docId: string, docType: string, canonicalField: string, originalFieldName: string, newValue: string) {
+  function handleSave(docId: string, docType: string, canonicalField: string, originalFieldNameRaw: string, newValue: string) {
     if (isReadOnly) return;
+    const originalFieldName = originalFieldNameRaw || canonicalField;
 
     // Capture old value before update
     const oldRowIdx = allRows.findIndex(r => r.canonicalField === canonicalField);
@@ -335,7 +337,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
     }
 
     if (docType === 'DocXPort') {
-      const nextCorrectValues = { ...task.correctValues, [canonicalField]: newValue };
+      const nextCorrectValues = { ...task.correctValues, [`DOCXPORT_${canonicalField}`]: newValue };
       onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides, cellStatusOverrides: nextCellOverrides, manuallyEditedCells: nextEditedCells, fieldEditHistory: nextFieldEditHistory });
     } else {
       const nextDocs = task.documents.map(d => {
