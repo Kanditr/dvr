@@ -440,15 +440,11 @@ export default function App() {
       const snapshot = [...uploadedTaskDefs, ...tasks];
       const newTask = generateUploadedTask(snapshot, CURRENT_USER, file.name);
 
-      // Block upload if any required CF doc types are missing
       const missingTypes = Array.from(CF_CLONE_TYPES).filter(
         type => !newTask.documents.some((d: any) => d.type === type)
       );
       if (missingTypes.length > 0) {
-        const invoiceNo = newTask.correctValues['INVOICE NO.'] ?? newTask.id;
-        alert(`Cannot create record. CI No. ${invoiceNo} is missing the following Custom Formality documents:\n\n${missingTypes.map(t => `• ${t}`).join('\n')}`);
-        URL.revokeObjectURL(url);
-        return;
+        newTask.correctValues['CF_MISSING_DOCS'] = missingTypes.join(',');
       }
 
       saveFile(`${newTask.id}:customFormality`, file);

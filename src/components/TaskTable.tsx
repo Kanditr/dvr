@@ -34,6 +34,7 @@ const STATUS_STYLE: Record<VerificationStatus, string> = {
   'Attention': 'bg-[#fef5e5] text-[#ac6f00]',
   'Rejected': 'bg-[#faeaea] text-[#8c1d1d]',
   'Pending Verification': 'bg-gray-100 text-gray-500',
+  'Incomplete': 'bg-[#faeaea] text-[#8c1d1d]',
 };
 
 
@@ -43,6 +44,7 @@ const STATUS_SHORT: Record<VerificationStatus, string> = {
   'Attention': 'Attention',
   'Rejected': 'Rejected',
   'Pending Verification': 'Pending',
+  'Incomplete': 'Incomplete',
 };
 
 function getEffectiveTabStatus(
@@ -50,6 +52,7 @@ function getEffectiveTabStatus(
   tabKey: VerificationType,
   taskUploadStates: Record<string, UploadState>
 ): VerificationStatus {
+  if (tabKey === 'customFormality' && task.correctValues['CF_MISSING_DOCS']) return 'Incomplete';
   if (tabKey === 'insurance' || tabKey === 'draftBL' || tabKey === 'blDate') {
     if ((taskUploadStates[tabKey] ?? 'idle') !== 'done') return 'Pending Verification';
   }
@@ -187,11 +190,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 {TAB_COLS.map(({ key }) => {
                   const status = getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {});
                   return (
-                    <td
-                      key={key}
-                      className="px-4 py-4 cursor-pointer"
-                      onClick={() => onSelectTask(task.id, key)}
-                    >
+                    <td key={key} className="px-4 py-4 cursor-pointer" onClick={() => onSelectTask(task.id, key)}>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[status]}`}>
                         {STATUS_SHORT[status]}
                       </span>

@@ -17,7 +17,8 @@ export type VerificationStatus =
   | 'Attention'
   | 'Rejected'
   | 'Match'
-  | 'Approved';
+  | 'Approved'
+  | 'Incomplete';
 
 export interface Verifications {
   customFormality: VerificationStatus;
@@ -48,6 +49,7 @@ export interface Task {
 export function deriveOverallStatus(v: Verifications): TaskStatus {
   const statuses = Object.values(v) as VerificationStatus[];
   if (statuses.includes('Rejected')) return 'Rejected';
+  if (statuses.includes('Incomplete')) return 'Attention';
   if (statuses.includes('Attention')) return 'Attention';
   if (statuses.includes('Pending Verification')) return 'Pending';
   if (statuses.every(s => s === 'Approved')) return 'Approved';
