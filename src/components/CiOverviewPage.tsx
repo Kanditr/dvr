@@ -545,7 +545,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               const isPendingDocument =
                 ((tab.type === 'insurance' || tab.type === 'draftBL') && (uploadStates[tab.type] ?? 'idle') !== 'done')
                 || (tab.type === 'blDate' && !blDateHasData);
-              let tabStatus: VerificationStatus = isActive ? displayTask.verifications[tab.type] : task.verifications[tab.type];
+              let tabStatus: VerificationStatus = task.verifications[tab.type];
               if (tab.type === 'blDate' && !blDateHasData) tabStatus = 'Pending Verification';
               else if ((tab.type === 'customFormality' || tab.type === 'blDate') && tabStatus === 'Pending Verification') tabStatus = 'Attention';
               return (
@@ -591,7 +591,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                           </svg>
                         </button>
                       )}
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap transition-colors ${activeRevision !== latestRevision ? 'bg-[#fff2f0] text-[#c2410c] border-[#ffdfd6]' : 'bg-[#e8f0fb] text-[#0056b8] border-[#c5d9f5]'}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border whitespace-nowrap transition-colors ${activeRevision !== latestRevision ? 'bg-gray-100 text-gray-400 border-gray-200' : 'bg-[#e8f0fb] text-[#0056b8] border-[#c5d9f5]'}`}>
                         {formatRevDate(activeRevision === latestRevision ? (revisionStates[activeTab]?.date ?? new Date().toISOString()) : (revisionHistory[activeTab]?.[activeRevision]?.date ?? revisionStates[activeTab]?.date ?? new Date().toISOString()))}
                         {activeRevision !== latestRevision && <span className="ml-1">(past revision)</span>}
                       </span>
