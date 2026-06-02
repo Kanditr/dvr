@@ -179,7 +179,7 @@ function formatRevDate(iso: string): string {
   const yyyy = d.getFullYear();
   const hh = String(d.getHours()).padStart(2, '0');
   const min = String(d.getMinutes()).padStart(2, '0');
-  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+  return `${dd}${mm}${yyyy}_${hh}${min}`;
 }
 
 export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, autoApproveExcluded, currentUser, actionLogs, onLogVerified, onResetForUpload, onCancelResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange, revisionHistory, fileUrlsHistory }: CiOverviewPageProps) {
@@ -514,7 +514,6 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               </svg>
               Back to Tasks
             </button>
-            <h1 className="text-base font-bold text-gray-800">CI {task.correctValues['INVOICE NO.'] ?? task.id}</h1>
           </div>
 
         </div>
@@ -574,7 +573,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h2 className="text-sm font-semibold text-gray-900">{activeTabDef.label}</h2>
+                  <h2 className="text-sm font-semibold text-gray-900">Document Reference Version</h2>
                   {revisionStates[activeTab] && (
                     <div className="flex items-center gap-1">
                       {latestRevision > 0 && (
