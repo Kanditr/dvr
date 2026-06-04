@@ -50,6 +50,7 @@ const STATUS_CONFIG: Record<VerificationStatus, { bg: string; text: string }> = 
   'Rejected': { bg: 'bg-[#faeaea]', text: 'text-[#8c1d1d]' },
   'Match': { bg: 'bg-[#ebf7ed]', text: 'text-[#267d36]' },
   'Approved': { bg: 'bg-[#e8f0fb]', text: 'text-[#0056b8]' },
+  'Incomplete': { bg: 'bg-[#faeaea]', text: 'text-[#8c1d1d]' },
 };
 
 const STATUS_LABEL: Record<VerificationStatus, string> = {
@@ -58,6 +59,7 @@ const STATUS_LABEL: Record<VerificationStatus, string> = {
   'Attention': 'Attention',
   'Rejected': 'Rejected',
   'Pending Verification': 'Pending',
+  'Incomplete': 'Incomplete',
 };
 
 function VerificationBadge({ status }: { status: VerificationStatus }) {
@@ -546,7 +548,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 ((tab.type === 'insurance' || tab.type === 'draftBL') && (uploadStates[tab.type] ?? 'idle') !== 'done')
                 || (tab.type === 'blDate' && !blDateHasData);
               let tabStatus: VerificationStatus = task.verifications[tab.type];
-              if (tab.type === 'blDate' && !blDateHasData) tabStatus = 'Pending Verification';
+              if (tab.type === 'customFormality' && task.correctValues['CF_MISSING_DOCS']) tabStatus = 'Incomplete';
+              else if (tab.type === 'blDate' && !blDateHasData) tabStatus = 'Pending Verification';
               else if ((tab.type === 'customFormality' || tab.type === 'blDate') && tabStatus === 'Pending Verification') tabStatus = 'Attention';
               return (
                 <button
@@ -793,17 +796,30 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               </div>
             </div>
           </div>
-          {displayActionLog?.reason && (
+          {displayActionLog && (displayActionLog.action === 'approve' || displayActionLog.action === 'reject') && (
             <div className={`px-6 py-3 border-b border-gray-200 shrink-0 text-xs ${displayActionLog.action === 'approve' ? 'bg-[#ebf7ed]' : 'bg-[#faeaea]'}`}>
               <span className="font-semibold text-gray-700">Status: </span>
               <span className={`font-medium ${displayActionLog.action === 'approve' ? 'text-[#267d36]' : 'text-[#8c1d1d]'}`}>
-                {displayActionLog.reason}
+                {displayActionLog.action === 'approve' ? 'Approved' : 'Rejected'}
               </span>
-              {displayActionLog.remark && (
-                <span className="text-gray-600">
-                  &nbsp;&nbsp;·&nbsp;&nbsp;<span className="font-semibold text-gray-700">Remark: </span>{displayActionLog.remark}
-                </span>
+              {displayActionLog.reason && (
+                <span className="text-gray-600">, {displayActionLog.reason} </span>
               )}
+              {displayActionLog.remark && (
+                <>
+                  <span className="font-semibold text-gray-700">Remark: </span>
+                  <span className="text-gray-600">{displayActionLog.remark}</span>
+                </>
+              )}
+            </div>
+          )}
+          {activeTab === 'customFormality' && displayTask.correctValues['CF_MISSING_DOCS'] && (
+            <div className="px-6 py-3 border-b border-gray-200 shrink-0 text-xs bg-[#faeaea]">
+              <span className="font-semibold text-gray-700">Status: </span>
+              <span className="font-medium text-[#8c1d1d]">Incomplete</span>
+              <span className="text-gray-600">, Missing Document </span>
+              <span className="font-semibold text-gray-700">Remark: </span>
+              <span className="text-[#8c1d1d]">{displayTask.correctValues['CF_MISSING_DOCS'].split(',').map((d: string) => d.trim()).join(', ')}</span>
             </div>
           )}
           <div className="flex-1 flex flex-col min-h-0 overflow-auto">
@@ -891,22 +907,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   />
                 </div>
               )
-            ) : activeTab === 'customFormality' && displayTask.correctValues['CF_MISSING_DOCS'] ? (
-              <div className="p-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <svg className="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-                  </svg>
-                  <p className="text-sm font-semibold text-red-600">Incomplete — missing documents</p>
-                </div>
-                <div className="flex flex-col gap-0.5 ml-6">
-                  {displayTask.correctValues['CF_MISSING_DOCS'].split(',').map(doc => (
-                    <p key={doc} className="text-sm text-gray-600">• {doc.trim()}</p>
-                  ))}
-                </div>
-              </div>
             ) : (
-              <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
+              <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} isIncomplete={activeTab === 'customFormality' && !!displayTask.correctValues['CF_MISSING_DOCS']} />
             )}
           </div>
         </div>

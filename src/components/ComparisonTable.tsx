@@ -168,6 +168,7 @@ interface ComparisonTableProps {
   onUpdateTask: (task: Task) => void;
   isReadOnly?: boolean;
   activeRevision?: number;
+  isIncomplete?: boolean;
 }
 
 const STATUS_OPTIONS = ['Match', 'Mismatch'];
@@ -261,7 +262,7 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
   );
 }
 
-export default function ComparisonTable({ task, verificationType, onUpdateTask, isReadOnly, activeRevision }: ComparisonTableProps) {
+export default function ComparisonTable({ task, verificationType, onUpdateTask, isReadOnly, activeRevision, isIncomplete }: ComparisonTableProps) {
   const [fieldFilter, setFieldFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
@@ -378,7 +379,12 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, idx) => {
+            {isIncomplete && (
+              <tr>
+                <td colSpan={docs.length + 2} className="px-6 py-6" />
+              </tr>
+            )}
+            {!isIncomplete && rows.map((row, idx) => {
               const rowBg = idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white';
               return (
                 <tr key={row.canonicalField} className={`border-b border-gray-200 ${rowBg}`}>
