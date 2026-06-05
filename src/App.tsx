@@ -443,11 +443,19 @@ export default function App() {
       const snapshot = [...uploadedTaskDefs, ...tasks];
       const newTask = generateUploadedTask(snapshot, CURRENT_USER, file.name);
 
-      const missingTypes = Array.from(CF_CLONE_TYPES).filter(
+      const rawMissing = Array.from(CF_CLONE_TYPES).filter(
         type => !newTask.documents.some((d: any) => d.type === type)
       );
-      if (missingTypes.length > 0) {
-        newTask.correctValues['CF_MISSING_DOCS'] = missingTypes.join(',');
+      if (rawMissing.length > 0) {
+        const lcMissing = rawMissing.includes('Letter of Credit');
+        const siMissing = rawMissing.includes('Shipping Instruction');
+        // LC and SI are mutually exclusive — only one is required per shipment
+        const finalMissing = rawMissing
+          .filter(t => t !== 'Letter of Credit' && t !== 'Shipping Instruction')
+          .concat(lcMissing && siMissing ? ['Letter of Credit/Shipping Instruction'] : []);
+        if (finalMissing.length > 0) {
+          newTask.correctValues['CF_MISSING_DOCS'] = finalMissing.join(',');
+        }
       }
 
       saveFile(`${newTask.id}:customFormality`, file);

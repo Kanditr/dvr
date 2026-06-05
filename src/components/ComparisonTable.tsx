@@ -372,7 +372,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
           <thead>
             <tr className="bg-[#d9ecf3] border-b border-gray-200">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 sticky top-0 left-0 z-30 bg-[#d9ecf3]">Field</th>
-              {docs.map((doc) => (
+              {!isIncomplete && docs.map((doc) => (
                 <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700 sticky top-0 z-10 bg-[#d9ecf3]">{doc.type}</th>
               ))}
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 sticky top-0 z-10 bg-[#d9ecf3]">Status</th>
@@ -381,7 +381,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
           <tbody>
             {isIncomplete && (
               <tr>
-                <td colSpan={docs.length + 2} className="px-6 py-6" />
+                <td colSpan={2} className="px-6 py-6" />
               </tr>
             )}
             {!isIncomplete && rows.map((row, idx) => {
