@@ -49,12 +49,14 @@ const STATUS_CONFIG: Record<VerificationStatus, { bg: string; text: string }> = 
   'Attention': { bg: 'bg-[#fef5e5]', text: 'text-[#ac6f00]' },
   'Rejected': { bg: 'bg-[#faeaea]', text: 'text-[#8c1d1d]' },
   'Match': { bg: 'bg-[#ebf7ed]', text: 'text-[#267d36]' },
+  'Match with condition': { bg: 'bg-[#e0f5f5]', text: 'text-[#0e7c7c]' },
   'Approved': { bg: 'bg-[#e8f0fb]', text: 'text-[#0056b8]' },
   'Incomplete': { bg: 'bg-[#faeaea]', text: 'text-[#8c1d1d]' },
 };
 
 const STATUS_LABEL: Record<VerificationStatus, string> = {
   'Match': 'Match',
+  'Match with condition': 'Match w/ Condition',
   'Approved': 'Approved',
   'Attention': 'Attention',
   'Rejected': 'Rejected',

@@ -171,7 +171,7 @@ interface ComparisonTableProps {
   isIncomplete?: boolean;
 }
 
-const STATUS_OPTIONS = ['Match', 'Mismatch'];
+// STATUS_OPTIONS built dynamically per tab — see usage below
 
 function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: string, onSave: (v: string) => void, isApplicable: boolean, isReadOnly?: boolean }) {
   const [editing, setEditing] = useState(false);
@@ -228,7 +228,7 @@ function EditableValue({ value, onSave, isApplicable, isReadOnly }: { value: str
   );
 }
 
-function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mismatch', onChange: (s: 'match' | 'mismatch') => void, isReadOnly?: boolean }) {
+function StatusToggle({ status, onChange, isReadOnly, hasSIOption }: { status: 'match' | 'mismatch' | 'match-with-condition', onChange: (s: 'match' | 'mismatch' | 'match-with-condition') => void, isReadOnly?: boolean, hasSIOption?: boolean }) {
   const [isEditing, setIsEditing] = useState(false);
 
   if (isEditing && !isReadOnly) {
@@ -236,11 +236,12 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
       <select
         autoFocus
         value={status}
-        onChange={(e) => { onChange(e.target.value as 'match' | 'mismatch'); setIsEditing(false); }}
+        onChange={(e) => { onChange(e.target.value as 'match' | 'mismatch' | 'match-with-condition'); setIsEditing(false); }}
         onBlur={() => setIsEditing(false)}
         className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 cursor-pointer"
       >
         <option value="match">Match</option>
+        {hasSIOption && <option value="match-with-condition">Match with condition</option>}
         <option value="mismatch">Mismatch</option>
       </select>
     );
@@ -251,6 +252,14 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
       <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
         className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}>
         Match
+      </button>
+    );
+  }
+  if (status === 'match-with-condition') {
+    return (
+      <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
+        className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#e0f5f5] text-[#0e7c7c] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#c7ecec] cursor-pointer'}`}>
+        Match w/ Condition
       </button>
     );
   }
@@ -286,7 +295,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
   const rows = allRows.filter(row => {
     if (fieldFilter.length > 0 && !fieldFilter.includes(row.canonicalField)) return false;
     if (statusFilter.length > 0) {
-      const label = row.rowStatus === 'match' ? 'Match' : 'Mismatch';
+      const label = row.rowStatus === 'match' ? 'Match' : row.rowStatus === 'match-with-condition' ? 'Match with condition' : 'Mismatch';
       if (!statusFilter.includes(label)) return false;
     }
     return true;
@@ -349,13 +358,16 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
     }
   }
 
-  function handleToggleStatus(canonicalField: string, nextStatus: 'match' | 'mismatch') {
+  function handleToggleStatus(canonicalField: string, nextStatus: 'match' | 'mismatch' | 'match-with-condition') {
     const key = `${verificationType}:${canonicalField}`;
     const nextOverrides = { ...task.fieldStatusOverrides, [key]: nextStatus };
     onUpdateTask({ ...task, fieldStatusOverrides: nextOverrides });
   }
 
   const hasActiveFilter = fieldFilter.length > 0 || statusFilter.length > 0;
+  const STATUS_OPTIONS = verificationType === 'customFormality'
+    ? ['Match', 'Match with condition', 'Mismatch']
+    : ['Match', 'Mismatch'];
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -386,6 +398,8 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
             )}
             {!isIncomplete && rows.map((row, idx) => {
               const rowBg = idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white';
+              const hasSIOption = verificationType === 'customFormality' &&
+                docs.some((doc, ci) => doc.type === 'Shipping Instruction' && row.cells[ci]?.isApplicable);
               return (
                 <tr key={row.canonicalField} className={`border-b border-gray-200 ${rowBg}`}>
                   <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 bg-inherit">
@@ -412,7 +426,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
                     );
                   })}
                   <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                    <StatusToggle status={row.rowStatus} onChange={(next) => handleToggleStatus(row.canonicalField, next)} isReadOnly={isReadOnly} />
+                    <StatusToggle status={row.rowStatus} onChange={(next) => handleToggleStatus(row.canonicalField, next)} isReadOnly={isReadOnly} hasSIOption={hasSIOption} />
                   </td>
                 </tr>
               );

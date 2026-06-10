@@ -11,7 +11,7 @@ export interface ComparisonRow {
   canonicalField: string;
   correctValue: string;
   cells: ComparisonCell[];
-  rowStatus: 'match' | 'mismatch';
+  rowStatus: 'match' | 'mismatch' | 'match-with-condition';
 }
 
 const CF_DOC_TYPES: ShipDoc['type'][] = [
@@ -79,7 +79,7 @@ export function buildComparisonRows(task: Task, verificationType: string): Compa
   });
 }
 
-export function computeVerificationStatus(task: Task, verificationType: string): 'Match' | 'Attention' | null {
+export function computeVerificationStatus(task: Task, verificationType: string): 'Match' | 'Match with condition' | 'Attention' | null {
   if (verificationType === 'blDate') {
     const obl = task.documents.find(d => d.type === 'Original B/L');
     if (!obl) return null; // No document yet
@@ -108,5 +108,7 @@ export function computeVerificationStatus(task: Task, verificationType: string):
   if (rows.length === 0) return 'Match'; // No applicable fields
 
   const hasMismatch = rows.some(r => r.rowStatus === 'mismatch');
-  return hasMismatch ? 'Attention' : 'Match';
+  if (hasMismatch) return 'Attention';
+  const hasMatchWithCondition = rows.some(r => r.rowStatus === 'match-with-condition');
+  return hasMatchWithCondition ? 'Match with condition' : 'Match';
 }

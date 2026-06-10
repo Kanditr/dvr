@@ -240,11 +240,8 @@ export default function App() {
       const baseVerifications = o?.verifications ?? t.verifications;
       const newVerifications: Verifications = { ...baseVerifications };
       const tabs: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
-      const fieldOverrideKeys = Object.keys(overrides.fieldStatusOverrides ?? {});
       for (const tab of tabs) {
         if (newVerifications[tab] !== 'Approved' && newVerifications[tab] !== 'Rejected') {
-          const hasManualOverride = fieldOverrideKeys.some(k => k.startsWith(`${tab}:`));
-          if (hasManualOverride) continue;
           const computed = computeVerificationStatus(overrides as Task, tab);
           if (computed) {
             newVerifications[tab] = computed;

@@ -17,6 +17,7 @@ export type VerificationStatus =
   | 'Attention'
   | 'Rejected'
   | 'Match'
+  | 'Match with condition'
   | 'Approved'
   | 'Incomplete';
 
@@ -38,7 +39,7 @@ export interface Task {
   documents: ShipDoc[];
   canonicalFields: string[];
   correctValues: Record<string, string>;
-  fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>;
+  fieldStatusOverrides?: Record<string, 'match' | 'mismatch' | 'match-with-condition'>;
   cellStatusOverrides?: Record<string, boolean>;
   manuallyEditedCells?: Record<string, true>;
   fieldEditHistory?: Record<string, Array<{ value: string; timestamp: string }>>;
