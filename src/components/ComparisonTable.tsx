@@ -240,9 +240,9 @@ function StatusToggle({ status, onChange, isReadOnly, hasSIOption }: { status: '
         onBlur={() => setIsEditing(false)}
         className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 cursor-pointer"
       >
-        <option value="match">Match</option>
-        {hasSIOption && <option value="match-with-condition">Match with condition</option>}
-        <option value="mismatch">Mismatch</option>
+        <option value="match">Matched</option>
+        {hasSIOption && <option value="match-with-condition">Matched w/Condition</option>}
+        <option value="mismatch">Mismatched</option>
       </select>
     );
   }
@@ -251,7 +251,7 @@ function StatusToggle({ status, onChange, isReadOnly, hasSIOption }: { status: '
     return (
       <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
         className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}>
-        Match
+        Matched
       </button>
     );
   }
@@ -259,14 +259,14 @@ function StatusToggle({ status, onChange, isReadOnly, hasSIOption }: { status: '
     return (
       <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
         className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#e0f5f5] text-[#0e7c7c] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#c7ecec] cursor-pointer'}`}>
-        Match w/ Condition
+        Matched w/Condition
       </button>
     );
   }
   return (
     <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
       className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}>
-      Mismatch
+      Mismatched
     </button>
   );
 }
@@ -295,7 +295,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
   const rows = allRows.filter(row => {
     if (fieldFilter.length > 0 && !fieldFilter.includes(row.canonicalField)) return false;
     if (statusFilter.length > 0) {
-      const label = row.rowStatus === 'match' ? 'Match' : row.rowStatus === 'match-with-condition' ? 'Match with condition' : 'Mismatch';
+      const label = row.rowStatus === 'match' ? 'Matched' : row.rowStatus === 'match-with-condition' ? 'Matched w/Condition' : 'Mismatched';
       if (!statusFilter.includes(label)) return false;
     }
     return true;
@@ -366,8 +366,8 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
 
   const hasActiveFilter = fieldFilter.length > 0 || statusFilter.length > 0;
   const STATUS_OPTIONS = verificationType === 'customFormality'
-    ? ['Match', 'Match with condition', 'Mismatch']
-    : ['Match', 'Mismatch'];
+    ? ['Matched', 'Matched w/Condition', 'Mismatched']
+    : ['Matched', 'Mismatched'];
 
   return (
     <div className="flex flex-col h-full min-h-0">

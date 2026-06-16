@@ -397,6 +397,8 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       onIncrementRevision(activeTab, revNum, undefined, receiveDate);
       onFileUrlChange(activeTab, url);
       saveFile(`${task.id}:${activeTab}`, file);
+      // Block auto-approve after re-upload so user can review and manually approve/reject
+      setManuallyEditedTabs(prev => new Set(prev).add(activeTab));
     }, 2500);
   }
 
@@ -416,11 +418,16 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     if (isReUploading) {
       if (activeTab === 'insurance' && isInsuranceDone) {
         setIsReUploading(false);
+        setManuallyEditedTabs(prev => new Set(prev).add(activeTab));
       } else if (activeTab === 'draftBL' && isDraftBLDone) {
         setIsReUploading(false);
+        setManuallyEditedTabs(prev => new Set(prev).add(activeTab));
+      } else if (activeTab === 'blDate' && isBLDateDone) {
+        setIsReUploading(false);
+        setManuallyEditedTabs(prev => new Set(prev).add(activeTab));
       }
     }
-  }, [isInsuranceDone, isDraftBLDone, activeTab, isReUploading]);
+  }, [isInsuranceDone, isDraftBLDone, isBLDateDone, activeTab, isReUploading]);
 
   const currentUploadState: UploadState = isUploadTab
     ? (activeTab === 'insurance' ? (isInsuranceDone ? 'done' : 'idle')
@@ -786,10 +793,10 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       Reject
                     </button>
                     <button
-                      onClick={() => !isTabPending && !isTabActioned && !(autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') && setConfirm({ action: 'approve', vt: activeTab })}
-                      disabled={isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') || activeRevision !== latestRevision}
-                      title={!isTabActioned && autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention' ? 'Auto Approve is enabled in Settings' : undefined}
-                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention') || activeRevision !== latestRevision ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
+                      onClick={() => !isTabPending && !isTabActioned && !(autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention' && !manuallyEditedTabs.has(activeTab)) && setConfirm({ action: 'approve', vt: activeTab })}
+                      disabled={isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention' && !manuallyEditedTabs.has(activeTab)) || activeRevision !== latestRevision}
+                      title={!isTabActioned && autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention' && !manuallyEditedTabs.has(activeTab) ? 'Auto Approve is enabled in Settings' : undefined}
+                      className={`px-4 py-1.5 text-xs rounded transition-colors ${isTabPending || isTabActioned || (autoApprove && task.assignedTo === currentUser && activeTabStatus !== 'Attention' && !manuallyEditedTabs.has(activeTab)) || activeRevision !== latestRevision ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#0056b8] text-white hover:bg-[#004a9f]'}`}
                     >
                       Approve
                     </button>
