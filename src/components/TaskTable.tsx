@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import type { Task, VerificationStatus } from '../data/mockData';
 import { deriveOverallStatus } from '../data/mockData';
 import type { UploadState } from './DocumentUploadGate';

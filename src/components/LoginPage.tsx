@@ -25,14 +25,6 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [msLoading, setMsLoading] = useState(false);
 
-  function toDisplayName(raw: string): string {
-    // Try to format "jane.doe" → "Jane Doe", otherwise use as-is
-    return raw
-      .replace(/[._-]/g, ' ')
-      .replace(/\b\w/g, c => c.toUpperCase())
-      .trim() || raw;
-  }
-
   function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!username.trim()) { setError('Please enter your username.'); return; }

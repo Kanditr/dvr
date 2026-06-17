@@ -343,10 +343,6 @@ export function dblDocs(id: string, vals: Record<string, string>, mismatch?: Rec
   return [dbl, sp];
 }
 
-function oblDoc(id: string, date: string): ShipDoc {
-  return { id: `${id}-obl`, type: 'Original B/L', fieldMapping: { 'B/L Date': 'bl_date' }, values: { bl_date: date } };
-}
-
 // ─── Precomputed insurance vals (reused in correctValues & insDocs) ───────────
 
 const IV01 = buildInsVals({ invoiceNo: '1015050001', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'HUANGPU, CHINA', vesselName: 'MV PACIFIC EXPRESS', giDate: '01 Mar 2026', totalAmount: '669,600.00', totalQty: '720', products: ['HDPE InnoPlus HD2200JP'], qtys: ['720'] });

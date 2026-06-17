@@ -1,18 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import type { Task } from '../data/mockData';
 
-const MONTHS: Record<string, string> = {
-  Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
-  Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12',
-};
-
-function formatDate(date: string): string {
-  const parts = date.split(' ');
-  if (parts.length !== 3) return date;
-  const [day, mon, year] = parts;
-  return `${day}/${MONTHS[mon] ?? mon}/${year}`;
-}
-
 interface BLDateTableProps {
   task: Task;
   onUpdateTask: (task: Task) => void;
@@ -151,49 +139,6 @@ function DocXPortHistoryCell({
   );
 }
 
-function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mismatch', onChange: (s: 'match' | 'mismatch') => void, isReadOnly?: boolean }) {
-  const [isEditing, setIsEditing] = useState(false);
-
-  if (isEditing && !isReadOnly) {
-    return (
-      <select
-        autoFocus
-        value={status}
-        onChange={(e) => {
-          onChange(e.target.value as 'match' | 'mismatch');
-          setIsEditing(false);
-        }}
-        onBlur={() => setIsEditing(false)}
-        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 cursor-pointer"
-      >
-        <option value="match">Match</option>
-        <option value="mismatch">Mismatch</option>
-      </select>
-    );
-  }
-
-  if (status === 'match') {
-    return (
-      <button
-        onClick={() => !isReadOnly && setIsEditing(true)}
-        disabled={isReadOnly}
-        className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}
-      >
-        Match
-      </button>
-    );
-  }
-  return (
-    <button
-      onClick={() => !isReadOnly && setIsEditing(true)}
-      disabled={isReadOnly}
-      className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}
-    >
-      Mismatch
-    </button>
-  );
-}
-
 function DashStatusToggle({ override, onChange, isReadOnly }: { override: 'match' | 'mismatch' | undefined, onChange: (s: 'match' | 'mismatch') => void, isReadOnly?: boolean }) {
   const [isEditing, setIsEditing] = useState(false);
 
@@ -284,37 +229,6 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
       };
     });
     onUpdateTask({ ...task, documents: nextDocs, fieldStatusOverrides: nextOverrides });
-  }
-
-  function handleSaveCorrectValue(fieldName: string, newValue: string) {
-    if (isReadOnly) return;
-
-    const editKey = `blDate:${fieldName}`;
-    const now = new Date().toISOString();
-    const oldValue = task.correctValues[fieldName] ?? '';
-
-    const prevHistory = task.fieldEditHistory?.[editKey] ?? [];
-    const originalValue = prevHistory.length > 0 ? prevHistory[0].value : oldValue;
-
-    const nextEditedCells: Record<string, true> = { ...(task.manuallyEditedCells ?? {}) };
-    const nextFieldEditHistory: Record<string, Array<{ value: string; timestamp: string }>> = { ...(task.fieldEditHistory ?? {}) };
-
-    if (newValue === originalValue) {
-      delete nextEditedCells[editKey];
-      delete nextFieldEditHistory[editKey];
-    } else {
-      nextEditedCells[editKey] = true;
-      nextFieldEditHistory[editKey] = [...prevHistory, { value: oldValue, timestamp: now }];
-    }
-
-    let nextOverrides = { ...(task.fieldStatusOverrides ?? {}) };
-    allRows.forEach(row => {
-      const key = `blDate:${row.fieldName}`;
-      if (!nextOverrides[key]) nextOverrides[key] = row.overriddenStatus;
-    });
-
-    const nextCorrectValues = { ...task.correctValues, [fieldName]: newValue };
-    onUpdateTask({ ...task, correctValues: nextCorrectValues, fieldStatusOverrides: nextOverrides, manuallyEditedCells: nextEditedCells, fieldEditHistory: nextFieldEditHistory });
   }
 
   function handleSaveDocXPort(fieldName: string, newValue: string) {

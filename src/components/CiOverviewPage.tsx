@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect, useMemo } from 'react';
 import type { Task, VerificationStatus, Verifications } from '../data/mockData';
-import { deriveOverallStatus } from '../data/mockData';
 import type { VerificationType, ActionLog } from '../App';
 import { exportVerificationTab } from '../utils/exportExcel';
 import ComparisonTable from './ComparisonTable';
@@ -466,8 +465,6 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     draftBL: (uploadStates['draftBL'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
     blDate: (uploadStates['blDate'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.blDate,
   };
-  const effectiveStatus = deriveOverallStatus(effectiveVerifications);
-  const activeTabDef = TABS.find(t => t.type === activeTab)!;
 
   const activeTabStatus: VerificationStatus = (() => {
     let s: VerificationStatus = displayTask.verifications[activeTab];
@@ -697,9 +694,6 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     )}
                     <button
                       onClick={() => {
-                        const isApproved = task.verifications[activeTab] === 'Approved';
-                        const isRejected = task.verifications[activeTab] === 'Rejected';
-
                         setIsReUploading(true);
                         setViewingRevision(prev => ({ ...prev, [activeTab]: latestRevision })); // Jump back to latest on re-upload
 
