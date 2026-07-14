@@ -1,4 +1,5 @@
 import type { Task, ShipDoc } from '../data/mockData';
+import { CF_CANONICAL } from '../data/mockData';
 
 export interface ComparisonCell {
   originalFieldName: string;
@@ -33,15 +34,32 @@ const DRAFT_BL_DOC_TYPES: ShipDoc['type'][] = [
   'Shipping Particular',
 ];
 
+// Whether real document data exists for a tab — the single source of truth for
+// "is this tab ready to review", used consistently across the task list and the
+// validation page so their status displays never drift out of sync.
+export function hasVerificationData(task: Task, tabKey: 'customFormality' | 'insurance' | 'draftBL' | 'blDate'): boolean {
+  if (tabKey === 'insurance') {
+    return task.documents.some(d => d.type === 'Draft Insurance') && task.documents.some(d => d.type === 'Detail for Insurance Purpose');
+  }
+  if (tabKey === 'draftBL') {
+    return task.documents.some(d => d.type === 'Draft B/L') && task.documents.some(d => d.type === 'Shipping Particular');
+  }
+  if (tabKey === 'blDate') {
+    const oblDoc = task.documents.find(d => d.type === 'Original B/L');
+    return !!(oblDoc && oblDoc.values[oblDoc.fieldMapping['B/L Date']]);
+  }
+  return true;
+}
+
 export function getDocsForVerification(task: Task, verificationType: string): ShipDoc[] {
   if (verificationType === 'customFormality') {
     const actualDocs = task.documents.filter(d => CF_DOC_TYPES.includes(d.type));
-    const editedFields = task.canonicalFields.filter(f => task.correctValues[`DOCXPORT_${f}`]);
+    const cfFields = task.canonicalFields.filter(f => CF_CANONICAL.includes(f));
     const docXPort: ShipDoc = {
       id: 'docxport',
       type: 'DocXPort',
-      fieldMapping: Object.fromEntries(editedFields.map(f => [f, f])),
-      values: Object.fromEntries(editedFields.map(f => [f, task.correctValues[`DOCXPORT_${f}`]])),
+      fieldMapping: Object.fromEntries(cfFields.map(f => [f, f])),
+      values: Object.fromEntries(cfFields.map(f => [f, task.correctValues[`DOCXPORT_${f}`] ?? task.correctValues[f] ?? ''])),
     };
     return [...actualDocs, docXPort].sort((a, b) => CF_DOC_TYPES.indexOf(a.type) - CF_DOC_TYPES.indexOf(b.type));
   }

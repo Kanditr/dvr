@@ -95,6 +95,7 @@ function DocXPortHistoryCell({
   isReadOnly,
   fieldName,
   onSave,
+  isMatch,
 }: {
   history: Array<{ value: string; timestamp: string }>;
   currentValue: string;
@@ -102,6 +103,7 @@ function DocXPortHistoryCell({
   isReadOnly?: boolean;
   fieldName: string;
   onSave: (val: string) => void;
+  isMatch: boolean;
 }) {
   const [viewIdx, setViewIdx] = useState<number | null>(null);
   const isAtCurrent = viewIdx === null;
@@ -119,7 +121,11 @@ function DocXPortHistoryCell({
     else setViewIdx(i => (i ?? 0) + 1);
   }
 
-  const cellBg = isEdited && !isViewingSystemOriginal ? 'bg-[#ede9fe]' : 'bg-gray-50';
+  const cellBg = isEdited && !isViewingSystemOriginal
+    ? 'bg-[#ede9fe]'
+    : isMatch
+      ? 'bg-[#ebf7ed]'
+      : 'bg-[#fef5e5]';
   const navCls = (enabled: boolean) =>
     `text-sm font-bold leading-none px-0.5 transition-colors ${enabled
       ? 'text-violet-500 hover:text-violet-700 cursor-pointer'
@@ -322,7 +328,7 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
     const editKey = `blDate_docxport:${fieldName}`;
     const now = new Date().toISOString();
     const storageKey = `BLDXP_${fieldName}`;
-    const oldValue = task.correctValues[storageKey] ?? '';
+    const oldValue = task.correctValues[storageKey] ?? task.correctValues[fieldName] ?? '';
     const prevHistory = task.fieldEditHistory?.[editKey] ?? [];
     const originalValue = prevHistory.length > 0 ? prevHistory[0].value : oldValue;
     const nextEditedCells: Record<string, true> = { ...(task.manuallyEditedCells ?? {}) };
@@ -409,7 +415,7 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
             {!hasData && (
               <tr>
                 <td colSpan={3} className="px-6 py-10 text-sm text-gray-400">
-                  No transaction found. Original B/L information has not yet been received from the source.
+                  Original B/L information has not yet been received from the source.
                 </td>
               </tr>
             )}
@@ -436,11 +442,12 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
 
                 <DocXPortHistoryCell
                   history={task.fieldEditHistory?.[`blDate_docxport:${row.fieldName}`] ?? []}
-                  currentValue={task.correctValues[`BLDXP_${row.fieldName}`] ?? ''}
+                  currentValue={task.correctValues[`BLDXP_${row.fieldName}`] ?? row.valueRaw}
                   isEdited={!!task.manuallyEditedCells?.[`blDate_docxport:${row.fieldName}`]}
                   isReadOnly={isReadOnly}
                   fieldName={row.fieldName}
                   onSave={(val) => handleSaveDocXPort(row.fieldName, val)}
+                  isMatch={(task.correctValues[`BLDXP_${row.fieldName}`] ?? row.valueRaw) === row.valueRaw}
                 />
 
                 <td className="px-4 py-3 whitespace-nowrap align-top pt-4">

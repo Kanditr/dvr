@@ -3,6 +3,8 @@ import type { Task, VerificationStatus, Verifications } from '../data/mockData';
 import { deriveOverallStatus } from '../data/mockData';
 import type { VerificationType, ActionLog } from '../App';
 import { exportVerificationTab } from '../utils/exportExcel';
+import { hasVerificationData } from '../utils/comparison';
+import { buildPlannerNotificationEmail, buildMailtoUrl } from '../utils/email';
 import ComparisonTable from './ComparisonTable';
 import BLDateTable from './BLDateTable';
 import type { UploadState } from './DocumentUploadGate';
@@ -169,6 +171,8 @@ interface CiOverviewPageProps {
   onFileUrlChange: (tab: string, url: string) => void;
   revisionHistory: Record<string, Record<number, any>>;
   fileUrlsHistory: Record<string, Record<number, Record<string, string>>>;
+  plannerNotification?: { email: string; timestamp: string };
+  onNotifyPlanner: (email: string) => void;
 }
 
 function formatActionTimestamp(iso: string): string {
@@ -186,7 +190,7 @@ function formatRevDate(iso: string): string {
   return `${dd}${mm}${yyyy}_${hh}${min}`;
 }
 
-export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, autoApproveExcluded, currentUser, actionLogs, onLogVerified, onResetForUpload, onCancelResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange, revisionHistory, fileUrlsHistory }: CiOverviewPageProps) {
+export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, onApproveVerification, onRejectVerification, uploadStates, onUploadStateChange, autoApprove, autoApproveExcluded, currentUser, actionLogs, onLogVerified, onResetForUpload, onCancelResetForUpload, revisionStates, onIncrementRevision, onUpdateTask, fileUrls, onFileUrlChange, revisionHistory, fileUrlsHistory, plannerNotification, onNotifyPlanner }: CiOverviewPageProps) {
   const reUploadActionRef = useRef<HTMLInputElement>(null);
   const [reUploadPending, setReUploadPending] = useState(false);
   const [confirm, setConfirm] = useState<{ action: 'approve' | 'reject'; vt: VerificationType } | null>(null);
@@ -357,18 +361,6 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     onCancelResetForUpload(activeTab);
   }
 
-  function handleClearPartialUploads(tab: 'insurance' | 'draftBL') {
-    const slots = tab === 'insurance'
-      ? ['insurance:detail', 'insurance:draft']
-      : ['draftBL:shipping', 'draftBL:draft'];
-    slots.forEach(s => { onUploadStateChange(s, 'idle'); onFileUrlChange(s, ''); });
-    setPartialRevisionStates(prev => {
-      const next = { ...prev };
-      delete next[`${tab}:first`];
-      return next;
-    });
-  }
-
   function handleReUploadAfterAction(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -403,45 +395,45 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   }
 
   const isUploadTab = activeTab === 'insurance' || activeTab === 'draftBL' || activeTab === 'blDate';
-  const isInsuranceDone = (uploadStates['insurance:detail'] ?? 'idle') === 'done' && (uploadStates['insurance:draft'] ?? 'idle') === 'done';
-  const isDraftBLDone = (uploadStates['draftBL:shipping'] ?? 'idle') === 'done' && (uploadStates['draftBL:draft'] ?? 'idle') === 'done';
-  const isBLDateDone = (uploadStates['blDate'] ?? 'idle') === 'done';
-  const isPartialInsurance = !isInsuranceDone && (
-    (uploadStates['insurance:detail'] ?? 'idle') === 'done' || (uploadStates['insurance:draft'] ?? 'idle') === 'done'
-  );
-  const isPartialDraftBL = !isDraftBLDone && (
-    (uploadStates['draftBL:shipping'] ?? 'idle') === 'done' || (uploadStates['draftBL:draft'] ?? 'idle') === 'done'
-  );
+
+  // Real document presence — the comparison tables are always shown, so "done" reflects
+  // whether the underlying document data actually exists, not a simulated upload click.
+  // Shared with the task list (TaskTable.tsx) so the two views never drift out of sync.
+  const hasInsuranceData = hasVerificationData(task, 'insurance');
+  const hasDraftBLData = hasVerificationData(task, 'draftBL');
+  const hasBLDateData = hasVerificationData(task, 'blDate');
+
+  // Upload-flow state — only relevant while actively re-uploading a replacement document
+  const isInsuranceUploadDone = (uploadStates['insurance:detail'] ?? 'idle') === 'done' && (uploadStates['insurance:draft'] ?? 'idle') === 'done';
+  const isDraftBLUploadDone = (uploadStates['draftBL:shipping'] ?? 'idle') === 'done' && (uploadStates['draftBL:draft'] ?? 'idle') === 'done';
+  const isBLDateUploadDone = (uploadStates['blDate'] ?? 'idle') === 'done';
 
   // Automatically close re-upload slots when multi-file sections are done
   useEffect(() => {
     if (isReUploading) {
-      if (activeTab === 'insurance' && isInsuranceDone) {
+      if (activeTab === 'insurance' && isInsuranceUploadDone) {
         setIsReUploading(false);
         setManuallyEditedTabs(prev => new Set(prev).add(activeTab));
-      } else if (activeTab === 'draftBL' && isDraftBLDone) {
+      } else if (activeTab === 'draftBL' && isDraftBLUploadDone) {
         setIsReUploading(false);
         setManuallyEditedTabs(prev => new Set(prev).add(activeTab));
-      } else if (activeTab === 'blDate' && isBLDateDone) {
+      } else if (activeTab === 'blDate' && isBLDateUploadDone) {
         setIsReUploading(false);
         setManuallyEditedTabs(prev => new Set(prev).add(activeTab));
       }
     }
-  }, [isInsuranceDone, isDraftBLDone, isBLDateDone, activeTab, isReUploading]);
+  }, [isInsuranceUploadDone, isDraftBLUploadDone, isBLDateUploadDone, activeTab, isReUploading]);
 
   const currentUploadState: UploadState = isUploadTab
-    ? (activeTab === 'insurance' ? (isInsuranceDone ? 'done' : 'idle')
-      : activeTab === 'draftBL' ? (isDraftBLDone ? 'done' : 'idle')
-        : (isBLDateDone ? 'done' : 'idle'))
+    ? (activeTab === 'insurance' ? (hasInsuranceData ? 'done' : 'idle')
+      : activeTab === 'draftBL' ? (hasDraftBLData ? 'done' : 'idle')
+        : (hasBLDateData ? 'done' : 'idle'))
     : 'done';
 
-  const oblDoc = task.documents.find(d => d.type === 'Original B/L');
-  const blDateHasData = !!(oblDoc && oblDoc.values[oblDoc.fieldMapping['B/L Date']]);
-
   const isTabPending =
-    (activeTab === 'insurance' && !isInsuranceDone)
-    || (activeTab === 'draftBL' && !isDraftBLDone)
-    || (activeTab === 'blDate' && !isBLDateDone);
+    (activeTab === 'insurance' && !hasInsuranceData)
+    || (activeTab === 'draftBL' && !hasDraftBLData)
+    || (activeTab === 'blDate' && !hasBLDateData);
 
   // Auto-log "verified" the first time a tab is viewed with a non-pending status,
   // and re-log when the action log is cleared (e.g. after a re-upload resets it).
@@ -451,6 +443,20 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
       onLogVerified(activeTab);
     }
   }, [activeTab, task.id, isTabPending, currentActionLog]);
+
+  function handleNotifyPlanner() {
+    const email = buildPlannerNotificationEmail(task);
+    window.location.href = buildMailtoUrl(email);
+    onNotifyPlanner(email.to);
+  }
+
+  // Auto-notify the planner by email the first time an Incomplete Custom Formality
+  // tab is viewed — one notification per task, tracked separately from action logs.
+  useEffect(() => {
+    if (activeTab === 'customFormality' && task.correctValues['CF_MISSING_DOCS'] && !plannerNotification) {
+      handleNotifyPlanner();
+    }
+  }, [activeTab, task.id, task.correctValues['CF_MISSING_DOCS'], plannerNotification]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-set Rev. 00 the first time a tab has data (before any manual upload)
   useEffect(() => {
@@ -469,16 +475,16 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
   const effectiveVerifications: Verifications = {
     ...task.verifications,
     customFormality: task.verifications.customFormality === 'Pending Verification' ? 'Attention' : task.verifications.customFormality,
-    insurance: (uploadStates['insurance'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.insurance,
-    draftBL: (uploadStates['draftBL'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.draftBL,
-    blDate: (uploadStates['blDate'] ?? 'idle') !== 'done' ? 'Pending Verification' : task.verifications.blDate,
+    insurance: !hasInsuranceData ? 'Pending Verification' : task.verifications.insurance,
+    draftBL: !hasDraftBLData ? 'Pending Verification' : task.verifications.draftBL,
+    blDate: !hasBLDateData ? 'Pending Verification' : task.verifications.blDate,
   };
   const effectiveStatus = deriveOverallStatus(effectiveVerifications);
   const activeTabDef = TABS.find(t => t.type === activeTab)!;
 
   const activeTabStatus: VerificationStatus = (() => {
     let s: VerificationStatus = displayTask.verifications[activeTab];
-    if (activeTab === 'blDate' && (uploadStates['blDate'] ?? 'idle') !== 'done') s = 'Pending Verification';
+    if (activeTab === 'blDate' && !hasBLDateData) s = 'Pending Verification';
     else if (activeTab === 'customFormality' && s === 'Pending Verification') s = 'Attention';
     return s;
   })();
@@ -554,11 +560,12 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             {TABS.map((tab) => {
               const isActive = activeTab === tab.type;
               const isPendingDocument =
-                ((tab.type === 'insurance' || tab.type === 'draftBL') && (uploadStates[tab.type] ?? 'idle') !== 'done')
-                || (tab.type === 'blDate' && !blDateHasData);
+                (tab.type === 'insurance' && !hasInsuranceData)
+                || (tab.type === 'draftBL' && !hasDraftBLData)
+                || (tab.type === 'blDate' && !hasBLDateData);
               let tabStatus: VerificationStatus = task.verifications[tab.type];
               if (tab.type === 'customFormality' && task.correctValues['CF_MISSING_DOCS']) tabStatus = 'Incomplete';
-              else if (tab.type === 'blDate' && !blDateHasData) tabStatus = 'Pending Verification';
+              else if (tab.type === 'blDate' && !hasBLDateData) tabStatus = 'Pending Verification';
               else if ((tab.type === 'customFormality' || tab.type === 'blDate') && tabStatus === 'Pending Verification') tabStatus = 'Attention';
               return (
                 <button
@@ -824,30 +831,37 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
           )}
           {activeTab === 'customFormality' && displayTask.correctValues['CF_MISSING_DOCS'] && (
             <div className="px-6 py-3 border-b border-gray-200 shrink-0 text-xs bg-[#faeaea]">
-              <span className="font-semibold text-gray-700">Status: </span>
-              <span className="font-medium text-[#8c1d1d]">Incomplete</span>
-              <span className="text-gray-600">, Missing Document </span>
-              <span className="font-semibold text-gray-700">Remark: </span>
-              <span className="text-[#8c1d1d]">{displayTask.correctValues['CF_MISSING_DOCS'].split(',').map((d: string) => d.trim()).join(', ')}</span>
+              <div>
+                <span className="font-semibold text-gray-700">Status: </span>
+                <span className="font-medium text-[#8c1d1d]">Incomplete</span>
+                <span className="text-gray-600">, Missing Document </span>
+                <span className="font-semibold text-gray-700">Remark: </span>
+                <span className="text-[#8c1d1d]">{displayTask.correctValues['CF_MISSING_DOCS'].split(',').map((d: string) => d.trim()).join(', ')}</span>
+              </div>
+              {plannerNotification && (
+                <div className="mt-1">
+                  <span className="text-gray-600">
+                    Email sent to <span className="font-medium text-gray-800">{plannerNotification.email}</span> on {formatActionTimestamp(plannerNotification.timestamp)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
           <div className="flex-1 flex flex-col min-h-0 overflow-auto">
             {activeTab === 'insurance' ? (
               <>
-                {(isReUploading || !isInsuranceDone) && (
+                {isReUploading && (
                   <div className="border-b border-gray-100 shrink-0">
                     <div className="px-6 pt-4 flex justify-end items-center">
-                      {(isReUploading || isPartialInsurance) && (
-                        <button
-                          onClick={isReUploading ? handleCancelReUpload : () => handleClearPartialUploads('insurance')}
-                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                          title="Cancel upload"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      )}
+                      <button
+                        onClick={handleCancelReUpload}
+                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                        title="Cancel upload"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     </div>
                     <div className="flex items-stretch gap-4 p-6 pt-2">
                       <UploadSlot
@@ -864,26 +878,22 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   </div>
                 )}
 
-                {(isInsuranceDone || isReUploading) && (
-                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
-                )}
+                <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
               </>
             ) : activeTab === 'draftBL' ? (
               <>
-                {(isReUploading || !isDraftBLDone) && (
+                {isReUploading && (
                   <div className="border-b border-gray-100 shrink-0">
                     <div className="px-6 pt-4 flex justify-end items-center">
-                      {(isReUploading || isPartialDraftBL) && (
-                        <button
-                          onClick={isReUploading ? handleCancelReUpload : () => handleClearPartialUploads('draftBL')}
-                          className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
-                          title="Cancel upload"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      )}
+                      <button
+                        onClick={handleCancelReUpload}
+                        className="p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+                        title="Cancel upload"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     </div>
                     <div className="flex items-stretch gap-4 p-6 pt-2">
                       <UploadSlot
@@ -900,22 +910,21 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                   </div>
                 )}
 
-                {(isDraftBLDone || isReUploading) && (
-                  <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
-                )}
+                <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} />
               </>
             ) : activeTab === 'blDate' ? (
-              isBLDateDone ? (
+              <>
+                {isReUploading && (
+                  <div className="flex items-stretch gap-4 p-6">
+                    <UploadSlot
+                      label="Original Bill of Lading"
+                      state={uploadStates['blDate'] ?? 'idle'}
+                      onUpload={(file) => handleUpload('blDate', file)}
+                    />
+                  </div>
+                )}
                 <BLDateTable task={displayTask} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} />
-              ) : (
-                <div className="flex items-stretch gap-4 p-6">
-                  <UploadSlot
-                    label="Original Bill of Lading"
-                    state={uploadStates['blDate'] ?? 'idle'}
-                    onUpload={(file) => handleUpload('blDate', file)}
-                  />
-                </div>
-              )
+              </>
             ) : (
               <ComparisonTable task={displayTask} verificationType={activeTab} onUpdateTask={handleManualUpdate} isReadOnly={isTabActioned || activeRevision !== latestRevision} activeRevision={activeRevision} isIncomplete={activeTab === 'customFormality' && !!displayTask.correctValues['CF_MISSING_DOCS']} />
             )}

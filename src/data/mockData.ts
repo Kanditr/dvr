@@ -132,7 +132,7 @@ const SI_ADDR = {
   KLANG_PCS: 'PETRONAS CHEMICALS GROUP BHD\nLEVEL 9, PETRONAS TWIN TOWERS, KUALA LUMPUR CITY CENTRE, KUALA LUMPUR, 50088, MALAYSIA\nCONTACT PERSON: MS. NOOR AISHAH TEL: +60 3 2051 5000 EMAIL: PCSIMPORT@PETRONAS.COM.MY',
 };
 
-const CF_CANONICAL = [
+export const CF_CANONICAL = [
   'INVOICE NO.', 'REF NO.', "BUYER'S ORDER NO.", 'ETD PORT', 'ETA PORT',
   'PAYMENT TERM',
   'PRODUCT LINE ITEM#1', 'QUANTITY LINE ITEM#1', 'AMOUNT LINE ITEM#1',
@@ -405,7 +405,7 @@ export const mockTasks: Task[] = [
       }),
       ...insDocs('doc-T01', IV01),
       ...dblDocs('doc-T01', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.', 'Vessel Name': 'MV PACIFIC EXPRESS', 'Gross Weight': '727,200 KG' }),
-      // oblDoc('doc-T01', '01 Mar 2026'),
+      oblDoc('doc-T01', '01 Mar 2026'),
     ],
   },
 
@@ -444,7 +444,7 @@ export const mockTasks: Task[] = [
       }, { "BUYER'S ORDER NO.": '3252019999' }, true),  // ← CI mismatch, L/C docs
       ...insDocs('doc-T02', IV02),
       ...dblDocs('doc-T02', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.', 'Vessel Name': 'MV ASIAN STAR', 'Gross Weight': '505,000 KG' }),
-      // oblDoc('doc-T02', '02 Mar 2026'),
+      oblDoc('doc-T02', '02 Mar 2026'),
     ],
   },
 
@@ -670,7 +670,7 @@ export const mockTasks: Task[] = [
       }, undefined, true),
       ...insDocs('doc-T08', IV08),
       ...dblDocs('doc-T08', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Sinopec Tianjin Chemicals Co., Ltd.', 'Vessel Name': 'MV NORTHERN LIGHT', 'Gross Weight': '555,500 KG' }),
-      // oblDoc('doc-T08', '08 Mar 2026'),
+      oblDoc('doc-T08', '08 Mar 2026'),
     ],
   },
 
@@ -749,7 +749,7 @@ export const mockTasks: Task[] = [
       }),
       ...insDocs('doc-T10', IV10),
       ...dblDocs('doc-T10', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.', 'Vessel Name': 'MV DRAGON GATE', 'Gross Weight': '282,800 KG' }),
-      // oblDoc('doc-T10', '10 Mar 2026'),
+      oblDoc('doc-T10', '10 Mar 2026'),
     ],
   },
 
@@ -905,7 +905,7 @@ export const mockTasks: Task[] = [
       }),
       ...insDocs('doc-T14', IV14),
       ...dblDocs('doc-T14', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'PT. Chandra Asri Petrochemical Tbk', 'Vessel Name': 'MV JAVA EXPRESS', 'Gross Weight': '393,900 KG' }),
-      // oblDoc('doc-T14', '14 Mar 2026'),
+      oblDoc('doc-T14', '14 Mar 2026'),
     ],
   },
 
@@ -1176,6 +1176,49 @@ export const mockTasks: Task[] = [
       ...insDocs('doc-T21', buildInsVals({ invoiceNo: '0000000000', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'SHANGHAI, CHINA', vesselName: 'MV ORIENT PHOENIX', giDate: '21 Mar 2026', totalAmount: '465,000.00', totalQty: '500', products: ['HDPE InnoPlus HD2200JP'], qtys: ['500'] })),
       ...dblDocs('doc-T21', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'GC Marketing Solutions (Shanghai) Co., Ltd.', 'Vessel Name': 'MV ORIENT PHOENIX', 'Gross Weight': '505,000 KG' }),
       // oblDoc('doc-T21', '21 Mar 2026'),
+    ],
+  },
+
+  // T22 — CF: Incomplete (missing Packing List + Letter of Credit) | Ins: All Matches | BL: All Matches | BL Date: Pending
+  {
+    id: '2026030021', shipmentRef: 'SHP-2026-022', shipper: 'PTT Global Chemical PCL',
+    consignee: 'LG Chem Ltd.',
+    submittedDate: '2026-03-22T08:00:00Z', lastUpdate: '2026-03-22T09:00:00Z', assignedTo: 'jane.doe@pttgcgroup.com',
+    status: 'Attention',
+    verifications: { customFormality: 'Pending Verification', insurance: 'Pending Verification', draftBL: 'Pending Verification', blDate: 'Pending Verification' },
+    canonicalFields: ALL_CANONICAL,
+    correctValues: {
+      'INVOICE NO.': '1015050021', 'REF NO.': '3252010021', "BUYER'S ORDER NO.": '3252010021',
+      'ETD PORT': 'LAEM CHABANG PORT, THAILAND', 'ETA PORT': 'BUSAN, SOUTH KOREA',
+      'PAYMENT TERM': 'T/T BEFORE SHIPMENT',
+      'PRODUCT LINE ITEM#1': 'HDPE InnoPlus HD5502GA', 'QUANTITY LINE ITEM#1': '450',
+      'TOTAL QUANTITY': '450', 'AMOUNT LINE ITEM#1': '418,500.00', 'TOTAL AMOUNT': '418,500.00',
+      'FREIGHT': '18,500.00', 'INCOTERMS': 'CIF BUSAN, SOUTH KOREA',
+      'TOTAL NET WEIGHT': '450,000', 'TOTAL GROSS WEIGHT': '454,500', 'MARKS & NOS': 'INNOPLUS',
+      'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
+      'L/C NO.': 'LLQ1227ILS552901',
+      ...buildInsVals({ invoiceNo: '1015050021', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'BUSAN, SOUTH KOREA', vesselName: 'MV BUSAN PEARL', giDate: '22 Mar 2026', totalAmount: '418,500.00', totalQty: '450', products: ['HDPE InnoPlus HD5502GA'], qtys: ['450'], isLC: true }),
+      'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd.',
+      'Vessel Name': 'MV BUSAN PEARL', 'Gross Weight': '454,500 KG',
+      'GI Date': '22 Mar 2026', 'ETD Date': '22 Mar 2026', 'Manual Billing Date': '22 Mar 2026',
+      'CF_MISSING_DOCS': 'Packing List,Letter of Credit',
+      'CF Planner Email': 'zmarisa.k@pttgcgroup.com',
+    },
+    documents: [
+      ...cfDocs('doc-T22', {
+        'INVOICE NO.': '1015050021', 'REF NO.': '3252010021', "BUYER'S ORDER NO.": '3252010021',
+        'ETD PORT': 'LAEM CHABANG PORT, THAILAND', 'ETA PORT': 'BUSAN, SOUTH KOREA',
+        'PAYMENT TERM': 'T/T BEFORE SHIPMENT',
+        'PRODUCT LINE ITEM#1': 'HDPE InnoPlus HD5502GA', 'QUANTITY LINE ITEM#1': '450',
+        'TOTAL QUANTITY': '450', 'AMOUNT LINE ITEM#1': '418,500.00', 'TOTAL AMOUNT': '418,500.00',
+        'FREIGHT': '18,500.00', 'INCOTERMS': 'CIF BUSAN, SOUTH KOREA',
+        'TOTAL NET WEIGHT': '450,000', 'TOTAL GROSS WEIGHT': '454,500', 'MARKS & NOS': 'INNOPLUS',
+        'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.BUSAN_LG,
+        'L/C NO.': 'LLQ1227ILS552901',
+      }, undefined, true).filter(d => d.type !== 'Packing List' && d.type !== 'Letter of Credit'),
+      ...insDocs('doc-T22', buildInsVals({ invoiceNo: '1015050021', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'BUSAN, SOUTH KOREA', vesselName: 'MV BUSAN PEARL', giDate: '22 Mar 2026', totalAmount: '418,500.00', totalQty: '450', products: ['HDPE InnoPlus HD5502GA'], qtys: ['450'], isLC: true })),
+      ...dblDocs('doc-T22', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'LG Chem Ltd.', 'Vessel Name': 'MV BUSAN PEARL', 'Gross Weight': '454,500 KG' }),
+      // oblDoc('doc-T22', '22 Mar 2026'),
     ],
   },
 

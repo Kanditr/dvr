@@ -2,6 +2,7 @@ interface SettingsPageProps {
   onlyMyTasks: boolean;
   onOnlyMyTasksChange: (value: boolean) => void;
   onBack: () => void;
+  onResetDemoData: () => void;
 }
 
 function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
@@ -25,7 +26,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
 
 export default function SettingsPage({
   onlyMyTasks, onOnlyMyTasksChange,
-  onBack,
+  onBack, onResetDemoData,
 }: SettingsPageProps) {
   return (
     <div className="max-w-screen-xl mx-auto px-6 py-8">
@@ -53,6 +54,22 @@ export default function SettingsPage({
             </p>
           </div>
           <Toggle checked={onlyMyTasks} onChange={onOnlyMyTasksChange} />
+        </div>
+
+        {/* Reset demo data */}
+        <div className="px-6 py-5 flex items-start justify-between gap-6">
+          <div>
+            <p className="text-sm font-semibold text-gray-800">Reset Demo Data</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Clears every local edit, upload, approval, and revision, restoring the original 20 mock transactions. This cannot be undone.
+            </p>
+          </div>
+          <button
+            onClick={onResetDemoData}
+            className="shrink-0 px-3 py-1.5 text-xs font-medium border border-red-600 text-red-600 rounded-md hover:bg-red-50 transition-colors"
+          >
+            Reset
+          </button>
         </div>
 
       </div>

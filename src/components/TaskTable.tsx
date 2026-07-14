@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import type { Task, VerificationStatus } from '../data/mockData';
 import { deriveOverallStatus } from '../data/mockData';
-import type { UploadState } from './DocumentUploadGate';
+import { hasVerificationData } from '../utils/comparison';
 import type { VerificationType } from '../App';
 
 type SortKey = 'id' | 'assignedTo' | 'status';
@@ -49,14 +49,10 @@ const STATUS_SHORT: Record<VerificationStatus, string> = {
   'Incomplete': 'Incomplete',
 };
 
-function getEffectiveTabStatus(
-  task: Task,
-  tabKey: VerificationType,
-  taskUploadStates: Record<string, UploadState>
-): VerificationStatus {
+function getEffectiveTabStatus(task: Task, tabKey: VerificationType): VerificationStatus {
   if (tabKey === 'customFormality' && task.correctValues['CF_MISSING_DOCS']) return 'Incomplete';
-  if (tabKey === 'insurance' || tabKey === 'draftBL' || tabKey === 'blDate') {
-    if ((taskUploadStates[tabKey] ?? 'idle') !== 'done') return 'Pending Verification';
+  if ((tabKey === 'insurance' || tabKey === 'draftBL' || tabKey === 'blDate') && !hasVerificationData(task, tabKey)) {
+    return 'Pending Verification';
   }
   const status = task.verifications[tabKey];
   if ((tabKey === 'customFormality' || tabKey === 'blDate') && status === 'Pending Verification') {
@@ -67,7 +63,6 @@ function getEffectiveTabStatus(
 
 interface TaskTableProps {
   tasks: Task[];
-  uploadStates: Record<string, Record<string, UploadState>>;
   tabFilters: Record<VerificationType, VerificationStatus[] | 'All'>;
   onSelectTask: (taskId: string, tab: VerificationType) => void;
   page: number;
@@ -83,7 +78,7 @@ interface TaskTableProps {
 
 const PAGE_SIZE = 20;
 
-export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, isAdmin, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask, firstReceivedDates = {} }: TaskTableProps) {
+export default function TaskTable({ tasks, tabFilters, onSelectTask, page, onPageChange, isAdmin, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask, firstReceivedDates = {} }: TaskTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
@@ -117,7 +112,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
       TAB_COLS.every(({ key }) => {
         const f = tabFilters[key];
         if (f === 'All' || f.length === 0) return true;
-        return f.includes(getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {}));
+        return f.includes(getEffectiveTabStatus(task, key));
       })
     )
     .sort((a, b) => {
@@ -170,7 +165,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 </th>
               ))}
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
-                1st Received Date
+                Loading Date
               </th>
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
                 Last Modified
@@ -190,7 +185,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                   {task.assignedTo || '— unassigned —'}
                 </td>
                 {TAB_COLS.map(({ key }) => {
-                  const status = getEffectiveTabStatus(task, key, uploadStates[task.id] ?? {});
+                  const status = getEffectiveTabStatus(task, key);
                   return (
                     <td key={key} className="px-4 py-4 cursor-pointer" onClick={() => onSelectTask(task.id, key)}>
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_STYLE[status]}`}>
