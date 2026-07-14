@@ -271,12 +271,6 @@ function StatusToggle({ status, onChange, isReadOnly, hasSIOption }: { status: '
   );
 }
 
-const AWAITING_DOC_LABEL: Partial<Record<VerificationType, string>> = {
-  customFormality: 'Custom Formality',
-  insurance: 'Draft Insurance',
-  draftBL: 'Draft B/L',
-};
-
 export default function ComparisonTable({ task, verificationType, onUpdateTask, isReadOnly, activeRevision, isIncomplete }: ComparisonTableProps) {
   const [fieldFilter, setFieldFilter] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -437,13 +431,6 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
                 </tr>
               );
             })}
-            {!isIncomplete && docs.length === 0 && (
-              <tr>
-                <td colSpan={docs.length + 2} className="px-4 py-10 text-sm text-gray-400">
-                  {AWAITING_DOC_LABEL[verificationType] ?? 'Document'} information has not yet been received from the source.
-                </td>
-              </tr>
-            )}
             {!isIncomplete && docs.length > 0 && rows.length === 0 && (
               <tr>
                 <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">No rows match the current filter.</td>

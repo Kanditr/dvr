@@ -847,6 +847,13 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
               )}
             </div>
           )}
+          {isUploadTab && isTabPending && (
+            <div className="px-6 py-3 border-b border-gray-200 shrink-0 text-xs bg-gray-100">
+              <span className="font-semibold text-gray-700">Status: </span>
+              <span className="font-medium text-gray-500">Pending Verification</span>
+              <span className="text-gray-500">, {activeTabDef.shortLabel} information has not yet been received from the source.</span>
+            </div>
+          )}
           <div className="flex-1 flex flex-col min-h-0 overflow-auto">
             {activeTab === 'insurance' ? (
               <>
