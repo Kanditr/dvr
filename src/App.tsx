@@ -19,6 +19,21 @@ export type ActionLog = { action: 'verified' | 'approve' | 'reject'; timestamp: 
 
 const VALID_TABS: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
 
+// Demo seed: top 3 CI cases (2026030001-2026030003) start with every document already
+// received, so their tables show data immediately instead of the pending state.
+function receivedDocState(): Record<string, UploadState> {
+  return {
+    insurance: 'done', 'insurance:detail': 'done', 'insurance:draft': 'done',
+    draftBL: 'done', 'draftBL:shipping': 'done', 'draftBL:draft': 'done',
+    blDate: 'done',
+  };
+}
+const DEMO_RECEIVED_UPLOAD_STATES: Record<string, Record<string, UploadState>> = {
+  '2026030001': receivedDocState(),
+  '2026030002': receivedDocState(),
+  '2026030003': receivedDocState(),
+};
+
 type View =
   | { page: 'home' }
   | { page: 'ci-overview'; taskId: string; tab: VerificationType }
@@ -86,7 +101,7 @@ export default function App() {
   const autoApproveExcluded = useMemo(() => new Set(autoApproveExcludedData[CURRENT_USER] ?? []), [autoApproveExcludedData, CURRENT_USER]);
 
   const [uploadStates, setUploadStates] = useLocalStorage<Record<string, Record<string, UploadState>>>(
-    'dvr:uploadStates', {}
+    'dvr:uploadStates', DEMO_RECEIVED_UPLOAD_STATES
   );
 
   const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string; documents?: any[]; correctValues?: Record<string, string>; fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>; cellStatusOverrides?: Record<string, boolean>; manuallyEditedCells?: Record<string, true>; fieldEditHistory?: Record<string, Array<{ value: string; timestamp: string }>> }>('dvr:taskOverrides', []);
@@ -641,22 +656,25 @@ export default function App() {
   const baseFilteredTasks = tasks.filter(t => {
     const invoiceNo = t.correctValues['INVOICE NO.'] ?? t.id;
     const matchesSearch = (() => {
-      if (search === '') return true;
-      try {
-        // Escape special characters except * and ?, then convert wildcards to regex
-        const regexPattern = search
-          .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape other regex chars
-          .replace(/\*/g, '.*')
-          .replace(/\?/g, '.');
-        const regex = new RegExp(regexPattern, 'i');
-        return regex.test(invoiceNo) || regex.test(t.assignedTo);
-      } catch (e) {
-        // Fallback to includes if regex is invalid
-        return (
-          invoiceNo.toLowerCase().includes(search.toLowerCase()) ||
-          t.assignedTo.toLowerCase().includes(search.toLowerCase())
-        );
-      }
+      const terms = search.split(',').map(term => term.trim()).filter(term => term !== '');
+      if (terms.length === 0) return true;
+      return terms.some(term => {
+        try {
+          // Escape special characters except * and ?, then convert wildcards to regex
+          const regexPattern = term
+            .replace(/[.+^${}()|[\]\\]/g, '\\$&') // escape other regex chars
+            .replace(/\*/g, '.*')
+            .replace(/\?/g, '.');
+          const regex = new RegExp(regexPattern, 'i');
+          return regex.test(invoiceNo) || regex.test(t.assignedTo);
+        } catch (e) {
+          // Fallback to includes if regex is invalid
+          return (
+            invoiceNo.toLowerCase().includes(term.toLowerCase()) ||
+            t.assignedTo.toLowerCase().includes(term.toLowerCase())
+          );
+        }
+      });
     })();
     const effectiveV = getEffectiveVerifications(t);
     const matchesUser = !onlyMyTasks || t.assignedTo === CURRENT_USER;

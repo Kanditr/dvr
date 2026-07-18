@@ -351,6 +351,7 @@ function oblDoc(id: string, date: string): ShipDoc {
 
 const IV01 = buildInsVals({ invoiceNo: '1015050001', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'HUANGPU, CHINA', vesselName: 'MV PACIFIC EXPRESS', giDate: '01 Mar 2026', totalAmount: '669,600.00', totalQty: '720', products: ['HDPE InnoPlus HD2200JP'], qtys: ['720'] });
 const IV02 = buildInsVals({ invoiceNo: '1015050002', etdPort: 'MAP TA PHUT PORT, THAILAND', etaPort: 'TIANJIN, CHINA', vesselName: 'MV ASIAN STAR', giDate: '02 Mar 2026', totalAmount: '435,000.00', totalQty: '500', products: ['LLDPE InnoPlus LL6100F'], qtys: ['500'], isLC: true });
+const IV03 = buildInsVals({ invoiceNo: '1015050003', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'QINGDAO, CHINA', vesselName: 'MV THAI SPIRIT', giDate: '03 Mar 2026', totalAmount: '285,000.00', totalQty: '300', products: ['PP InnoPlus HS150'], qtys: ['300'] });
 const IV04 = buildInsVals({ invoiceNo: '1015050004', etdPort: 'MAP TA PHUT PORT, THAILAND', etaPort: 'SHANGHAI, CHINA', vesselName: 'MV GOLDEN BRIDGE', giDate: '04 Mar 2026', totalAmount: '376,000.00', totalQty: '400', products: ['HDPE InnoPlus HB5400P'], qtys: ['400'] });
 const IV05 = buildInsVals({ invoiceNo: '1015050005', etdPort: 'LAEM CHABANG PORT, THAILAND', etaPort: 'SINGAPORE', vesselName: 'MV EMERALD SEA', giDate: '05 Mar 2026', totalAmount: '576,000.00', totalQty: '600', products: ['PP InnoPlus MA2100'], qtys: ['600'] });
 const IV06 = buildInsVals({ invoiceNo: '1015050006', etdPort: 'MAP TA PHUT PORT, THAILAND', etaPort: 'BUSAN, SOUTH KOREA', vesselName: 'MV KOREA TRADER', giDate: '06 Mar 2026', totalAmount: '420,000.00', totalQty: '480', products: ['LLDPE InnoPlus LL6101G'], qtys: ['480'] });
@@ -448,8 +449,7 @@ export const mockTasks: Task[] = [
     ],
   },
 
-  // T03 — CF: All Matches | Ins: Pending | BL: Pending | BL Date: Pending
-  // T03 — CF: Match | Ins: Pending | BL: Pending | BL Date: Pending
+  // T03 — CF: All Matches | Ins: All Matches | BL: All Matches | BL Date: All Matches
   {
     id: '2026030003', shipmentRef: 'SHP-2026-003', shipper: 'PTT Global Chemical PCL',
     consignee: 'Qingdao Jifa Group Co., Ltd.',
@@ -466,6 +466,7 @@ export const mockTasks: Task[] = [
       'FREIGHT': '12,000.00', 'INCOTERMS': 'CFR QINGDAO, CHINA',
       'TOTAL NET WEIGHT': '300,000', 'TOTAL GROSS WEIGHT': '303,000', 'MARKS & NOS': 'INNOPLUS',
       'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.QINGDAO_JIFA,
+      ...IV03,
       'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.',
       'Vessel Name': 'MV THAI SPIRIT', 'Gross Weight': '303,000 KG',
       'GI Date': '03 Mar 2026', 'ETD Date': '03 Mar 2026', 'Manual Billing Date': '03 Mar 2026',
@@ -481,6 +482,9 @@ export const mockTasks: Task[] = [
         'TOTAL NET WEIGHT': '300,000', 'TOTAL GROSS WEIGHT': '303,000', 'MARKS & NOS': 'INNOPLUS',
         'ORIGINAL SHIPPING DOCUMENTS AND COPY': SI_ADDR.QINGDAO_JIFA,
       }),
+      ...insDocs('doc-T03', IV03),
+      ...dblDocs('doc-T03', { 'Shipper': 'PTT Global Chemical PCL', 'Consignee': 'Qingdao Jifa Group Co., Ltd.', 'Vessel Name': 'MV THAI SPIRIT', 'Gross Weight': '303,000 KG' }),
+      oblDoc('doc-T03', '03 Mar 2026'),
     ],
   },
 
