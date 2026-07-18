@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import type { ChangeEvent } from 'react';
 import { useLocalStorage } from './hooks/useLocalStorage';
 import Navbar from './components/Navbar';
 import TaskTable from './components/TaskTable';
@@ -11,8 +12,8 @@ import { mockTasks, deriveOverallStatus, insDocs, dblDocs } from './data/mockDat
 import type { Task, TaskStatus, VerificationStatus, Verifications } from './data/mockData';
 import type { UploadState } from './components/DocumentUploadGate';
 import { computeVerificationStatus, hasVerificationData } from './utils/comparison';
-import { validateFileName } from './utils/validation';
-import { deleteFilesForTask } from './utils/fileStorage';
+import { validateFileName, validateCFFileName } from './utils/validation';
+import { saveFile, deleteFilesForTask } from './utils/fileStorage';
 
 export type VerificationType = 'customFormality' | 'insurance' | 'draftBL' | 'blDate';
 export type ActionLog = { action: 'verified' | 'approve' | 'reject'; timestamp: string; by: string; reason?: string; remark?: string };
@@ -75,6 +76,106 @@ function getEffectiveVerifications(task: Task): Verifications {
     insurance: getTabStatus('insurance'),
     draftBL: getTabStatus('draftBL'),
     blDate: getTabStatus('blDate'),
+  };
+}
+
+// ─── Generate a fully-populated task from an uploaded CF document ─────────────
+const CF_CLONE_TYPES = new Set(['Shipping Advice', 'Custom Invoice', 'Packing List', 'Letter of Credit', 'Shipping Instruction']);
+
+function formatDateDMY(date: Date): string {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${String(date.getDate()).padStart(2, '0')} ${months[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+function generateUploadedTask(allCurrentTasks: Task[], defaultAssignee: string, fileName?: string): Task {
+  let newInvoiceNo: string;
+
+  // Format: CustomsFormality_<CI no>_<yyyymmdd>.pdf
+  const fileMatch = fileName?.match(/^CustomsFormality_(.+)_\d{8}\.pdf$/i);
+  if (fileMatch) {
+    newInvoiceNo = fileMatch[1];
+  } else {
+    const maxNum = allCurrentTasks
+      .map(t => parseInt(t.correctValues['INVOICE NO.'] ?? '0', 10))
+      .filter(n => n > 1000000000)
+      .reduce((max, n) => Math.max(max, n), 1015050020);
+    newInvoiceNo = String(maxNum + 1);
+  }
+
+  const newRefNo = `325201${newInvoiceNo.slice(-4)}`;
+
+  // Fall back to any task if no Match ones exist
+  const cfTasks = mockTasks.filter(t => t.verifications.customFormality === 'Match');
+  const templatePool = cfTasks.length > 0 ? cfTasks : mockTasks;
+  const template = templatePool[Math.floor(Math.random() * templatePool.length)];
+
+  const oldInvoice = template.correctValues['INVOICE NO.'];
+  const oldRef = template.correctValues['REF NO.'];
+  const newId = `upload-${Date.now()}`;
+
+  const todayDMY = formatDateDMY(new Date());
+  const todayISO = new Date().toLocaleDateString('en-CA');
+
+  const correctValues: Record<string, string> = { ...template.correctValues };
+  for (const [key, val] of Object.entries(correctValues)) {
+    if (typeof val === 'string') {
+      correctValues[key] = val
+        .replace(new RegExp(oldInvoice, 'g'), newInvoiceNo)
+        .replace(new RegExp(oldRef, 'g'), newRefNo);
+    }
+  }
+  correctValues['GI Date'] = todayDMY;
+  correctValues['Manual Billing Date'] = todayDMY;
+  correctValues['CF Receive Date'] = todayISO;
+  delete correctValues['ETD Date'];
+
+  const DATE_FIELD_KEYS = new Set(['etd_date', 'gi_date', 'billing_date', 'date', 'loading_date', 'issue_date', 'bl_date']);
+  const documents = template.documents
+    .filter(doc => CF_CLONE_TYPES.has(doc.type))
+    .map(doc => {
+      const values = { ...doc.values };
+      for (const [key, val] of Object.entries(values)) {
+        if (typeof val === 'string') {
+          let v = val
+            .replace(new RegExp(oldInvoice, 'g'), newInvoiceNo)
+            .replace(new RegExp(oldRef, 'g'), newRefNo);
+          if (DATE_FIELD_KEYS.has(key.toLowerCase())) v = todayDMY;
+          values[key] = v;
+        }
+      }
+      return {
+        ...doc,
+        id: `${newId}-${doc.type.toLowerCase().replace(/[\s/]+/g, '-')}`,
+        values,
+      };
+    });
+
+  // For CIs starting with "99", simulate missing documents (1–3 doc types removed)
+  const finalDocuments = newInvoiceNo.startsWith('99')
+    ? (() => {
+        const allTypes = Array.from(CF_CLONE_TYPES);
+        const numToRemove = Math.floor(Math.random() * 3) + 1;
+        const shuffled = [...allTypes].sort(() => Math.random() - 0.5);
+        const toRemove = new Set(shuffled.slice(0, numToRemove));
+        return documents.filter(d => !toRemove.has(d.type));
+      })()
+    : documents;
+
+  return {
+    ...template,
+    id: newId,
+    assignedTo: defaultAssignee,
+    submittedDate: new Date().toISOString(),
+    status: 'Pending',
+    verifications: {
+      customFormality: 'Match',
+      insurance: 'Pending Verification',
+      draftBL: 'Pending Verification',
+      blDate: 'Pending Verification',
+    },
+    correctValues,
+    documents: finalDocuments,
+    lastUpdate: new Date().toISOString(),
   };
 }
 
@@ -286,6 +387,9 @@ export default function App() {
     }
   }
 
+  const [processingUpload, setProcessingUpload] = useState(false);
+  const uploadCFRef = useRef<HTMLInputElement>(null);
+
   const availableUsers = useMemo(() => {
     const emails = new Set(mockTasks.map(t => t.assignedTo));
     emails.add('admin.admin@pttgcgroup.com');
@@ -323,6 +427,59 @@ export default function App() {
       }
       return [...prev, nextOverride as any];
     });
+  }
+
+  function handleCFUploadChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const { error, invoiceNo } = validateCFFileName(file.name);
+    if (error) {
+      alert(error);
+      e.target.value = '';
+      return;
+    }
+
+    if (invoiceNo) {
+      const existingTask = tasks.find(t => (t.correctValues['INVOICE NO.'] || t.id) === invoiceNo);
+      if (existingTask) {
+        alert(`CI No. ${invoiceNo} already exists. Please upload the revised document in the Custom Formality page instead.`);
+        e.target.value = '';
+        return;
+      }
+    }
+
+    e.target.value = '';
+    const url = URL.createObjectURL(file);
+
+    setProcessingUpload(true);
+    setTimeout(() => {
+      setProcessingUpload(false);
+      const snapshot = [...uploadedTaskDefs, ...tasks];
+      const newTask = generateUploadedTask(snapshot, CURRENT_USER, file.name);
+
+      const rawMissing = Array.from(CF_CLONE_TYPES).filter(
+        type => !newTask.documents.some((d: any) => d.type === type)
+      );
+      if (rawMissing.length > 0) {
+        const lcMissing = rawMissing.includes('Letter of Credit');
+        const siMissing = rawMissing.includes('Shipping Instruction');
+        // LC and SI are mutually exclusive — only one is required per shipment
+        const finalMissing = rawMissing
+          .filter(t => t !== 'Letter of Credit' && t !== 'Shipping Instruction')
+          .concat(lcMissing && siMissing ? ['Letter of Credit/Shipping Instruction'] : []);
+        if (finalMissing.length > 0) {
+          newTask.correctValues['CF_MISSING_DOCS'] = finalMissing.join(',');
+        }
+      }
+
+      saveFile(`${newTask.id}:customFormality`, file);
+      setFileUrls(prev => ({
+        ...prev,
+        [newTask.id]: { ...(prev[newTask.id] ?? {}), customFormality: url }
+      }));
+      setUploadedTaskDefs(prev => [newTask, ...prev]);
+    }, 3000);
   }
 
   function handleAssignTask(taskId: string, email: string) {
@@ -786,7 +943,9 @@ export default function App() {
                 onToggleShowAllApproved={() => { setShowAllApproved(v => !v); setTaskPage(1); }}
                 allApprovedCount={allApprovedHidden.length}
                 onReset={() => { setSearch(''); setTabFilters({ customFormality: 'All', insurance: 'All', draftBL: 'All', blDate: 'All' }); setDateFrom(''); setDateTo(''); setShowAllApproved(false); setTaskPage(1); }}
+                onUploadClick={() => uploadCFRef.current?.click()}
               />
+              <input ref={uploadCFRef} type="file" accept="*" className="hidden" onChange={handleCFUploadChange} />
               <div className="flex-1 min-h-0 overflow-hidden">
                 <TaskTable
                   tasks={filteredTasks}
@@ -812,6 +971,19 @@ export default function App() {
                   )}
                 />
               </div>
+            </div>
+          </div>
+        )}
+
+        {processingUpload && (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60]">
+            <div className="bg-white rounded-xl px-10 py-8 flex flex-col items-center gap-4 shadow-2xl">
+              <svg className="w-10 h-10 text-[#0056b8] animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+              <p className="text-sm font-semibold text-gray-800">Processing document…</p>
+              <p className="text-xs text-gray-400">Extracting and verifying field data</p>
             </div>
           </div>
         )}

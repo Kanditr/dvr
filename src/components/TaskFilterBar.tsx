@@ -134,9 +134,10 @@ interface TaskFilterBarProps {
   showAllApproved: boolean;
   onToggleShowAllApproved: () => void;
   allApprovedCount: number;
+  onUploadClick?: () => void;
 }
 
-export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTabFilterChange, dateFrom, dateTo, onDateFromChange, onDateToChange, onReset, showAllApproved, onToggleShowAllApproved, allApprovedCount }: TaskFilterBarProps) {
+export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTabFilterChange, dateFrom, dateTo, onDateFromChange, onDateToChange, onReset, showAllApproved, onToggleShowAllApproved, allApprovedCount, onUploadClick }: TaskFilterBarProps) {
   const dateFromRef = useRef<HTMLInputElement>(null);
   const dateToRef = useRef<HTMLInputElement>(null);
 
@@ -199,65 +200,80 @@ export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTa
       </div>
 
       {/* Loading Date range + Reset — second row */}
-      <div className="flex items-end gap-4">
-        <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Loading Date</label>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-500">From</span>
-              <div
-                className="relative cursor-pointer"
-                onClick={() => {
-                  try { dateFromRef.current?.showPicker(); } catch { dateFromRef.current?.focus(); }
-                }}
-              >
-                <input
-                  type="text"
-                  readOnly
-                  value={dateFrom ? dateFrom.split('-').reverse().join('/') : ''}
-                  placeholder="dd/mm/yyyy"
-                  className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px] cursor-pointer"
-                />
-                <input
-                  ref={dateFromRef}
-                  type="date"
-                  value={dateFrom}
-                  max={dateTo || undefined}
-                  onChange={e => onDateFromChange(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full"
-                />
+      <div className="flex items-end justify-between gap-4">
+        <div className="flex items-end gap-4">
+          <div className="flex flex-col gap-0.5">
+            <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Loading Date</label>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500">From</span>
+                <div
+                  className="relative cursor-pointer"
+                  onClick={() => {
+                    try { dateFromRef.current?.showPicker(); } catch { dateFromRef.current?.focus(); }
+                  }}
+                >
+                  <input
+                    type="text"
+                    readOnly
+                    value={dateFrom ? dateFrom.split('-').reverse().join('/') : ''}
+                    placeholder="dd/mm/yyyy"
+                    className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px] cursor-pointer"
+                  />
+                  <input
+                    ref={dateFromRef}
+                    type="date"
+                    value={dateFrom}
+                    max={dateTo || undefined}
+                    onChange={e => onDateFromChange(e.target.value)}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-gray-500">To</span>
-              <div
-                className="relative cursor-pointer"
-                onClick={() => {
-                  try { dateToRef.current?.showPicker(); } catch { dateToRef.current?.focus(); }
-                }}
-              >
-                <input
-                  type="text"
-                  readOnly
-                  value={dateTo ? dateTo.split('-').reverse().join('/') : ''}
-                  placeholder="dd/mm/yyyy"
-                  className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px] cursor-pointer"
-                />
-                <input
-                  ref={dateToRef}
-                  type="date"
-                  value={dateTo}
-                  min={dateFrom || undefined}
-                  onChange={e => onDateToChange(e.target.value)}
-                  className="absolute inset-0 opacity-0 cursor-pointer w-full"
-                />
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-500">To</span>
+                <div
+                  className="relative cursor-pointer"
+                  onClick={() => {
+                    try { dateToRef.current?.showPicker(); } catch { dateToRef.current?.focus(); }
+                  }}
+                >
+                  <input
+                    type="text"
+                    readOnly
+                    value={dateTo ? dateTo.split('-').reverse().join('/') : ''}
+                    placeholder="dd/mm/yyyy"
+                    className="px-2 py-2 text-sm border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white w-[110px] cursor-pointer"
+                  />
+                  <input
+                    ref={dateToRef}
+                    type="date"
+                    value={dateTo}
+                    min={dateFrom || undefined}
+                    onChange={e => onDateToChange(e.target.value)}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full"
+                  />
+                </div>
               </div>
             </div>
           </div>
+          <button onClick={onReset} className="text-sm text-[#0056b8] hover:underline pb-[9px]">
+            Reset Filter
+          </button>
         </div>
-        <button onClick={onReset} className="text-sm text-[#0056b8] hover:underline pb-[9px]">
-          Reset Filter
-        </button>
+
+        {onUploadClick && (
+          <button
+            type="button"
+            onClick={onUploadClick}
+            className="flex items-center gap-1.5 h-[38px] px-4 text-sm font-medium bg-[#0056b8] text-white rounded hover:bg-[#004a9f] transition-colors whitespace-nowrap"
+          >
+            <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 14v5h16v-5M12 3v12M7 8l5-5 5 5" />
+            </svg>
+            Upload Custom Formality
+          </button>
+        )}
       </div>
     </div>
   );
