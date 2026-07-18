@@ -170,7 +170,7 @@ export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTas
                 </th>
               ))}
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
-                1st Received Date
+                Loading Date
               </th>
               <th className={`${thBase} px-4 select-none whitespace-nowrap`}>
                 Last Modified

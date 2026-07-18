@@ -17,6 +17,7 @@ interface BLDateTableProps {
   task: Task;
   onUpdateTask: (task: Task) => void;
   isReadOnly?: boolean;
+  isPending?: boolean;
 }
 
 function EditableValue({ value, onSave, isReadOnly, emptyDisplay = '' }: { value: string, onSave: (v: string) => void, isReadOnly?: boolean, emptyDisplay?: string }) {
@@ -233,7 +234,7 @@ function DashStatusToggle({ override, onChange, isReadOnly }: { override: 'match
   );
 }
 
-export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTableProps) {
+export default function BLDateTable({ task, onUpdateTask, isReadOnly, isPending }: BLDateTableProps) {
   const [fieldFilter, setFieldFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -400,27 +401,32 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
           <thead>
             <tr className="bg-[#d9ecf3] border-b border-gray-200">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36">Field</th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">Original B/L</th>
-              {<th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">DocXPort</th>}
+              {!isPending && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">Original B/L</th>}
+              {!isPending && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap">DocXPort</th>}
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28">Status</th>
             </tr>
           </thead>
           <tbody>
-            {!hasData && (
+            {isPending && (
+              <tr>
+                <td colSpan={2} className="px-6 py-6" />
+              </tr>
+            )}
+            {!isPending && !hasData && (
               <tr>
                 <td colSpan={3} className="px-6 py-10 text-sm text-gray-400">
                   No transaction found. Original B/L information has not yet been received from the source.
                 </td>
               </tr>
             )}
-            {hasData && rows.length === 0 && (
+            {!isPending && hasData && rows.length === 0 && (
               <tr>
                 <td colSpan={3} className="px-4 py-8 text-center text-sm text-gray-400">
                   No rows match the current filter.
                 </td>
               </tr>
             )}
-            {hasData && rows.map((row, idx) => (
+            {!isPending && hasData && rows.map((row, idx) => (
               <tr key={row.fieldName} className={`border-b border-gray-200 ${idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white'}`}>
                 <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4">
                   {row.fieldName}

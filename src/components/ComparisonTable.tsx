@@ -369,6 +369,9 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
     ? ['Matched', 'Matched w/Condition', 'Mismatched']
     : ['Matched', 'Mismatched'];
 
+  const visibleDocs = isIncomplete ? [] : docs;
+  const displayRows = isIncomplete ? [] : rows;
+
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-4 py-3 border-b border-gray-200 flex items-center gap-3 flex-wrap bg-white shrink-0">
@@ -384,19 +387,19 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
           <thead>
             <tr className="bg-[#d9ecf3] border-b border-gray-200">
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-36 sticky top-0 left-0 z-30 bg-[#d9ecf3]">Field</th>
-              {!isIncomplete && docs.map((doc) => (
+              {visibleDocs.map((doc) => (
                 <th key={doc.id} className="px-4 py-3 text-left text-xs font-semibold whitespace-nowrap text-gray-700 sticky top-0 z-10 bg-[#d9ecf3]">{doc.type}</th>
               ))}
               <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 whitespace-nowrap w-28 sticky top-0 z-10 bg-[#d9ecf3]">Status</th>
             </tr>
           </thead>
           <tbody>
-            {isIncomplete && (
+            {isIncomplete && displayRows.length === 0 && (
               <tr>
                 <td colSpan={2} className="px-6 py-6" />
               </tr>
             )}
-            {!isIncomplete && rows.map((row, idx) => {
+            {displayRows.map((row, idx) => {
               const rowBg = idx % 2 !== 0 ? 'bg-[#f8f9fa]' : 'bg-white';
               const hasSIOption = verificationType === 'customFormality' &&
                 docs.some((doc, ci) => doc.type === 'Shipping Instruction' && row.cells[ci]?.isApplicable);
@@ -405,15 +408,16 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
                   <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4 sticky left-0 z-10 bg-inherit">
                     {row.canonicalField}
                   </td>
-                  {row.cells.map((cell, ci) => {
-                    const doc = docs[ci];
+                  {visibleDocs.map((doc) => {
+                    const ci = docs.findIndex(d => d.id === doc.id);
+                    const cell = row.cells[ci];
                     const editKey = `${verificationType}:${row.canonicalField}:${doc.id}`;
                     const isEdited = !!task.manuallyEditedCells?.[editKey];
                     const history = task.fieldEditHistory?.[editKey] ?? [];
                     const isMatch = frozenMatches[`${verificationType}:${row.canonicalField}:${doc.id}`] ?? false;
                     return (
                       <HistoryCellContent
-                        key={ci}
+                        key={doc.id}
                         history={history}
                         currentValue={cell.value}
                         isEdited={isEdited}
@@ -431,7 +435,7 @@ export default function ComparisonTable({ task, verificationType, onUpdateTask, 
                 </tr>
               );
             })}
-            {rows.length === 0 && (
+            {!isIncomplete && rows.length === 0 && (
               <tr>
                 <td colSpan={docs.length + 2} className="px-4 py-8 text-center text-sm text-gray-400">No rows match the current filter.</td>
               </tr>

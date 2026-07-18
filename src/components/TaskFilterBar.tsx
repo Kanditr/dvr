@@ -199,10 +199,10 @@ export default function TaskFilterBar({ search, onSearchChange, tabFilters, onTa
 
       </div>
 
-      {/* 1st Received Date range + Reset — second row */}
+      {/* Loading Date range + Reset — second row */}
       <div className="flex items-end gap-4">
         <div className="flex flex-col gap-0.5">
-          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">1st Received Date</label>
+          <label className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Loading Date</label>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-gray-500">From</span>
