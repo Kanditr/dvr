@@ -71,7 +71,7 @@ interface TaskTableProps {
   tabFilters: Record<VerificationType, VerificationStatus[] | 'All'>;
   onSelectTask: (taskId: string, tab: VerificationType) => void;
   page: number;
-  onPageChange: (page: number) => void;
+  onPageChange: React.Dispatch<React.SetStateAction<number>>;
   isAdmin?: boolean;
   uploadedTaskIds?: Set<string>;
   removableTaskIds?: Set<string>;
@@ -83,7 +83,7 @@ interface TaskTableProps {
 
 const PAGE_SIZE = 20;
 
-export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, isAdmin, uploadedTaskIds = new Set(), removableTaskIds = new Set(), availableUsers = [], onAssignTask, onRemoveTask, firstReceivedDates = {} }: TaskTableProps) {
+export default function TaskTable({ tasks, uploadStates, tabFilters, onSelectTask, page, onPageChange, uploadedTaskIds = new Set(), onRemoveTask, firstReceivedDates = {} }: TaskTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('id');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);

@@ -117,8 +117,8 @@ function exportBlDateTab(task: Task, filename: string) {
 
 // ── Comparison tabs ───────────────────────────────────────────────────────────
 
-function exportComparisonTab(task: Task, docs: ShipDoc[], filename: string) {
-  const compRows = buildComparisonRows({ ...task, documents: docs });
+function exportComparisonTab(task: Task, docs: ShipDoc[], filename: string, verificationType: VerificationType) {
+  const compRows = buildComparisonRows({ ...task, documents: docs }, verificationType);
 
   const headers = ['Field', ...docs.map(d => d.type), 'Status'];
   const rows: (string | number)[][] = compRows.map(row => [
@@ -149,5 +149,5 @@ export function exportVerificationTab(task: Task, verificationType: Verification
 
   const docs = getDocsForVerification(task, verificationType);
 
-  exportComparisonTab(task, docs, filename);
+  exportComparisonTab(task, docs, filename, verificationType);
 }

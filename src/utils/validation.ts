@@ -5,11 +5,11 @@
  * @returns { error?: string; invoiceNo?: string; revNum?: number }
  */
 export function validateFileName(
-  fileName: string, 
-  expectedPrefix: string, 
-  expectedInvoiceNo?: string, 
+  fileName: string,
+  expectedPrefix: string,
+  expectedInvoiceNo?: string,
   latestRevision: number = 0
-) {
+): { error?: string; invoiceNo?: string; revNum?: number } {
   // Relaxed regex: allows any extension and captures prefix, invoice, and revision if they exist
   const nameRegex = /^([A-Z_]+)_(.+)Rev(\d+)(\.[^.]+)?$/i;
   const match = fileName.match(nameRegex);
