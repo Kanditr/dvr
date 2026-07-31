@@ -11,7 +11,7 @@ import { mockTasks, deriveOverallStatus, insDocs, dblDocs } from './data/mockDat
 import type { Task, TaskStatus, VerificationStatus, Verifications } from './data/mockData';
 import type { UploadState } from './components/DocumentUploadGate';
 import { computeVerificationStatus } from './utils/comparison';
-import { validateFileName, validateCFFileName } from './utils/validation';
+import { validateCFFileName } from './utils/validation';
 import { saveFile, deleteFilesForTask } from './utils/fileStorage';
 
 export type VerificationType = 'customFormality' | 'insurance' | 'draftBL' | 'blDate';
@@ -173,7 +173,7 @@ export default function App() {
   const isAdmin = CURRENT_USER === 'admin.admin@pttgcgroup.com';
 
   const [view, setView] = useState<View>(parseHash);
-  const [prevView, setPrevView] = useState<View>({ page: 'home' });
+  const [prevView, _setPrevView] = useState<View>({ page: 'home' });
 
   // Per-user auto-approve toggle — stored as {email: boolean} so the hook key stays stable
   const [autoApprovePerUser, setAutoApprovePerUser] = useLocalStorage<Record<string, boolean>>('dvr:autoApprovePerUser', {});
@@ -189,7 +189,7 @@ export default function App() {
     'dvr:uploadStates', {}
   );
 
-  const [taskOverrides, setTaskOverrides] = useLocalStorage<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string; documents?: any[]; correctValues?: Record<string, string>; fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>; cellStatusOverrides?: Record<string, boolean>; manuallyEditedCells?: Record<string, true>; fieldEditHistory?: Record<string, Array<{ value: string; timestamp: string }>> }>('dvr:taskOverrides', []);
+  const [taskOverrides, setTaskOverrides] = useLocalStorage<Array<{ id: string; status: TaskStatus; verifications: Verifications; assignedTo?: string; documents?: any[]; correctValues?: Record<string, string>; fieldStatusOverrides?: Record<string, 'match' | 'mismatch'>; cellStatusOverrides?: Record<string, boolean>; manuallyEditedCells?: Record<string, true>; fieldEditHistory?: Record<string, Array<{ value: string; timestamp: string }>>; lastUpdate?: string }>>('dvr:taskOverrides', []);
 
   const [actionLogs, setActionLogs] = useLocalStorage<Record<string, Record<string, ActionLog>>>('dvr:actionLogs', {});
 
@@ -306,11 +306,6 @@ export default function App() {
       pendingAutoApproveRef.current.delete(item);
     });
   }, [tasks, autoApprove, CURRENT_USER]);
-
-  function applyAutoApprovePersistent(taskId: string, tab: VerificationType) {
-    if (!autoApprove) return;
-    pendingAutoApproveRef.current.add(`${taskId}|${tab}`);
-  }
 
   function incrementRevision(taskId: string, tab: string, specificRev?: number, defaultToZero?: boolean, receiveDate?: string) {
     const task = tasks.find(t => t.id === taskId);
@@ -581,16 +576,6 @@ export default function App() {
     window.scrollTo(0, 0);
   }
 
-  function handleApprove(taskId: string) {
-    updateTaskOverride(taskId, { status: 'Approved' });
-    navigateHome();
-  }
-
-  function handleReject(taskId: string) {
-    updateTaskOverride(taskId, { status: 'Rejected' });
-    navigateHome();
-  }
-
   function handleApproveVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
@@ -604,7 +589,7 @@ export default function App() {
     }));
   }
 
-  function handleUploadStateChange(taskId: string, tab: string, state: UploadState, revNum?: number) {
+  function handleUploadStateChange(taskId: string, tab: string, state: UploadState, _revNum?: number) {
     setUploadStates(prev => {
       const taskStates = { ...(prev[taskId] ?? {}), [tab]: state };
 
@@ -689,7 +674,7 @@ export default function App() {
     if (!t.documents.find(d => d.type === 'Original B/L')) {
       const newDoc = {
         id: `${taskId}-obl`,
-        type: 'Original B/L',
+        type: 'Original B/L' as const,
         fieldMapping: { 'B/L Date': 'bl_date' },
         values: { bl_date: t.correctValues['GI Date'] || '21 Mar 2026' }
       };
@@ -805,7 +790,6 @@ export default function App() {
         );
       }
     })();
-    const effectiveV = getEffectiveVerifications(t, uploadStates[t.id] ?? {});
     const matchesUser = !onlyMyTasks || t.assignedTo === CURRENT_USER;
 
     const matchesDate = (() => {
@@ -847,19 +831,6 @@ export default function App() {
     } else {
       setAutoApproveExcludedData(prev => ({ ...prev, [CURRENT_USER]: [] }));
     }
-  }
-
-  function navigateToLlmCompare() {
-    const next: View = { page: 'llm-compare' };
-    setHash(next);
-    setView(next);
-    window.scrollTo(0, 0);
-  }
-
-  function navigateToSettings() {
-    setPrevView(view);
-    setView({ page: 'settings' });
-    window.scrollTo(0, 0);
   }
 
   function navigateBack() {
