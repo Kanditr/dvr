@@ -172,8 +172,8 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
         onBlur={() => setIsEditing(false)}
         className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 cursor-pointer"
       >
-        <option value="match">Match</option>
-        <option value="mismatch">Mismatch</option>
+        <option value="match">Matched</option>
+        <option value="mismatch">Mismatched</option>
       </select>
     );
   }
@@ -185,7 +185,7 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
         disabled={isReadOnly}
         className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}
       >
-        Match
+        Matched
       </button>
     );
   }
@@ -195,46 +195,7 @@ function StatusToggle({ status, onChange, isReadOnly }: { status: 'match' | 'mis
       disabled={isReadOnly}
       className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}
     >
-      Mismatch
-    </button>
-  );
-}
-
-function DashStatusToggle({ override, onChange, isReadOnly }: { override: 'match' | 'mismatch' | undefined, onChange: (s: 'match' | 'mismatch') => void, isReadOnly?: boolean }) {
-  const [isEditing, setIsEditing] = useState(false);
-
-  if (isEditing && !isReadOnly) {
-    return (
-      <select
-        autoFocus
-        value={override ?? ''}
-        onChange={e => { onChange(e.target.value as 'match' | 'mismatch'); setIsEditing(false); }}
-        onBlur={() => setIsEditing(false)}
-        className="text-xs border border-gray-300 rounded px-2 py-1 focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 cursor-pointer"
-      >
-        <option value="" disabled>Select...</option>
-        <option value="match">Match</option>
-        <option value="mismatch">Mismatch</option>
-      </select>
-    );
-  }
-
-  if (override === 'match') return (
-    <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
-      className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#ebf7ed] text-[#267d36] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#d4ecd8] cursor-pointer'}`}>
-      Match
-    </button>
-  );
-  if (override === 'mismatch') return (
-    <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
-      className={`inline-flex items-center px-2 h-6 rounded-full text-xs font-medium bg-[#fef5e5] text-[#ac6f00] focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:bg-[#faeed6] cursor-pointer'}`}>
-      Mismatch
-    </button>
-  );
-  return (
-    <button onClick={() => !isReadOnly && setIsEditing(true)} disabled={isReadOnly}
-      className={`text-gray-300 px-1 h-6 text-sm focus:outline-none ${isReadOnly ? 'cursor-default' : 'hover:text-gray-500 cursor-pointer'}`}>
-      —
+      Mismatched
     </button>
   );
 }
@@ -263,7 +224,7 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
   const rows = allRows.filter(row => {
     if (fieldFilter && row.fieldName !== fieldFilter) return false;
     if (statusFilter) {
-      const label = row.isMatch ? 'Match' : 'Mismatch';
+      const label = row.isMatch ? 'Matched' : 'Mismatched';
       if (label !== statusFilter) return false;
     }
     return true;
@@ -381,8 +342,8 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
               className="appearance-none pl-3 pr-8 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:border-[#0056b8] bg-white text-gray-700 min-w-[120px]"
             >
               <option value="">All</option>
-              <option value="Match">Match</option>
-              <option value="Mismatch">Mismatch</option>
+              <option value="Matched">Matched</option>
+              <option value="Mismatched">Mismatched</option>
             </select>
             <svg className="absolute right-2 top-2 w-3 h-3 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -424,7 +385,7 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
                 <td className="px-4 py-3 text-xs font-semibold text-gray-700 whitespace-nowrap align-top pt-4">
                   {row.fieldName}
                 </td>
-                <td className="px-4 py-3 align-top bg-[#ebf7ed]">
+                <td className={`px-4 py-3 align-top ${row.isMatch ? 'bg-[#ebf7ed]' : 'bg-[#fef5e5]'}`}>
                   <span className="block text-xs text-gray-500 mb-0.5">B/L Date</span>
                   <EditableValue
                     value={blDateRaw}
@@ -444,8 +405,8 @@ export default function BLDateTable({ task, onUpdateTask, isReadOnly }: BLDateTa
                 />
 
                 <td className="px-4 py-3 whitespace-nowrap align-top pt-4">
-                  <DashStatusToggle
-                    override={row.rawOverride}
+                  <StatusToggle
+                    status={row.overriddenStatus}
                     onChange={(next) => handleToggleStatus(row.fieldName, next)}
                     isReadOnly={isReadOnly}
                   />
