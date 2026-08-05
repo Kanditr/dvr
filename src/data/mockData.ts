@@ -19,6 +19,7 @@ export type VerificationStatus =
   | 'Match'
   | 'Match with condition'
   | 'Approved'
+  | 'Approved with condition'
   | 'Incomplete';
 
 export interface Verifications {
@@ -53,7 +54,7 @@ export function deriveOverallStatus(v: Verifications): TaskStatus {
   if (statuses.includes('Incomplete')) return 'Attention';
   if (statuses.includes('Attention')) return 'Attention';
   if (statuses.includes('Pending Verification')) return 'Pending';
-  if (statuses.every(s => s === 'Approved')) return 'Approved';
+  if (statuses.every(s => s === 'Approved' || s === 'Approved with condition')) return 'Approved';
   return 'Match';
 }
 

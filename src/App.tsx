@@ -143,7 +143,7 @@ export default function App() {
       const newVerifications: Verifications = { ...baseVerifications };
       const tabs: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
       for (const tab of tabs) {
-        if (newVerifications[tab] !== 'Approved' && newVerifications[tab] !== 'Rejected') {
+        if (newVerifications[tab] !== 'Approved' && newVerifications[tab] !== 'Approved with condition' && newVerifications[tab] !== 'Rejected') {
           const computed = computeVerificationStatus(overrides as Task, tab);
           if (computed) {
             newVerifications[tab] = computed;
@@ -440,7 +440,11 @@ export default function App() {
   function handleApproveVerification(taskId: string, verificationType: VerificationType, reason?: string, remark?: string) {
     const t = tasks.find(x => x.id === taskId);
     if (!t) return;
-    const verifications = { ...t.verifications, [verificationType]: 'Approved' as VerificationStatus };
+    const targetStatus: VerificationStatus =
+      verificationType === 'customFormality' && t.verifications[verificationType] === 'Match with condition'
+        ? 'Approved with condition'
+        : 'Approved';
+    const verifications = { ...t.verifications, [verificationType]: targetStatus };
     const effective = getEffectiveVerifications({ ...t, verifications });
     updateTaskOverride(taskId, { verifications, status: deriveOverallStatus(effective) });
 

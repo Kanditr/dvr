@@ -53,6 +53,7 @@ const STATUS_CONFIG: Record<VerificationStatus, { bg: string; text: string }> = 
   'Match': { bg: 'bg-[#ebf7ed]', text: 'text-[#267d36]' },
   'Match with condition': { bg: 'bg-[#e0f5f5]', text: 'text-[#0e7c7c]' },
   'Approved': { bg: 'bg-[#e8f0fb]', text: 'text-[#0056b8]' },
+  'Approved with condition': { bg: 'bg-[#e8f0fb]', text: 'text-[#0056b8]' },
   'Incomplete': { bg: 'bg-[#faeaea]', text: 'text-[#8c1d1d]' },
 };
 
@@ -60,6 +61,7 @@ const STATUS_LABEL: Record<VerificationStatus, string> = {
   'Match': 'Match',
   'Match with condition': 'Match w/ Condition',
   'Approved': 'Approved',
+  'Approved with condition': 'Approved w/ Condition',
   'Attention': 'Attention',
   'Rejected': 'Rejected',
   'Pending Verification': 'Pending',
@@ -377,7 +379,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     }
 
     e.target.value = '';
-    const wasActioned = task.verifications[activeTab] === 'Approved' || task.verifications[activeTab] === 'Rejected';
+    const wasActioned = task.verifications[activeTab] === 'Approved' || task.verifications[activeTab] === 'Approved with condition' || task.verifications[activeTab] === 'Rejected';
     setReUploadPending(true);
     const url = URL.createObjectURL(file);
     setTimeout(() => {
@@ -488,14 +490,17 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
     else if (activeTab === 'customFormality' && s === 'Pending Verification') s = 'Attention';
     return s;
   })();
-  const isTabActioned = activeTabStatus === 'Approved' || activeTabStatus === 'Rejected';
+  const isTabActioned = activeTabStatus === 'Approved' || activeTabStatus === 'Approved with condition' || activeTabStatus === 'Rejected';
 
   // Auto-approve only applies to tasks assigned to the current user, and not to manually edited tabs
   useEffect(() => {
     if (!autoApprove || task.assignedTo !== currentUser) return;
     const tabs: VerificationType[] = ['customFormality', 'insurance', 'draftBL', 'blDate'];
     for (const tab of tabs) {
-      if (effectiveVerifications[tab] !== 'Match') continue;
+      const eligible = tab === 'customFormality'
+        ? effectiveVerifications[tab] === 'Match' || effectiveVerifications[tab] === 'Match with condition'
+        : effectiveVerifications[tab] === 'Match';
+      if (!eligible) continue;
       if (autoApproveExcluded.has(`${task.id}:${tab}`)) continue;
       if (manuallyEditedTabs.has(tab)) continue;
       onApproveVerification(tab, 'Auto Approved', 'Auto Approved is enabled in Settings');
@@ -648,14 +653,18 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                 })()}
               </div>
               <div className="flex items-center gap-3">
-                {/* Re-upload for insurance / draftBL once both files are already loaded */}
-                {isUploadTab && currentUploadState === 'done' && (
-                  <>
+                {/* View / Upload / Re-upload for insurance / draftBL / blDate — View buttons grey out until a file has been received */}
+                {isUploadTab && (() => {
+                  const hasFile = currentUploadState === 'done';
+                  const viewBtnClass = `inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border rounded-md transition-colors shrink-0 ${hasFile ? 'border-gray-300 text-gray-600 hover:bg-gray-50' : 'border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed'}`;
+                  return (
+                    <>
                     {activeTab === 'insurance' ? (
                       <>
                         <button
-                          onClick={() => window.open(displayFileUrls['insurance:detail'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                          onClick={() => hasFile && window.open(displayFileUrls['insurance:detail'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          disabled={!hasFile}
+                          className={viewBtnClass}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -664,8 +673,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                           View Detail Insurance
                         </button>
                         <button
-                          onClick={() => window.open(displayFileUrls['insurance:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                          onClick={() => hasFile && window.open(displayFileUrls['insurance:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          disabled={!hasFile}
+                          className={viewBtnClass}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -677,8 +687,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     ) : activeTab === 'draftBL' ? (
                       <>
                         <button
-                          onClick={() => window.open(displayFileUrls['draftBL:shipping'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                          onClick={() => hasFile && window.open(displayFileUrls['draftBL:shipping'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          disabled={!hasFile}
+                          className={viewBtnClass}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -687,8 +698,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                           View Shipping Particular
                         </button>
                         <button
-                          onClick={() => window.open(displayFileUrls['draftBL:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
-                          className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                          onClick={() => hasFile && window.open(displayFileUrls['draftBL:draft'] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                          disabled={!hasFile}
+                          className={viewBtnClass}
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -699,8 +711,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       </>
                     ) : (
                       <button
-                        onClick={() => window.open(displayFileUrls[activeTab] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium border border-gray-300 text-gray-600 rounded-md hover:bg-gray-50 transition-colors shrink-0"
+                        onClick={() => hasFile && window.open(displayFileUrls[activeTab] || 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf', '_blank')}
+                        disabled={!hasFile}
+                        className={viewBtnClass}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -711,9 +724,6 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                     )}
                     <button
                       onClick={() => {
-                        const isApproved = task.verifications[activeTab] === 'Approved';
-                        const isRejected = task.verifications[activeTab] === 'Rejected';
-
                         setIsReUploading(true);
                         setViewingRevision(prev => ({ ...prev, [activeTab]: latestRevision })); // Jump back to latest on re-upload
 
@@ -737,8 +747,9 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
                       </svg>
                       Upload File
                     </button>
-                  </>
-                )}
+                    </>
+                  );
+                })()}
                 {/* Upload File always available for Custom Formality / B/L Date */}
                 {!isUploadTab && (
                   <>
@@ -816,7 +827,7 @@ export default function CiOverviewPage({ task, activeTab, onTabChange, onBack, o
             <div className={`px-6 py-3 border-b border-gray-200 shrink-0 text-xs ${displayActionLog.action === 'approve' ? 'bg-[#ebf7ed]' : 'bg-[#faeaea]'}`}>
               <span className="font-semibold text-gray-700">Status: </span>
               <span className={`font-medium ${displayActionLog.action === 'approve' ? 'text-[#267d36]' : 'text-[#8c1d1d]'}`}>
-                {displayActionLog.action === 'approve' ? 'Approved' : 'Rejected'}
+                {displayActionLog.action === 'approve' ? STATUS_LABEL[activeTabStatus] : 'Rejected'}
               </span>
               {displayActionLog.reason && (
                 <span className="text-gray-600">, {displayActionLog.reason} </span>

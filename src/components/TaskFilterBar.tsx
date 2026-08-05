@@ -7,7 +7,7 @@ const VERIFICATION_STATUSES: VerificationStatus[] = [
 ];
 
 const NO_PENDING_DOC_STATUSES: VerificationStatus[] = [
-  'Attention', 'Match', 'Match with condition', 'Approved', 'Rejected', 'Incomplete',
+  'Attention', 'Match', 'Match with condition', 'Approved', 'Approved with condition', 'Rejected', 'Incomplete',
 ];
 
 const TAB_STATUSES: Record<VerificationType, VerificationStatus[]> = {
@@ -21,6 +21,7 @@ const VERIFICATION_STATUS_LABEL: Record<VerificationStatus, string> = {
   'Match': 'Match',
   'Match with condition': 'Match w/ Condition',
   'Approved': 'Approved',
+  'Approved with condition': 'Approved w/ Condition',
   'Attention': 'Attention',
   'Rejected': 'Rejected',
   'Pending Verification': 'Pending',
